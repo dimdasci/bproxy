@@ -101,6 +101,7 @@ bproxy navigate <url>                # go to URL, wait for load
 bproxy click <selector>              # click element
 bproxy type <selector> <text>        # clear field, type text
 bproxy text [selector]               # read text (default: body)
+bproxy images [selector]             # list images with src and alt
 bproxy elements                      # list interactive elements
 bproxy screenshot                    # capture visible viewport
 bproxy eval <code>                   # run JS in page context
@@ -163,7 +164,34 @@ Rules for element collection:
 - `text` is trimmed, max 80 chars.
 - Cap at 200 elements. If more, return `"truncated": true` and suggest the agent narrow scope with `bproxy elements <selector>` (scoped to a container).
 
-### 2.4 `bproxy help`
+### 2.4 `bproxy images`
+
+Returns a flat list of images on the page. Agents use this to understand visual content, find logos, product images, captchas, or any image-based information.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "images": [
+      { "index": 1, "src": "https://example.com/logo.png", "alt": "Company Logo", "width": 200, "height": 60, "selector": "img.logo" },
+      { "index": 2, "src": "https://example.com/hero.jpg", "alt": "", "width": 1200, "height": 400, "selector": "img.hero-banner" },
+      { "index": 3, "src": "https://example.com/chart.png", "alt": "Q4 Revenue Chart", "width": 600, "height": 300, "selector": ".report img:nth-of-type(1)" }
+    ]
+  }
+}
+```
+
+Rules for image collection:
+- Only visible images with a resolved `src` (skip broken, hidden, or tracking pixels).
+- Filter out images smaller than 10×10 px (spacers, trackers).
+- `src` is the fully resolved absolute URL.
+- `alt` is returned as-is (empty string if missing — agents should note this).
+- `width` and `height` are the rendered dimensions, not the natural size.
+- `selector` is auto-generated, same strategy as `elements`.
+- Optional `[selector]` param scopes the scan to a container: `bproxy images ".product-gallery"`.
+- Cap at 100 images. If more, return `"truncated": true`.
+
+### 2.5 `bproxy help`
 
 ```
 bproxy — browser control for coding agents
@@ -174,6 +202,7 @@ Commands:
   click <selector>       Click an element
   type <selector> <text> Type into an input field
   text [selector]        Extract text content (default: body)
+  images [selector]      List images with src and alt text
   elements [selector]    List interactive elements
   screenshot             Capture visible viewport as base64 PNG
   eval <code>            Execute JavaScript in page context
@@ -186,7 +215,7 @@ Errors include an "error" code and "retry" boolean.
 
 Printed to stdout, exit 0. Short enough that an agent can consume it in one shot.
 
-### 2.5 Implementation
+### 2.6 Implementation
 
 The CLI is a single executable Node.js script. It:
 
@@ -263,7 +292,7 @@ Responsibilities:
 - Reconnect on disconnect with exponential backoff (1s, 2s, 4s, … max 30s).
 - Route incoming commands to the correct handler.
 - Commands handled directly in background: `screenshot`, `tabs`, `tab`, `status`, `navigate`.
-- Commands forwarded to content script: `click`, `type`, `text`, `elements`, `eval`.
+- Commands forwarded to content script: `click`, `type`, `text`, `images`, `elements`, `eval`.
 
 #### Navigate flow
 
@@ -288,6 +317,7 @@ Each action is a function:
 | `click`    | `querySelector(sel)` → check visibility → `.click()`. Fail if 0 or >1 match. |
 | `type`     | `querySelector(sel)` → `.focus()` → clear → dispatch `input` events per char. |
 | `text`     | `querySelector(sel)` → `.innerText`. Default selector: `body`.                |
+| `images`   | Scan for `img` tags → filter visible → return src, alt, dimensions.           |
 | `elements` | Scan for interactive tags → filter visible → generate selectors → return list.|
 | `eval`     | Inject `<script>` into page main world, collect result via custom event.      |
 
@@ -545,13 +575,14 @@ test/
 **Phase 2 — Agent ergonomics**
 
 5. `elements` command.
-6. `status` command.
-7. `eval` with main-world injection.
-8. Content script auto-re-injection on navigation.
+6. `images` command.
+7. `status` command.
+8. `eval` with main-world injection.
+9. Content script auto-re-injection on navigation.
 
 **Phase 3 — Robustness**
 
-9. Tab management (`tabs`, `tab`).
-10. Proxy request log.
-11. End-to-end test suite.
-12. `bproxy start` daemon mode (auto-start proxy from CLI).
+10. Tab management (`tabs`, `tab`).
+11. Proxy request log.
+12. End-to-end test suite.
+13. `bproxy start` daemon mode (auto-start proxy from CLI).
