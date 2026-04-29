@@ -103,6 +103,8 @@ bproxy type <selector> <text>        # clear field, type text
 bproxy text [selector]               # read text (default: body)
 bproxy images [selector]             # list images with src and alt
 bproxy elements                      # list interactive elements
+bproxy outline                       # page structure: landmarks + headings
+bproxy dom [selector] [--depth N]    # simplified DOM subtree
 bproxy screenshot                    # capture visible viewport
 bproxy eval <code>                   # run JS in page context
 bproxy tabs                          # list open tabs
@@ -191,23 +193,109 @@ Rules for image collection:
 - Optional `[selector]` param scopes the scan to a container: `bproxy images ".product-gallery"`.
 - Cap at 100 images. If more, return `"truncated": true`.
 
-### 2.5 `bproxy help`
+### 2.5 `bproxy outline`
+
+Returns the semantic structure of the page — landmarks and heading hierarchy. This is the agent's first step on an unknown page: understand the layout before interacting.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "title": "Acme Corp — Pricing",
+    "url": "https://acme.com/pricing",
+    "regions": [
+      { "tag": "header", "role": "banner",        "selector": "header",       "summary": "Acme Corp logo, nav links" },
+      { "tag": "nav",    "role": "navigation",    "selector": "nav.main-nav", "summary": "Home, Products, Pricing, Blog, Contact" },
+      { "tag": "main",   "role": "main",          "selector": "main",         "summary": "h1: Pricing Plans, 3 sections" },
+      { "tag": "aside",  "role": "complementary", "selector": "aside.faq",    "summary": "h2: FAQ, 5 items" },
+      { "tag": "footer", "role": "contentinfo",   "selector": "footer",       "summary": "Copyright, legal links" }
+    ],
+    "headings": [
+      { "level": 1, "text": "Pricing Plans",    "selector": "main h1" },
+      { "level": 2, "text": "Starter",          "selector": "#plan-starter h2" },
+      { "level": 2, "text": "Professional",     "selector": "#plan-pro h2" },
+      { "level": 2, "text": "Enterprise",       "selector": "#plan-enterprise h2" },
+      { "level": 2, "text": "FAQ",              "selector": "aside.faq h2" }
+    ]
+  }
+}
+```
+
+Region detection:
+- **Semantic HTML5 elements**: `<header>`, `<nav>`, `<main>`, `<aside>`, `<article>`, `<section>`, `<footer>`.
+- **ARIA landmarks**: any element with `role` attribute (`banner`, `navigation`, `main`, `complementary`, `contentinfo`, `search`, `form`).
+- **Fallback heuristics** for pages with no semantic markup: scan for common IDs/classes (`#nav`, `#header`, `.sidebar`, `#content`, `#main`, `.footer`, `#menu`). Report these as regions with `"tag": "div"` and the matched class/id as selector.
+- `summary` is auto-generated: first heading inside the region (if any) + first 60 chars of text content + child element count. Keeps the agent oriented without fetching full text.
+- Headings (h1–h6) are always collected regardless of landmark quality. Even pages with no landmarks have headings.
+
+Typical agent workflow:
+```
+1. bproxy outline           → "nav is in nav.main-nav, content is in main"
+2. bproxy text main         → get the body copy
+3. bproxy elements nav      → get all nav links
+```
+
+### 2.6 `bproxy dom`
+
+Returns a simplified DOM subtree for a given selector at a controlled depth. Used when `outline` doesn't give enough detail — the agent needs to see the shape of a specific region.
+
+```
+bproxy dom [selector] [--depth N]
+```
+
+Defaults: `selector` = `body`, `depth` = 1.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "tree": [
+      { "tag": "main", "selector": "main", "children": [
+        { "tag": "div", "class": "hero",   "selector": "div.hero",   "text": "Pricing Plans — Choose the plan that...", "childCount": 2 },
+        { "tag": "div", "class": "plans",  "selector": "div.plans",  "text": "",                                        "childCount": 3 },
+        { "tag": "div", "class": "compare","selector": "div.compare","text": "Compare Features",                          "childCount": 1 }
+      ]}
+    ]
+  }
+}
+```
+
+Rules:
+- At each level, show: `tag`, `class` (if any), `id` (if any), `selector`, `text` (first 80 chars of direct text content, not children), `childCount`.
+- At the maximum depth, children are counted (`childCount`) but not expanded. This is the token control mechanism.
+- `--depth 0` returns just the selected element's metadata (no children expanded).
+- `--depth 1` (default) shows immediate children.
+- `--depth 2` shows children and grandchildren. Rarely needed — use scoped selectors instead.
+- Skip invisible elements (`display: none`, `visibility: hidden`).
+- Skip `<script>`, `<style>`, `<link>`, `<meta>` — structural noise.
+- Cap at 500 nodes total in the response. If exceeded, return `"truncated": true`.
+
+This is a progressive disclosure tool. The agent zooms in step by step:
+```
+1. bproxy dom --depth 1             → see top-level body structure
+2. bproxy dom "div.plans" --depth 1  → see what's inside the plans section
+3. bproxy text "div.plans > div:nth-child(2)"  → read a specific plan
+```
+
+### 2.7 `bproxy help`
 
 ```
 bproxy — browser control for coding agents
 
 Commands:
-  status                 Check proxy and extension connection
-  navigate <url>         Navigate to URL
-  click <selector>       Click an element
-  type <selector> <text> Type into an input field
-  text [selector]        Extract text content (default: body)
-  images [selector]      List images with src and alt text
-  elements [selector]    List interactive elements
-  screenshot             Capture visible viewport as base64 PNG
-  eval <code>            Execute JavaScript in page context
-  tabs                   List open tabs
-  tab <id>               Switch active target tab
+  status                       Check proxy and extension connection
+  navigate <url>               Navigate to URL
+  click <selector>             Click an element
+  type <selector> <text>       Type into an input field
+  text [selector]              Extract text content (default: body)
+  images [selector]            List images with src and alt text
+  elements [selector]          List interactive elements
+  outline                      Page structure: landmarks + headings
+  dom [selector] [--depth N]   Simplified DOM subtree (default depth: 1)
+  screenshot                   Capture visible viewport as base64 PNG
+  eval <code>                  Execute JavaScript in page context
+  tabs                         List open tabs
+  tab <id>                     Switch active target tab
 
 All commands return JSON to stdout.
 Errors include an "error" code and "retry" boolean.
@@ -215,7 +303,7 @@ Errors include an "error" code and "retry" boolean.
 
 Printed to stdout, exit 0. Short enough that an agent can consume it in one shot.
 
-### 2.6 Implementation
+### 2.8 Implementation
 
 The CLI is a single executable Node.js script. It:
 
@@ -292,7 +380,7 @@ Responsibilities:
 - Reconnect on disconnect with exponential backoff (1s, 2s, 4s, … max 30s).
 - Route incoming commands to the correct handler.
 - Commands handled directly in background: `screenshot`, `tabs`, `tab`, `status`, `navigate`.
-- Commands forwarded to content script: `click`, `type`, `text`, `images`, `elements`, `eval`.
+- Commands forwarded to content script: `click`, `type`, `text`, `images`, `elements`, `outline`, `dom`, `eval`.
 
 #### Navigate flow
 
@@ -319,6 +407,8 @@ Each action is a function:
 | `text`     | `querySelector(sel)` → `.innerText`. Default selector: `body`.                |
 | `images`   | Scan for `img` tags → filter visible → return src, alt, dimensions.           |
 | `elements` | Scan for interactive tags → filter visible → generate selectors → return list.|
+| `outline`  | Collect semantic landmarks + ARIA roles + headings → build region list.      |
+| `dom`      | Walk subtree from selector to depth N → return pruned tree with metadata.    |
 | `eval`     | Inject `<script>` into page main world, collect result via custom event.      |
 
 #### Selector matching
@@ -576,13 +666,15 @@ test/
 
 5. `elements` command.
 6. `images` command.
-7. `status` command.
-8. `eval` with main-world injection.
-9. Content script auto-re-injection on navigation.
+7. `outline` command.
+8. `dom` command.
+9. `status` command.
+10. `eval` with main-world injection.
+11. Content script auto-re-injection on navigation.
 
 **Phase 3 — Robustness**
 
-10. Tab management (`tabs`, `tab`).
-11. Proxy request log.
-12. End-to-end test suite.
-13. `bproxy start` daemon mode (auto-start proxy from CLI).
+12. Tab management (`tabs`, `tab`).
+13. Proxy request log.
+14. End-to-end test suite.
+15. `bproxy start` daemon mode (auto-start proxy from CLI).
