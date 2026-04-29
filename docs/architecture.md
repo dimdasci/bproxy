@@ -1,5 +1,7 @@
 # bproxy — Architecture
 
+Implementation details: [tech-solution.md](./tech-solution.md)
+
 ## Problem
 
 Coding agents need browser access to automate web tasks. Playwright-based solutions get blocked by Cloudflare and other anti-bot systems because they run in detectable automated browser contexts.
