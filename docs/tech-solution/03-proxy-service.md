@@ -22,12 +22,20 @@ bproxy service listening on http://127.0.0.1:9615
 Single route: `POST /command`
 
 - Accepts JSON body: `{ id, action, params }`.
-- If no WebSocket client connected → respond immediately with HTTP 200 + `NO_CONNECTION` error JSON.
-- Otherwise, forwards the message over WebSocket and waits.
+- If no WebSocket client connected → **queue the command and wait** for an extension to connect (up to the command's timeout). This absorbs MV3 service worker wakeup latency transparently — the extension may reconnect within milliseconds. If no connection is established before the timeout expires → respond with HTTP 200 + `NO_CONNECTION` error JSON.
+- If WebSocket client is connected → forward the message immediately and wait.
 - When WS response arrives (matched by `id`) → send as HTTP response.
 - If WS response doesn't arrive within 30s → respond with `EXTENSION_TIMEOUT` error JSON.
 
 Always HTTP 200. The `ok` field inside JSON is the real status. This keeps agent-side HTTP parsing trivial — no status code branching.
+
+### Why queue instead of fail-fast
+
+Chrome's Manifest V3 service workers are **not persistent** — Chrome terminates them after ~30 seconds of inactivity. When the service worker dies, the WebSocket connection drops. The next command from the agent arrives at the proxy during the gap between termination and reconnection.
+
+If the proxy failed immediately on no connection, agents would see flaky `NO_CONNECTION` errors between every command (since agent think-time often exceeds 30s). By holding the command for a few seconds, the proxy absorbs the SW wakeup + WS reconnect cycle (~200–600ms) without the agent ever knowing it happened.
+
+The proxy does **not** buffer multiple commands — it holds at most one pending command per HTTP request, each with its own timeout. This is not a queue in the traditional sense; it's a "wait for connection" grace period.
 
 ## WebSocket server
 

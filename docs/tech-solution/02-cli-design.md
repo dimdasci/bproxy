@@ -74,7 +74,12 @@ Returns a flat numbered list of interactive elements visible on the page. This i
 Rules for element collection:
 - Only visible, non-hidden elements.
 - Tags: `a`, `button`, `input`, `select`, `textarea`, and any element with `role="button"` or `onclick`.
-- `selector` is auto-generated: prefer `#id`, then `[name=...]`, then a positional CSS path. Must be unique on the page.
+- `selector` is auto-generated with this priority fallback:
+  1. `#id` — only if the ID is truly unique on the page (skip duplicate IDs, common in real HTML).
+  2. `[data-testid="..."]` — test IDs are the most stable selectors on modern apps.
+  3. `[name="..."]` — form element names.
+  4. `[aria-label="..."]` — accessibility labels, stable across redesigns.
+  5. Shortest unique CSS path — prefer tag + class combos over deeply nested positional paths. Avoid React/Angular dynamic IDs (e.g., `r-abc123`, `ng-c1234`).
 - `text` is trimmed, max 80 chars.
 - Cap at 200 elements. If more, return `"truncated": true` and suggest the agent narrow scope with `bproxy elements <selector>` (scoped to a container).
 

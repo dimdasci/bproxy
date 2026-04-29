@@ -1,6 +1,6 @@
 # 11. Implementation Order
 
-[← Index](./README.md) · Prev: [Testing Strategy](./10-testing.md)
+[← Index](./README.md) · Prev: [Testing Strategy](./10-testing.md) · Next: [Technical Risks →](./12-risks.md)
 
 ---
 

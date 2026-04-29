@@ -41,8 +41,11 @@ const observer = new MutationObserver((mutations) => {
 observer.observe(document.body, {
   childList: true,
   subtree: true,
-  attributes: true,
   characterData: true
+  // NOTE: `attributes` is intentionally excluded. Attribute changes from CSS
+  // animations, transition states, and framework-managed classes (React, Angular)
+  // generate constant noise that prevents pages from ever reaching "ready".
+  // Meaningful content changes almost always involve childList or characterData.
 });
 
 // Periodic check: if no mutations for 500ms → ready
@@ -70,36 +73,51 @@ The `busy` flag is `true` when common loading patterns are detected on the page:
 
 ```js
 function detectBusyIndicators() {
-  // ARIA standard
+  // ARIA standard — the most reliable signal
   if (document.querySelector('[aria-busy="true"]')) return true;
 
-  // Common loading patterns
+  // Targeted loading patterns (visibility-checked to avoid false positives)
   const busySelectors = [
-    '.loading', '.spinner', '.loader',
-    '[class*="skeleton"]', '[class*="shimmer"]',
-    '[class*="loading"]', '[class*="spinner"]',
+    '.spinner',
+    '.loader',
+    '[class*="skeleton"]',
+    '[class*="shimmer"]',
     '.progress-bar:not([aria-valuenow="100"])',
-    'dialog[open] .loading', '.overlay.loading'
   ];
 
   for (const sel of busySelectors) {
     const el = document.querySelector(sel);
-    if (el && isVisible(el)) return true;
+    if (el && isVisible(el) && isSizedLikeIndicator(el)) return true;
   }
 
   return false;
 }
+
+function isSizedLikeIndicator(el) {
+  const rect = el.getBoundingClientRect();
+  // Loading indicators are typically small overlays, not full content regions.
+  // Skip elements larger than 600x600 — likely content, not a spinner.
+  return rect.width <= 600 && rect.height <= 600;
+}
 ```
 
-This is heuristic, not exhaustive. It catches the 80% case. The agent can always fall back to `wait --selector` for app-specific loading states.
+Deliberate omissions vs. the naive approach:
+- **No `[class*="loading"]` or `[class*="spinner"]`** — substring matching on class names produces false positives on pages about loading (documentation), shipping (loading dock), etc.
+- **No `.loading` class match** — too generic, commonly used for styling states unrelated to async loading.
+- **Size check** — a real spinner is small (icon-sized). A `div.skeleton` that's 1200×800px is likely a page layout element, not a loading indicator.
+
+This is intentionally conservative. The agent can always fall back to `wait --selector` or `wait --hidden` for app-specific loading states. False negatives (missing a spinner) are much better than false positives (reporting "busy" on a fully loaded page).
 
 ## Network idle detection
 
-Used by `wait --network`. Requires injecting into the page's main world (same technique as `eval`) to intercept `fetch` and `XMLHttpRequest`:
+Used by `wait --network`. Uses `chrome.scripting.executeScript` with `world: 'MAIN'` to intercept `fetch` and `XMLHttpRequest` in the page's actual context:
 
 ```js
-// Injected into page main world
+// Executed via chrome.scripting.executeScript({ world: 'MAIN' }) from background.js
 (function() {
+  if (window.__bproxyNetworkPatched) return; // idempotent
+  window.__bproxyNetworkPatched = true;
+
   let pendingRequests = 0;
 
   const origFetch = window.fetch;
@@ -111,12 +129,7 @@ Used by `wait --network`. Requires injecting into the page's main world (same te
     });
   };
 
-  const origXHROpen = XMLHttpRequest.prototype.open;
   const origXHRSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(...args) {
-    this._bproxy = true;
-    return origXHROpen.apply(this, args);
-  };
   XMLHttpRequest.prototype.send = function(...args) {
     pendingRequests++;
     this.addEventListener('loadend', () => {
@@ -136,7 +149,9 @@ Used by `wait --network`. Requires injecting into the page's main world (same te
 
 The content script listens for `bproxy-network` events. Network is "idle" when `pending === 0` for 500ms.
 
-This interception is **only injected when `wait --network` is first called** — not on every page load. It patches globals, so it's opt-in to avoid interfering with page behavior.
+**Why `chrome.scripting.executeScript` instead of `<script>` tag injection**: Same reason as `eval` — page CSP can block inline scripts. `chrome.scripting.executeScript({ world: 'MAIN' })` bypasses CSP entirely. See [Extension Internals → eval](./04-extension.md#eval-in-the-main-world) for details.
+
+This interception is **only injected when `wait --network` is first called** — not on every page load. The `__bproxyNetworkPatched` guard makes it idempotent if called multiple times.
 
 ## SPA navigation detection
 
@@ -169,14 +184,23 @@ This means after an agent clicks a SPA link:
 3. The agent calls `bproxy wait` to let the page finish rendering.
 4. Then reads the new content.
 
-## Navigate command — SPA-aware
+## Navigate command
 
-The `navigate` command handles both cases:
+`navigate` always uses `chrome.tabs.update(tabId, { url })` regardless of whether the target URL is same-origin or cross-origin. This triggers a full page navigation, the content script re-injects, and the result is predictable.
 
-- **Full page navigation** (different origin, or forced): `chrome.tabs.update(tabId, { url })` → wait for `tabs.onUpdated` status `complete` → then wait for settle (DOM mutations stop for 500ms). Returns when page is `ready`.
-- **Same-origin SPA navigation**: If the target URL is same-origin as current, `navigate` uses `eval` to call `history.pushState` or set `location.href`, then waits for settle.
+**Why not SPA-aware navigation**: An earlier design attempted to detect same-origin URLs and use `history.pushState` or `location.href` to avoid a full reload. This was removed because:
+- `history.pushState()` changes the URL bar but **does not trigger the app's router**. React Router, Vue Router, etc. listen for `popstate` (back/forward) but not `pushState` calls. The URL changes but the page content stays the same.
+- `location.href = sameOriginUrl` triggers a full reload anyway, so there's no SPA benefit.
+- The only reliable way to trigger SPA-internal navigation is to click actual links on the page (`bproxy click "a[href='/dashboard']"`) — which is what agents should do when they want to navigate within a SPA.
 
-In both cases, `navigate` **returns only when the page is ready**, not just when the network load finishes. This is the key difference from a raw browser load event.
+### Two-tier wait
+
+`navigate` uses a two-tier wait strategy:
+
+1. **Hard wait**: `chrome.tabs.onUpdated` with `status: 'complete'` (document loaded). This must succeed or it's a `NAVIGATION_FAILED` error.
+2. **Soft wait**: After load, wait for DOM settle (no mutations for 500ms) **with a 3-second cap**. If settle doesn't happen within 3s, return anyway with `state: "settling"`.
+
+The soft cap prevents `navigate` from timing out on pages that never settle (animated pages, live dashboards, chat apps). The agent gets the page back in a usable state and can decide whether to `bproxy wait` for more specific conditions.
 
 Response includes timing:
 
