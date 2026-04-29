@@ -9,4 +9,4 @@ Solution: I want to have a browser plugin that can act on my behalf and provide 
 
 - Diagram: docs/browser-proxy-idea.png shows the idea of how it works.
 - Architecture: docs/architecture.md is the top-level guiding document for the project.
-- Technical solution: docs/tech-solution.md has the technical details of the implementation.
+- Technical solution: docs/tech-solution has the technical details of the implementation.
