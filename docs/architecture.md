@@ -1,6 +1,6 @@
 # bproxy — Architecture
 
-Implementation details: [tech-solution.md](./tech-solution.md)
+Implementation details: [tech-solution/](./tech-solution/)
 
 ## Problem
 
