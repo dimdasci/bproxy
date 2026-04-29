@@ -21,6 +21,8 @@ Every CLI command writes exactly one JSON object to stdout and exits. No extra t
 
 `data` varies per action. Fields are kept minimal — no filler, no echo of the request.
 
+Every response from a content-script action includes a `page` context block (see §1.4).
+
 ### Error shape
 
 ```json
@@ -40,7 +42,35 @@ Every CLI command writes exactly one JSON object to stdout and exits. No extra t
 | `retry`   | bool    | `true` = transient, try again. `false` = don't.  |
 | `hint`    | string? | Optional. Actionable suggestion for the agent.   |
 
-### 1.1 Token budget
+### 1.1 Page context on every response
+
+Every command that touches the page (`click`, `type`, `text`, `elements`, `images`, `outline`, `dom`, `eval`, `wait`) appends a `page` block to the response:
+
+```json
+{
+  "ok": true,
+  "data": { "text": "..." },
+  "page": {
+    "url": "https://app.example.com/dashboard",
+    "title": "Dashboard",
+    "state": "ready",
+    "busy": false
+  }
+}
+```
+
+| Field   | Type   | Values / Meaning                                                              |
+|---------|--------|-------------------------------------------------------------------------------|
+| `url`   | string | Current `location.href` — detects SPA navigations the agent didn't initiate.  |
+| `title` | string | Current `document.title`.                                                     |
+| `state` | string | `"loading"` · `"settling"` · `"ready"` (see §4.4 for detection logic).       |
+| `busy`  | bool   | `true` if loading indicators detected (spinners, skeletons, `aria-busy`).     |
+
+This is cheap (4 fields, ~100 tokens) and gives the agent situational awareness on every call. The agent doesn't need to poll `status` to know where it is or whether the page is still loading.
+
+When `state` is `"settling"` or `busy` is `true`, the agent knows to `bproxy wait` before reading content.
+
+### 1.2 Token budget
 
 Agent output is consumed by LLMs. Every extra token costs money and context window.
 
@@ -51,7 +81,7 @@ Rules:
 - `elements` action: flat list, numbered, one line per element. No nesting, no full attribute dumps.
 - Text content is truncated at 10,000 chars with a `"truncated": true` flag. The agent can use `eval` for full extraction if needed.
 
-### 1.2 Error codes
+### 1.3 Error codes
 
 Fixed vocabulary. Agents can `switch` on these.
 
@@ -64,6 +94,7 @@ Fixed vocabulary. Agents can `switch` on these.
 | `SELECTOR_AMBIGUOUS`   | false | CSS selector matched multiple elements (for click).  |
 | `NAVIGATION_FAILED`    | false | URL couldn't be loaded (ERR_NAME_NOT_RESOLVED etc).  |
 | `EVAL_ERROR`           | false | JS execution threw an exception.                     |
+| `WAIT_TIMEOUT`         | true  | Page didn't reach desired state within deadline.     |
 | `PROXY_NOT_RUNNING`    | true  | CLI couldn't connect to the proxy service.           |
 | `INVALID_COMMAND`      | false | Unknown action or missing required params.           |
 
@@ -81,7 +112,7 @@ When `retry` is `true`, the `hint` field tells the agent what to check:
 
 When `retry` is `false`, the error is the agent's to fix (wrong selector, bad JS, etc).
 
-### 1.3 Exit codes
+### 1.4 Exit codes
 
 - `0` — success (`ok: true`)
 - `1` — command error (`ok: false`, infrastructure or action failure)
@@ -106,6 +137,7 @@ bproxy elements                      # list interactive elements
 bproxy outline                       # page structure: landmarks + headings
 bproxy dom [selector] [--depth N]    # simplified DOM subtree
 bproxy screenshot                    # capture visible viewport
+bproxy wait [strategy]               # wait for page to be ready
 bproxy eval <code>                   # run JS in page context
 bproxy tabs                          # list open tabs
 bproxy tab <id>                      # switch target tab
@@ -277,7 +309,66 @@ This is a progressive disclosure tool. The agent zooms in step by step:
 3. bproxy text "div.plans > div:nth-child(2)"  → read a specific plan
 ```
 
-### 2.7 `bproxy help`
+### 2.7 `bproxy wait`
+
+Explicitly waits for the page to reach a desired state. The agent calls this after actions that trigger async changes — clicking a SPA link, submitting a form, or any action where content loads dynamically.
+
+```
+bproxy wait                          # default: wait for DOM to settle
+bproxy wait --network                # wait for network idle
+bproxy wait --selector ".results"    # wait for element to appear
+bproxy wait --hidden ".spinner"      # wait for element to disappear
+bproxy wait --state ready            # wait for state to become "ready"
+```
+
+Strategies:
+
+| Strategy              | What it waits for                                           | Timeout |
+|-----------------------|-------------------------------------------------------------|---------|
+| (default / `settle`)  | No DOM mutations for 500ms                                  | 10s     |
+| `--network`           | Zero pending fetch/XHR requests for 500ms                   | 30s     |
+| `--selector <sel>`    | Element matching selector exists and is visible             | 10s     |
+| `--hidden <sel>`      | Element matching selector is gone or invisible              | 10s     |
+| `--state ready`       | `page.state` becomes `"ready"` (settle + no busy signals)   | 30s     |
+
+Strategies can be combined: `bproxy wait --network --selector ".results"` waits for both conditions.
+
+Success response:
+
+```json
+{
+  "ok": true,
+  "data": { "waited": 1230, "strategy": "settle" },
+  "page": { "url": "...", "title": "...", "state": "ready", "busy": false }
+}
+```
+
+`waited` is the time in milliseconds the command blocked. Helps the agent gauge page responsiveness.
+
+Timeout response:
+
+```json
+{
+  "ok": false,
+  "error": "WAIT_TIMEOUT",
+  "message": "Page did not settle within 10000ms",
+  "retry": true,
+  "hint": "Page may have continuous updates (animations, live feeds). Use --selector to wait for specific content instead.",
+  "page": { "url": "...", "title": "...", "state": "settling", "busy": true }
+}
+```
+
+The `page` block is included even on timeout — the agent can see what state the page is in and decide whether to retry, try a different strategy, or proceed anyway.
+
+Typical SPA workflow:
+```
+1. bproxy click "a[href='/dashboard']"   → triggers SPA navigation
+   → response includes page.state: "settling"
+2. bproxy wait                            → blocks until DOM settles
+3. bproxy outline                         → read the new page structure
+```
+
+### 2.8 `bproxy help`
 
 ```
 bproxy — browser control for coding agents
@@ -292,6 +383,7 @@ Commands:
   elements [selector]          List interactive elements
   outline                      Page structure: landmarks + headings
   dom [selector] [--depth N]   Simplified DOM subtree (default depth: 1)
+  wait [strategy]              Wait for page ready (settle, --network, --selector, --hidden)
   screenshot                   Capture visible viewport as base64 PNG
   eval <code>                  Execute JavaScript in page context
   tabs                         List open tabs
@@ -303,7 +395,7 @@ Errors include an "error" code and "retry" boolean.
 
 Printed to stdout, exit 0. Short enough that an agent can consume it in one shot.
 
-### 2.8 Implementation
+### 2.9 Implementation
 
 The CLI is a single executable Node.js script. It:
 
@@ -380,7 +472,7 @@ Responsibilities:
 - Reconnect on disconnect with exponential backoff (1s, 2s, 4s, … max 30s).
 - Route incoming commands to the correct handler.
 - Commands handled directly in background: `screenshot`, `tabs`, `tab`, `status`, `navigate`.
-- Commands forwarded to content script: `click`, `type`, `text`, `images`, `elements`, `outline`, `dom`, `eval`.
+- Commands forwarded to content script: `click`, `type`, `text`, `images`, `elements`, `outline`, `dom`, `wait`, `eval`.
 
 #### Navigate flow
 
@@ -409,6 +501,7 @@ Each action is a function:
 | `elements` | Scan for interactive tags → filter visible → generate selectors → return list.|
 | `outline`  | Collect semantic landmarks + ARIA roles + headings → build region list.      |
 | `dom`      | Walk subtree from selector to depth N → return pruned tree with metadata.    |
+| `wait`     | Block using strategy (settle/network/selector/hidden) until condition met.    |
 | `eval`     | Inject `<script>` into page main world, collect result via custom event.      |
 
 #### Selector matching
@@ -475,9 +568,197 @@ function evalInPage(code) {
 
 ---
 
-## 5. Failure Modes
+## 5. Page State Detection & SPA Handling
 
-### 5.1 Extension not connected
+The content script maintains a continuous awareness of the page's readiness. This powers the `page` context block on every response and the `wait` command.
+
+### 5.1 State machine
+
+The content script tracks page state as one of three values:
+
+```
+loading ───▶ settling ───▶ ready
+   ▲                        │
+   └────────────────────┘  (on SPA navigation or major DOM change)
+```
+
+- **`loading`**: `document.readyState` is not `"complete"`. Only occurs on initial full-page load.
+- **`settling`**: Document is loaded but DOM mutations are still occurring. The page is hydrating, fetching data, or rendering dynamic content.
+- **`ready`**: No DOM mutations for 500ms and no busy signals detected.
+
+Transitions:
+- `loading` → `settling`: `document.readyState` becomes `"complete"`.
+- `settling` → `ready`: MutationObserver reports no changes for 500ms AND no busy indicators detected.
+- `ready` → `settling`: New DOM mutations detected (SPA navigation, dynamic content load, user action triggered re-render).
+
+### 5.2 Settle detection (MutationObserver)
+
+The content script starts a `MutationObserver` on `document.body` at injection time:
+
+```js
+let lastMutationTime = Date.now();
+let state = document.readyState === 'complete' ? 'settling' : 'loading';
+
+const observer = new MutationObserver((mutations) => {
+  lastMutationTime = Date.now();
+  if (state === 'ready') state = 'settling';
+});
+
+observer.observe(document.body, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  characterData: true
+});
+
+// Periodic check: if no mutations for 500ms → ready
+setInterval(() => {
+  if (state === 'settling' && Date.now() - lastMutationTime > 500) {
+    if (!detectBusyIndicators()) {
+      state = 'ready';
+    }
+  }
+}, 100);
+
+// Listen for document readyState change
+if (state === 'loading') {
+  document.addEventListener('readystatechange', () => {
+    if (document.readyState === 'complete') state = 'settling';
+  });
+}
+```
+
+This is lightweight — the observer callback just timestamps, no heavy processing per mutation.
+
+### 5.3 Busy indicator detection
+
+The `busy` flag is `true` when common loading patterns are detected on the page:
+
+```js
+function detectBusyIndicators() {
+  // ARIA standard
+  if (document.querySelector('[aria-busy="true"]')) return true;
+
+  // Common loading patterns
+  const busySelectors = [
+    '.loading', '.spinner', '.loader',
+    '[class*="skeleton"]', '[class*="shimmer"]',
+    '[class*="loading"]', '[class*="spinner"]',
+    '.progress-bar:not([aria-valuenow="100"])',
+    'dialog[open] .loading', '.overlay.loading'
+  ];
+
+  for (const sel of busySelectors) {
+    const el = document.querySelector(sel);
+    if (el && isVisible(el)) return true;
+  }
+
+  return false;
+}
+```
+
+This is heuristic, not exhaustive. It catches the 80% case. The agent can always fall back to `wait --selector` for app-specific loading states.
+
+### 5.4 Network idle detection
+
+Used by `wait --network`. Requires injecting into the page's main world (same technique as `eval`) to intercept `fetch` and `XMLHttpRequest`:
+
+```js
+// Injected into page main world
+(function() {
+  let pendingRequests = 0;
+
+  const origFetch = window.fetch;
+  window.fetch = function(...args) {
+    pendingRequests++;
+    return origFetch.apply(this, args).finally(() => {
+      pendingRequests--;
+      notify();
+    });
+  };
+
+  const origXHROpen = XMLHttpRequest.prototype.open;
+  const origXHRSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(...args) {
+    this._bproxy = true;
+    return origXHROpen.apply(this, args);
+  };
+  XMLHttpRequest.prototype.send = function(...args) {
+    pendingRequests++;
+    this.addEventListener('loadend', () => {
+      pendingRequests--;
+      notify();
+    }, { once: true });
+    return origXHRSend.apply(this, args);
+  };
+
+  function notify() {
+    document.dispatchEvent(new CustomEvent('bproxy-network', {
+      detail: { pending: pendingRequests }
+    }));
+  }
+})();
+```
+
+The content script listens for `bproxy-network` events. Network is "idle" when `pending === 0` for 500ms.
+
+This interception is **only injected when `wait --network` is first called** — not on every page load. It patches globals, so it's opt-in to avoid interfering with page behavior.
+
+### 5.5 SPA navigation detection
+
+The content script detects client-side navigations by monitoring URL changes:
+
+```js
+let lastUrl = location.href;
+
+const urlCheck = setInterval(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    state = 'settling';  // SPA navigated → new content incoming
+    lastMutationTime = Date.now();
+  }
+}, 200);
+```
+
+Also listens for `popstate` (back/forward navigation) and `hashchange`:
+
+```js
+window.addEventListener('popstate', () => {
+  state = 'settling';
+  lastMutationTime = Date.now();
+});
+```
+
+This means after an agent clicks a SPA link:
+1. The `click` response comes back with `page.state: "settling"` and the new URL.
+2. The agent sees the URL changed and state is settling.
+3. The agent calls `bproxy wait` to let the page finish rendering.
+4. Then reads the new content.
+
+### 5.6 Navigate command — SPA-aware
+
+The `navigate` command handles both cases:
+
+- **Full page navigation** (different origin, or forced): `chrome.tabs.update(tabId, { url })` → wait for `tabs.onUpdated` status `complete` → then wait for settle (DOM mutations stop for 500ms). Returns when page is `ready`.
+- **Same-origin SPA navigation**: If the target URL is same-origin as current, `navigate` uses `eval` to call `history.pushState` or set `location.href`, then waits for settle.
+
+In both cases, `navigate` **returns only when the page is ready**, not just when the network load finishes. This is the key difference from a raw browser load event.
+
+Response includes timing:
+
+```json
+{
+  "ok": true,
+  "data": { "url": "https://app.example.com/dashboard", "title": "Dashboard", "waited": 2340 },
+  "page": { "url": "https://app.example.com/dashboard", "title": "Dashboard", "state": "ready", "busy": false }
+}
+```
+
+---
+
+## 6. Failure Modes
+
+### 6.1 Extension not connected
 
 Trigger: browser closed, extension disabled, or page on `chrome://` URL.
 
@@ -485,7 +766,7 @@ Proxy detects: no WebSocket client in the connection slot.
 
 Response: `NO_CONNECTION`, `retry: true`, hint to open browser.
 
-### 5.2 Content script not injected
+### 6.2 Content script not injected
 
 Trigger: new tab opened via bookmark, or navigation to a new origin before content script auto-injects.
 
@@ -493,7 +774,7 @@ Background detects: `chrome.tabs.sendMessage` returns error.
 
 Recovery: background calls `chrome.scripting.executeScript` to inject `content.js`, then retries the command once. If second attempt fails → `TAB_NOT_AVAILABLE`.
 
-### 5.3 Page navigation during command
+### 6.3 Page navigation during command
 
 Trigger: agent sends `type`, but a redirect or SPA navigation fires mid-execution.
 
@@ -501,7 +782,7 @@ Content script: dies silently (for cross-origin nav) or stays alive (SPA).
 
 Background: if the message callback never fires, the proxy-side timer (30s) expires → `EXTENSION_TIMEOUT`, `retry: true`.
 
-### 5.4 Selector on wrong page
+### 6.4 Selector on wrong page
 
 Trigger: agent clicks `#login-btn` but the page already navigated to the dashboard.
 
@@ -519,7 +800,7 @@ The `hint` includes the current page URL and title so the agent can realize it's
 }
 ```
 
-### 5.5 Proxy not running
+### 6.5 Proxy not running
 
 Trigger: agent calls CLI but service isn't started.
 
@@ -529,13 +810,15 @@ Response: `PROXY_NOT_RUNNING`, `retry: true`, hint to run `bproxy start` or `nod
 
 ---
 
-## 6. Timeouts
+## 7. Timeouts
 
 | Boundary                  | Default | Configurable via |
 |---------------------------|---------|------------------|
 | CLI → Proxy HTTP          | 30s     | `--timeout <ms>` CLI flag |
 | Proxy → Extension WS      | 30s     | hardcoded initially       |
 | Navigate action           | 60s     | extended timeout for nav  |
+| Wait command (default)    | 10s     | per strategy defaults     |
+| Wait --network / --state  | 30s     | per strategy defaults     |
 | WS ping/pong              | 10s     | hardcoded                 |
 | Content script injection  | 5s      | hardcoded                 |
 
@@ -543,7 +826,7 @@ All timeouts produce `EXTENSION_TIMEOUT` error with `retry: true`.
 
 ---
 
-## 7. Tab Management
+## 8. Tab Management
 
 ### Default: active tab
 
@@ -575,7 +858,7 @@ Pins all subsequent commands to tab 87 until the next `bproxy tab` call or until
 
 ---
 
-## 8. Build & Distribution
+## 9. Build & Distribution
 
 ### Service
 
@@ -619,7 +902,7 @@ No monorepo tooling. No workspaces. Three directories, one repo.
 
 ---
 
-## 9. Testing Strategy
+## 10. Testing Strategy
 
 ### Unit: proxy service
 
@@ -644,7 +927,8 @@ This is the test that matters most. Run it manually during development. Automate
 test/
 ├── fixtures/
 │   ├── basic.html        # links, buttons, inputs, text
-│   ├── spa.html           # client-side navigation
+│   ├── spa.html           # client-side navigation, async content loading
+│   ├── hydration.html     # SSR content + delayed JS hydration
 │   └── shadow.html        # shadow DOM elements
 ├── test-proxy.js
 ├── test-content.js
@@ -653,7 +937,7 @@ test/
 
 ---
 
-## 10. Implementation Order
+## 11. Implementation Order
 
 **Phase 1 — Vertical slice** (prove the loop works)
 
@@ -662,19 +946,27 @@ test/
 3. CLI: single script, all commands, JSON output with error codes.
 4. Manual test: navigate → text → click → screenshot.
 
-**Phase 2 — Agent ergonomics**
+**Phase 2 — Page awareness**
 
-5. `elements` command.
-6. `images` command.
-7. `outline` command.
-8. `dom` command.
-9. `status` command.
-10. `eval` with main-world injection.
-11. Content script auto-re-injection on navigation.
+5. Page state detection: MutationObserver settle logic, busy indicators, `page` context block on all responses.
+6. `wait` command (settle + selector + hidden strategies).
+7. SPA navigation detection (URL polling + popstate).
+8. Navigate command: wait for settle after load, not just load event.
 
-**Phase 3 — Robustness**
+**Phase 3 — Agent ergonomics**
 
-12. Tab management (`tabs`, `tab`).
-13. Proxy request log.
-14. End-to-end test suite.
-15. `bproxy start` daemon mode (auto-start proxy from CLI).
+9. `elements` command.
+10. `images` command.
+11. `outline` command.
+12. `dom` command.
+13. `status` command.
+14. `eval` with main-world injection.
+15. Content script auto-re-injection on navigation.
+
+**Phase 4 — Robustness**
+
+16. `wait --network` (fetch/XHR interception).
+17. Tab management (`tabs`, `tab`).
+18. Proxy request log.
+19. End-to-end test suite.
+20. `bproxy start` daemon mode (auto-start proxy from CLI).

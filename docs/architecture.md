@@ -52,6 +52,7 @@ bproxy text ".main-content"
 bproxy images [selector]
 bproxy outline
 bproxy dom "main" --depth 2
+bproxy wait
 bproxy eval "document.title"
 ```
 
@@ -89,6 +90,7 @@ All communication uses a simple JSON envelope:
 | `images`     | `{ selector? }`                 | `{ images: [...] }`       |
 | `outline`    | `{}`                            | `{ regions, headings }`  |
 | `dom`        | `{ selector?, depth? }`         | `{ tree: [...] }`        |
+| `wait`       | `{ strategy?, selector? }`      | `{ waited: ms }`         |
 | `eval`       | `{ code }`                      | `{ result: ... }`         |
 
 ## File Structure
