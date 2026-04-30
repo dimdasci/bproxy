@@ -139,12 +139,154 @@ This is genuinely the cleanest technical solution and a real legal grey zone. Su
 
 ---
 
+## Scenario 3 — Job application form fill
+
+User opens a job application page (LinkedIn, Greenhouse, Lever, Workday, or a custom company site), pinned to `--session apply-companyX`. They provide the candidate dossier (resume content, work history, answers to standard questions) in the conversation. The agent's job is to fill the form. **It must not submit** — the user reviews and submits.
+
+### Why "don't submit" is load-bearing
+
+Application forms have the heaviest bot detection on the web — invisible reCAPTCHA v3 scores the *entire* form-fill behaviour (typing pace, tab order, mouse movement, focus patterns) and adjudicates at submit. By drawing the line at "fill but don't submit," the user sidesteps the hardest problem entirely:
+
+- The submit click will be `isTrusted: true` because the **user** does it.
+- Any CAPTCHA challenge fires on submit, not during fill — the user encounters it naturally.
+- The agent never has to "look human enough to pass scoring." It has to "produce values the user can review and ship."
+
+This is the same pattern as the LinkedIn digest: agent prepares, user reviews and acts.
+
+### Agent flow
+
+```
+1. read form structure        → bproxy elements --form
+2. LLM maps candidate fields  → {selector: value, method?: type|paste|select}
+3. fill all fields            → bproxy fill-form <json>
+4. handle file inputs         → bproxy require-human --for-attach "#resume"
+5. read back filled state     → bproxy elements --form (verify framework accepted values)
+6. report: "form filled, please review and submit"
+7. user reviews, fixes anything, clicks submit themselves
+```
+
+### The realistic write model — paste, not typing
+
+Real humans do not type their CV into application forms. The actual mix:
+
+- **Personal info** (name, email, phone, address): Chrome autofill or paste from a saved info doc. Never typed.
+- **Resume content** (work history, education, skills): pasted from CV / LinkedIn / Google Doc.
+- **Cover letter**: pasted from a template, sometimes edited.
+- **Custom questions** ("why this company?"): pasted from a reusable answers file, occasionally typed when composing fresh.
+- **Yes/No, dropdowns, dates**: clicked.
+
+Typing per-character is the *exception*, not the rule. Most application forms are filled in 30–90 seconds by a human, almost entirely via paste + click + autofill.
+
+`bproxy fill` therefore defaults to **paste-flavored input events**, not character-by-character typing:
+
+```js
+input.focus();
+const setter = Object.getOwnPropertyDescriptor(
+  HTMLInputElement.prototype, 'value'
+).set;
+setter.call(input, value);
+input.dispatchEvent(new InputEvent('beforeinput', {
+  inputType: 'insertFromPaste', data: value, bubbles: true,
+}));
+input.dispatchEvent(new InputEvent('input', {
+  inputType: 'insertFromPaste', data: value, bubbles: true,
+}));
+input.dispatchEvent(new Event('change', { bubbles: true }));
+```
+
+The key signal is `inputType: "insertFromPaste"`. Frameworks (React, Vue, Angular, form libraries) inspect `inputType` to distinguish typed vs pasted vs autofilled, and they accept all three. Anti-fraud trackers that score keystroke cadence have nothing to score because there are no keystrokes.
+
+The session's `--pacing` value governs the **delay between fields** (0.5–2 s with jitter), not delay between characters. Real humans paste fast within a field but pause between fields to glance, scroll, or read the next label. Total fill time of 30–90 s for a 20-field form is realistic.
+
+Typing per-character is available as opt-in (`--method typed`) for the rare cases where the agent legitimately composes text live and wants the keystroke pattern to look like composition. Default off.
+
+### The framework-state trap
+
+Setting `input.value = "..."` directly **does not update React/Vue/Angular controlled-input state** — the framework still sees the old value, and the user's eventual submit will send empty fields. The fix is to use the native value setter on the prototype and dispatch an `input` event, exactly as shown above. This is well-known but tricky enough to warrant a first-class primitive instead of leaving it to the agent.
+
+After fill, **read back via `bproxy elements --form`** to confirm the framework's reflected value matches what was sent. If it does not, the field is using a custom component that intercepts events before the framework sees them — fall back to the per-component strategy (e.g., custom dropdown helper).
+
+### Hidden-field guard
+
+`bproxy fill-form` must **never write to fields that are hidden, `display:none`, `visibility:hidden`, `aria-hidden=true`, off-screen, or have zero dimensions**. These are honeypots — filling them is a guaranteed bot flag, regardless of any other behaviour. The actionability check refuses silently and logs the rejection. The agent cannot override.
+
+### Custom dropdowns
+
+Most modern application forms use React-Select, Select2, or custom comboboxes — `<div>` trees with click handlers, not `<select>`. Pattern is always the same: click the trigger, wait for the menu, click the option matching some text. Enough boilerplate to deserve a primitive:
+
+```
+bproxy select <trigger-selector> <option-text>
+```
+
+Opens, waits for menu, clicks option. Falls back gracefully on standard `<select>` (sets value + change event). The agent never needs to model the platform's specific dropdown widget.
+
+### File uploads
+
+`<input type="file">` cannot be populated programmatically — browsers prohibit it for security. Three options exist:
+
+1. `DataTransfer` drop simulation — synthesises a drop event with file data. Works on permissive sites, fails on strict ones.
+2. `chrome.debugger` + `Page.handleFileChooser` — works reliably. Yellow banner cost.
+3. Hand off to human via `bproxy require-human --for-attach "#resume"` — surfaces a desktop notification deep-linked to the field.
+
+For MVP, option 3 is right. The user already needs to review the form before submitting; attaching the file is a five-second step they were going to do anyway. Revisit options 1 and 2 if real usage shows the handoff is annoying.
+
+### New primitives
+
+| Primitive | Purpose |
+|---|---|
+| `bproxy elements --form` | Form-shaped read: each field with `{label, type, currentValue, options, required, pattern, name}`. |
+| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. `--method type|paste|auto`. |
+| `bproxy fill-form <json>` | Bulk fill in one round-trip with internal pacing. |
+| `bproxy select <trigger> <option-text>` | Custom-dropdown helper. Opens, waits, clicks option. |
+| `bproxy require-human --for-attach <selector>` | File upload handoff with deep-link to field. |
+
+### Bot-signal accounting
+
+| Signal | This flow | Risk |
+|---|---|---|
+| `isTrusted: false` on `input` events | Yes — every fill | low; frameworks accept |
+| `isTrusted: false` on click for custom dropdowns | Yes — opening menus | low for most components |
+| Typing pace fingerprint | None — paste, not typing | zero |
+| Per-field delay | 0.5–2 s with jitter (paste-realistic) | low |
+| Tab order / focus pattern | Agent fills in DOM order, not visual order | medium for paranoid scoring |
+| Mouse movement | None | medium for invisible reCAPTCHA scoring |
+| Hidden honeypot fields | Filtered by visibility check; never filled | zero |
+| Total fill time | 30–90 s for 20 fields | low |
+| Submit click | **User does it — real `isTrusted`** | **zero** |
+| Final reCAPTCHA v3 score | Possibly lower than human | medium — user-submit can rescue |
+
+The user-submit line is doing most of the heavy lifting. Even if the agent's fill behaviour scores low, a real user-driven submit is a strong positive signal that often offsets it.
+
+### Capabilities the flow uses
+
+- `bproxy elements --form`, `bproxy fill-form`, `bproxy select`, `bproxy require-human`.
+- Read mode foundations (ISOLATED-world DOM access, no MAIN-world shim, no MutationObserver).
+
+### Capabilities the flow does *not* use
+
+- No MAIN-world shim — paste-flavored events fire from ISOLATED world fine.
+- No MutationObserver — the read-back verify after each fill is enough to confirm framework state.
+- No network shim — we do not care about the form's XHRs.
+- No `--trusted` mode — `isTrusted: false` on `input` events is accepted by all major frameworks and most form libraries.
+- No CAPTCHA solving — handed off to the user at submit.
+
+### Recommended posture
+
+1. **MVP**: read mode + new `fill` / `fill-form` / `select` / `elements --form` primitives + paste-default + `require-human --for-attach` for file uploads. No `--trusted` mode by default.
+2. **Iterate**: if specific forms reject `isTrusted: false` clicks on custom dropdowns, surface `--trusted` as a per-form opt-in.
+3. **Defer**: file upload synthesis (DataTransfer or debugger) until real usage shows the handoff is too annoying.
+
+---
+
 ## What these scenarios reveal about the design
 
 - **Read mode covers most of the work** for both URL-driven and SPA-shaped sites, provided we add a scroll primitive.
 - **DOM polling beats MutationObserver** as the default "is the page settled" mechanism for read mode. Lower fingerprint, no listener install, simpler mental model.
-- **Pacing is a daemon-enforced primitive**, set per session, applied to navigations and scrolls. The agent does not implement human shape; the extension does.
+- **Pacing is a daemon-enforced primitive**, set per session, applied to navigations, scrolls, and per-field fill delay. The agent does not implement human shape; the extension does.
+- **Paste, not typing, is the realistic write primitive.** Real humans never type their CV into application forms — they paste, autofill, and click. `bproxy fill` defaults to paste-flavored input events with `inputType: "insertFromPaste"`; per-character typing is the explicit opt-in.
+- **Interact mode is a thin extension of read mode**, not a wholesale switch into heavy instrumentation. The additions are paste-shaped writes (`fill`, `fill-form`, `select`), a form-shaped read variant (`elements --form`), and a file-upload handoff (`require-human --for-attach`). No MAIN-world shim, no MutationObserver, no `--trusted` mode by default.
 - **Interstitial detection + `HUMAN_REQUIRED`** is load-bearing for any sustained autonomous run. Without it, the agent will retry through CAPTCHAs and confirm itself as automation.
+- **"Don't submit" handoff is load-bearing for write-heavy autonomous flows.** The agent prepares; the user reviews and submits. The user-driven submit is `isTrusted: true`, which often offsets any lower bot score from the fill behaviour. Same posture as "agent prepares, user digests" in the read scenarios.
 - **Escape hatches stay on the shelf** until real usage signals which ones earn their cost. Start simple, iterate.
 
 Add new scenarios to this file as they come up. Each new scenario should include: agent flow, new primitives needed (if any), bot-signal accounting, and what it reveals about the design.
