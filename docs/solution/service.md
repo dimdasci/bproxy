@@ -15,6 +15,7 @@ service/
     ├── auth.ts               # onRequest hook: four-layer gate
     ├── routes/
     │   ├── command.ts        # POST / — CLI command intake
+    │   ├── pair.ts           # POST /pair/claim — one-time pairing claim
     │   └── ws.ts             # GET /ws — extension WebSocket upgrade
     ├── dispatch.ts           # route command to correct WS client + tab
     ├── pacing.ts             # per-session delay enforcement
@@ -34,6 +35,7 @@ import websocket from '@fastify/websocket';
 import { authHook } from './auth';
 import { commandRoute } from './routes/command';
 import { wsRoute } from './routes/ws';
+import { pairRoute } from './routes/pair';
 
 const app = Fastify({ logger: true });
 
@@ -44,6 +46,7 @@ app.addHook('onRequest', authHook);
 
 // Routes
 app.register(commandRoute);
+app.register(pairRoute);
 app.register(wsRoute);
 
 await app.listen({ host: '127.0.0.1', port: config.port });
@@ -53,16 +56,30 @@ await app.listen({ host: '127.0.0.1', port: config.port });
 
 **File:** `src/auth.ts`
 
-Four-layer check on every request (HTTP and WS upgrade):
+Four-layer check on every request, with transport-specific token location.
+
+Token model:
+- **Daemon token** (`~/.bproxy/token`) authenticates CLI HTTP calls (including pairing claim).
+- **Extension token** (issued by daemon during pairing) authenticates WS upgrades.
 
 1. **Host header** — must be `127.0.0.1:{port}` or `localhost:{port}`. Rejects requests forwarded through a proxy.
 2. **Origin header** — if present, must be `chrome-extension://{extension-id}` (for WS from extension) or absent (for CLI, which sends no Origin).
 3. **Sec-Fetch-Site** — if present, must be `none` or `same-origin`. Rejects cross-site requests from web pages.
-4. **Bearer token** — `Authorization: Bearer {token}`. Token generated fresh on every daemon start, written `0600` to `~/.bproxy/token`.
+4. **Auth secret**
+   - **HTTP (`POST /`, `POST /pair/claim`)**: `Authorization: Bearer {daemonToken}`
+   - **WS (`GET /ws`)**: `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+
+**Security invariant:** token secrecy is enforced by OS file ownership and mode. CLI must fail closed if token owner/mode is unsafe (see `solution/cli.md` token preflight).
 
 Failure at any layer → 401, connection closed.
 
 ## HTTP Route: `POST /`
+
+`debug.*` actions are handled here as first-class protocol actions:
+- `debug.last`: read/parse daemon lifecycle log and return last N request traces.
+- `debug.status`: return daemon + WS + session state snapshot.
+- `debug.log`: proxy request to extension and return ring-buffer entries.
+
 
 **File:** `src/routes/command.ts`
 
@@ -94,6 +111,51 @@ app.post('/', {
 
 The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires.
 
+## Pairing Bootstrap Route: `POST /pair/claim`
+
+**File:** `src/routes/pair.ts`
+
+This closes the token bootstrap loop without manual extension UI.
+
+Request (daemon-token authenticated):
+
+```json
+{
+  "code": "ABCD-EFGH",
+  "client": "cli",
+  "profile": "default"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "extensionToken": "...",
+    "wsUrl": "ws://127.0.0.1:9615/ws",
+    "protocolVersion": 1,
+    "issuedAt": 1714000000000,
+    "expiresAt": 1714000300000,
+    "nonce": "01J..."
+  }
+}
+```
+
+Validation/security checks:
+- pairing code exists, not expired (default TTL: 5 min), not already consumed
+- code compare is constant-time
+- per-source rate limit (e.g. 5/min)
+- claim consumes code atomically (one-time)
+- bootstrap payload nonce is unique (extension enforces single accept)
+
+Failure codes:
+- `PAIRING_CODE_INVALID`
+- `PAIRING_CODE_EXPIRED`
+- `PAIRING_CODE_CONSUMED`
+- `PAIRING_RATE_LIMITED`
+
 ## WebSocket Route: `GET /ws`
 
 **File:** `src/routes/ws.ts`
@@ -103,6 +165,9 @@ Extension connects here. Multiple clients supported (one per Chrome profile).
 ```typescript
 app.get('/ws', { websocket: true }, (socket, request) => {
   // socket is a WebSocket instance
+  // WS auth is validated during upgrade from Sec-WebSocket-Protocol.
+  // Expected: `bproxy.v1` + `auth.{base64url(token)}`
+  // If valid, server negotiates and echoes only `bproxy.v1`.
 
   // Register client
   clients.add(socket);
@@ -127,6 +192,11 @@ app.get('/ws', { websocket: true }, (socket, request) => {
 ```
 
 ## Dispatch
+
+Routing rule for debug actions:
+- `debug.last` and `debug.status` are daemon-local (no WS required).
+- `debug.log` targets extension background SW (requires WS client).
+
 
 **File:** `src/dispatch.ts`
 
@@ -225,10 +295,14 @@ Sessions are created implicitly on first command with `--session <name>`. Bound 
 ### Startup (`bproxy service start`)
 
 1. Check lockfile `~/.bproxy/bproxy.pid` — if process alive, exit with "already running".
-2. Generate bearer token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
-3. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
-4. Parent writes PID to lockfile, exits 0.
-5. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
+2. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
+   - If token file exists with wrong owner or mode, refuse start (fail closed) unless an explicit repair flag is provided.
+3. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
+4. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
+5. Parent writes PID to lockfile, exits 0.
+6. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
+
+At startup the CLI prints machine-readable output including `pairingCode`, so flows can chain directly into `bproxy extension pair`.
 
 ### Shutdown (`bproxy service stop`)
 
@@ -247,12 +321,12 @@ Day-rotated to `~/.bproxy/logs/YYYY-MM-DD.log`. Fastify's built-in pino logger, 
 ~/.bproxy/
 ├── bproxy.pid          # PID of running daemon
 ├── port                # port number (for CLI to find)
-├── token               # bearer token (mode 0600)
+├── token               # daemon bearer token for CLI HTTP auth (mode 0600)
 └── logs/
     └── 2026-05-08.log
 ```
 
-Cross-platform: `$XDG_STATE_HOME/bproxy` on Linux, `~/Library/Application Support/bproxy` on macOS, `%LOCALAPPDATA%/bproxy` on Windows.
+Canonical path on all platforms: `~/.bproxy`.
 
 ## Error Responses
 
@@ -266,6 +340,10 @@ The daemon wraps extension errors and adds its own:
 | `TAB_NOT_FOUND` | target | Session's pinned tab was closed |
 | `HUMAN_REQUIRED` | policy | Extension detected interstitial (passthrough) |
 | `PACING_VIOLATION` | policy | Internal — shouldn't surface (pacing is enforced, not rejected) |
+| `PAIRING_CODE_INVALID` | policy | Pair claim used unknown code |
+| `PAIRING_CODE_EXPIRED` | policy | Pair claim used expired code |
+| `PAIRING_CODE_CONSUMED` | policy | Pair claim reused one-time code |
+| `PAIRING_RATE_LIMITED` | transport | Too many claim attempts |
 
 ## Observability
 

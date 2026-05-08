@@ -39,6 +39,7 @@ cli/
         ├── eval.ts
         ├── tab.ts            # subCommands: list, pin, unpin, open, close
         ├── session.ts        # subCommands: list, bind, unbind, resume
+        ├── extension.ts      # subCommands: pair
         └── debug.ts          # subCommands: log, last, status
 ```
 
@@ -83,6 +84,7 @@ const main = defineCommand({
     eval:           () => import('./commands/eval').then(m => m.default),
     tab:            () => import('./commands/tab').then(m => m.default),
     session:        () => import('./commands/session').then(m => m.default),
+    extension:      () => import('./commands/extension').then(m => m.default),
     debug:          () => import('./commands/debug').then(m => m.default),
   },
 });
@@ -182,7 +184,12 @@ async function resolveDaemon(): Promise<{ port: number; token: string }> {
   const paths = resolvePaths();
   // Read port from ~/.bproxy/port
   // Read token from ~/.bproxy/token
-  // If either missing → exit 2 with "daemon not running" message
+  // Preflight token file security before use:
+  // - must exist
+  // - owner must be current user
+  // - mode must be 0600 (owner read/write only)
+  // If preflight fails → exit 2 with explicit fix command
+  // If port/token missing → exit 2 with "daemon not running" message
 }
 ```
 
@@ -192,15 +199,11 @@ Uses Node.js built-in `fetch` (available since Node 18). No HTTP library depende
 
 **File:** `src/paths.ts`
 
-Cross-platform state directory:
+Single state directory on all platforms:
 
 ```typescript
 export function resolvePaths() {
-  const base = process.platform === 'darwin'
-    ? path.join(os.homedir(), 'Library', 'Application Support', 'bproxy')
-    : process.platform === 'win32'
-    ? path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'bproxy')
-    : path.join(process.env.XDG_STATE_HOME ?? path.join(os.homedir(), '.local', 'state'), 'bproxy');
+  const base = path.join(os.homedir(), '.bproxy');
 
   return {
     base,
@@ -232,7 +235,7 @@ Errors go to stderr only for usage errors (exit code 2). All protocol errors are
 |---|---|
 | 0 | `ok: true` — command succeeded |
 | 1 | `ok: false` — command failed (error in JSON on stdout) |
-| 2 | Usage error (bad args, daemon not running, config missing) |
+| 2 | Usage/config error (bad args, daemon not running, missing/insecure token, config missing) |
 
 ## `service` Subcommands
 
@@ -251,12 +254,12 @@ export default defineCommand({
   },
   async run({ args }) {
     // 1. Check if already running (read PID file, check process)
-    // 2. Generate token, write to ~/.bproxy/token (mode 0600)
-    // 3. Spawn service/dist/index.mjs as detached child
+    // 2. Spawn service/dist/index.mjs as detached child
     //    Pass config via env vars: BPROXY_PORT, BPROXY_ALLOW_EVAL, BPROXY_ENABLE_DEBUGGER
+    // 3. Daemon startup generates token and writes ~/.bproxy/token (mode 0600)
     // 4. Write PID to ~/.bproxy/bproxy.pid
     // 5. Wait for port file to appear (daemon is listening)
-    // 6. Output { ok: true, data: { pid, port } }
+    // 6. Output { ok: true, data: { pid, port, pairingCode, pairingExpiresAt } }
   },
 });
 ```
@@ -268,6 +271,46 @@ Read PID → send SIGTERM → wait for exit → clean up lockfile.
 ### `bproxy service status`
 
 Read PID → check if alive → read port → report.
+
+## `extension` Subcommands
+
+### `bproxy extension pair --code <CODE>`
+
+Claims one-time pairing code and bootstraps extension token without options-page UI.
+
+Flow:
+1. Resolve daemon port + daemon token (`~/.bproxy/token`) with same token preflight checks.
+2. POST `http://127.0.0.1:{port}/pair/claim` with bearer token and `{ code }`.
+3. Receive bootstrap payload `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`.
+4. Deliver payload to extension via runtime external messaging bridge.
+5. Print JSON `{ ok: true, data: { paired: true } }`.
+
+### Pipe-friendly usage
+
+```bash
+bproxy service start --json | bproxy extension pair --from-stdin
+```
+
+`--from-stdin` reads JSON from stdin and extracts `data.pairingCode`.
+
+## Token preflight (fail closed)
+
+Before any command that reads `~/.bproxy/token`, CLI enforces:
+
+- file exists
+- owner is current user
+- permissions are exactly `0600`
+
+If any check fails, CLI must not attempt daemon auth and must exit `2` with clear remediation text.
+
+Example messages:
+
+- Missing token:
+  - `Token not found: ~/.bproxy/token. Run: bproxy service start`
+- Insecure mode:
+  - `Insecure token permissions (found 0644, expected 0600). Run: chmod 600 ~/.bproxy/token`
+- Wrong owner:
+  - `Token owner mismatch. Run: chown $USER ~/.bproxy/token`
 
 ## ID Generation
 
@@ -321,11 +364,14 @@ The hint line tells the developer exactly how to dig deeper.
 
 ### `debug` subcommand
 
+`debug` is protocol-backed (Option 1): CLI sends explicit actions through the daemon.
+
 ```bash
-bproxy debug log              # query extension ring buffer (last 50 requests)
-bproxy debug log --id 01HZX…  # single request from extension buffer
-bproxy debug last [--count N]  # last N requests from daemon log (parsed)
-bproxy debug status           # full system state: daemon, WS clients, sessions, paused
+bproxy debug log                # action: debug.log
+bproxy debug log --id 01HZX…    # action: debug.log { id }
+bproxy debug log --limit 20     # action: debug.log { limit }
+bproxy debug last [--count N]   # action: debug.last { count }
+bproxy debug status             # action: debug.status
 ```
 
 All return JSON on stdout. An agent debugging its own failures can call these programmatically.

@@ -51,6 +51,25 @@ One invocation = one command = one HTTP POST to the daemon = one JSON response o
 
 Implementation: [solution/cli.md](./solution/cli.md)
 
+## Extension Token Bootstrap (Pairing)
+
+The extension has no manual token-entry UI. Pairing is explicit and CLI-mediated.
+
+1. `bproxy service start` starts daemon and creates:
+   - daemon bearer token in `~/.bproxy/token` (CLI → daemon HTTP auth)
+   - one-time pairing code (short TTL, single-use)
+2. User/agent calls `bproxy extension pair --code XXXX-XXXX`.
+3. CLI authenticates to daemon with `Authorization: Bearer {daemon-token}` and calls bootstrap claim route.
+4. Daemon validates pairing code and returns bootstrap payload (`extensionToken`, `wsUrl`, `protocol`).
+5. CLI sends payload to installed extension via runtime messaging bridge.
+6. Extension stores token in `storage.local`, reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`.
+
+Security properties:
+- Pairing code is one-time and expires quickly.
+- Claim route requires daemon bearer token (local-file gated).
+- Daemon never exposes long-lived token over unauthenticated endpoint.
+- Pairing events are logged and auditable.
+
 ## Protocol
 
 The shared contract between all three components. Every message uses the same JSON envelope:
@@ -115,7 +134,9 @@ Errors use a single RFC 9457-aligned envelope:
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
 | `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
 | `tab` / `session` | Lifecycle and configuration verbs.                                              |
-| `debug`      | `log` (extension ring buffer), `last` (daemon log), `status` (full system state). |
+| `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
+| `debug.last` | Daemon log view (last N request lifecycles).                                     |
+| `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |
 
 ## Reliability
 

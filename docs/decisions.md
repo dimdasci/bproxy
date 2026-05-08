@@ -183,3 +183,50 @@ Append-only. Each decision is immutable once accepted. To reverse a decision, ad
 - Native Messaging — tighter Chrome integration, no network surface. But: requires platform-specific host manifest installation, harder to develop/debug, one-message-at-a-time semantics, no easy way to test outside Chrome.
 
 **Consequences:** Easier development (test WS with any client). No platform-specific install step for the host. Network surface limited to localhost (auth gate mitigates). Extension must handle WS reconnection on SW restart.
+
+---
+
+## ADR-010: WebSocket auth transport — subprotocol token
+
+**Date:** 2026-05-08  
+**Status:** Accepted
+
+**Context:** Service auth spec required `Authorization: Bearer` on all requests including WS upgrade, but extension WebSocket clients cannot reliably set arbitrary `Authorization` headers. We need one concrete WS auth mechanism compatible with browser extension APIs.
+
+**Decision:** Keep bearer token as the shared secret, but use transport-specific carriage:
+- **HTTP (`POST /`)**: `Authorization: Bearer {token}`
+- **WS (`GET /ws`)**: `Sec-WebSocket-Protocol` with `bproxy.v1` and `auth.{base64url(token)}`
+
+Server validates both subprotocol parts during upgrade and negotiates `bproxy.v1` on success.
+
+**Alternatives considered:**
+- Query token (`/ws?token=...`) — simpler, but token hygiene is weaker (URL exposure risk).
+- First-message auth after upgrade — flexible, but adds unauthenticated pre-auth socket state and more complexity.
+
+**Consequences:** WS auth is now implementable and unambiguous for Chrome extension clients. Docs must treat HTTP and WS auth separately.
+
+**Superseded note (see ADR-011):** The original single-token lifecycle assumption is superseded. Current model uses two secrets:
+- **Daemon token** in `~/.bproxy/token` for CLI→daemon HTTP auth.
+- **Extension token** issued via one-time pairing claim for extension WS auth.
+
+---
+
+## ADR-011: Extension token bootstrap via CLI-mediated pairing
+
+**Date:** 2026-05-08  
+**Status:** Accepted
+
+**Context:** The design had a gap: daemon generated token material, extension expected token in storage, but no explicit pairing/bootstrap flow was specified. Manual token entry is incompatible with no-options-page UX.
+
+**Decision:** Add explicit one-time pairing flow:
+- `bproxy service start` creates short-lived one-time pairing code.
+- `bproxy extension pair --code <CODE>` claims code via daemon route `POST /pair/claim` authenticated by daemon bearer token.
+- Daemon returns bootstrap payload (`extensionToken`, `wsUrl`, `protocolVersion`, `issuedAt`, `expiresAt`, `nonce`).
+- CLI delivers payload to extension via external runtime messaging bridge.
+- Extension stores token and reconnects WS.
+
+**Alternatives considered:**
+- Unauthenticated `/bootstrap` endpoint for extension self-claim (rejected: larger pre-auth surface).
+- Manual token paste UI (rejected: not aligned with current extension design).
+
+**Consequences:** Bootstrap is now fully documented, scriptable, and auditable; pairing code is one-time + TTL-bound; daemon and extension tokens are separated by role.

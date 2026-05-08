@@ -1,7 +1,9 @@
 # Default instrumentation strategy
 
 Date: 2026-04-30
-Status: open question, pending pivot decision
+Status: historical (decision finalized)
+
+> **Superseded by ADR state:** This journal captures pre-decision exploration. The default-mode question is now resolved in [ADR-001: Default instrumentation strategy — read mode](../decisions.md#adr-001-default-instrumentation-strategy--read-mode) (**Accepted**, 2026-04-30).
 
 ## Context
 
@@ -140,3 +142,4 @@ This is probably the realistic landing point. The pivot question is not "A or B"
 - **2026-04-30** — Form-fill scenario added (Scenario 3 in `scenarios.md`). Sharpens the meaning of "interact mode": it is read mode plus a small set of paste-shaped write primitives (`fill`, `fill-form`, `select`, `elements --form`, `require-human --for-attach`), not a wholesale switch into concept A's heavy instrumentation. Concept A may not have a separate identity at all — there is just one default mode (read mode) with write primitives that turn on when used.
 - **2026-04-30** — Paste-as-default established. Earlier reasoning assumed paced character-by-character typing was the realistic primitive; correction: real humans paste from saved info docs / resumes / LinkedIn / templates and never type their CV. `bproxy fill` defaults to paste-flavored input events (`inputType: "insertFromPaste"`); per-character typing is opt-in. The session's `--pacing` value governs delay between fields, not within fields.
 - **2026-04-30** — "Don't submit" handoff confirmed as load-bearing for write-heavy flows. Agent prepares the form; user reviews and clicks submit. The user-driven submit is `isTrusted: true` and often offsets any lower bot score from the fill behaviour. Mirrors the "agent prepares, user digests" posture from the read scenarios — consistent project-wide pattern of agent-as-preparer-not-actor.
+- **2026-04-30** — Decision finalized in ADR-001: default instrumentation is **read mode** (Accepted). This journal remains as historical design context.

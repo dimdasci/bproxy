@@ -82,7 +82,8 @@ export type Action =
   | 'require-human'
   | 'eval'
   | 'tab.list' | 'tab.pin' | 'tab.unpin' | 'tab.open' | 'tab.close'
-  | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume';
+  | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume'
+  | 'debug.log' | 'debug.last' | 'debug.status';
 
 // Params per action — exhaustive, compiler-checked
 export interface ActionParams {
@@ -109,6 +110,9 @@ export interface ActionParams {
   'session.bind': { tabId: number; pacing?: PacingMode };
   'session.unbind': {};
   'session.resume': {};
+  'debug.log': { id?: string; limit?: number };
+  'debug.last': { count?: number };
+  'debug.status': {};
 }
 
 // Results per action — what data contains on success
@@ -136,6 +140,14 @@ export interface ActionResult {
   'session.bind': { session: string; tabId: number };
   'session.unbind': {};
   'session.resume': { session: string };
+  'debug.log': { entries: Array<TraceEntry> };
+  'debug.last': { requests: Array<DaemonRequestTrace> };
+  'debug.status': {
+    daemon: { pid: number; port: number; uptimeSec: number };
+    wsClients: Array<{ id: string; connectedAt: number }>;
+    sessions: Array<SessionInfo>;
+    pausedSessions: Array<{ session: string; reason?: string }>;
+  };
 }
 ```
 
@@ -251,6 +263,28 @@ export interface Landmark {
 export interface Heading {
   level: number;
   text: string;
+}
+
+export interface TraceEntry {
+  id: string;
+  action: string;
+  tab: number;
+  timestamp: number;
+  elapsed: number;
+  result: 'ok' | 'error';
+  errorCode?: string;
+  replay: boolean;
+}
+
+export interface DaemonRequestTrace {
+  id: string;
+  action: string;
+  session: string;
+  receivedAt: number;
+  elapsedMs: number;
+  ok: boolean;
+  errorCode?: string;
+  replayed?: boolean;
 }
 ```
 

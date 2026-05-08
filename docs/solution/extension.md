@@ -13,10 +13,7 @@ extension/
 ├── tsconfig.json
 ├── entrypoints/
 │   ├── background.ts         # service worker
-│   ├── content.ts            # isolated world, registration: 'runtime'
-│   └── options/
-│       ├── index.html        # token paste UI
-│       └── main.ts
+│   └── content.ts            # isolated world, registration: 'runtime'
 ├── utils/
 │   ├── ws-client.ts          # WebSocket connection + reconnect logic
 │   ├── storage.ts            # typed storage items (session pins, token, domain config)
@@ -61,21 +58,30 @@ WXT ref: [Entrypoints](https://wxt.dev/guide/essentials/entrypoints.md)
 
 ### Responsibilities
 
-1. **WebSocket client** — persistent connection to `ws://127.0.0.1:{port}/ws`. Reconnects on drop. Authenticates on connect with bearer token from storage.
-2. **Request dispatch** — receives protocol messages from daemon, routes to appropriate handler (tab-level actions → content script, extension-level actions → direct API calls).
-3. **Dedupe table** — `chrome.storage.session` map of `{id → result}`. Prevents re-execution on replay-after-reconnect. Bounded size, TTL-based eviction.
-4. **Session/tab pin map** — `chrome.storage.session` keyed by session name → tab ID. Sticky targeting.
-5. **Frame table** — populated from `chrome.webNavigation.onCompleted` / `onHistoryStateUpdated`. Used for SPA detection and frame targeting.
-6. **Keepalive** — `chrome.alarms` every 30s + app-level WS ping every 20s.
-7. **Content script injection** — on first command targeting a tab, inject `content.ts` via `browser.scripting.executeScript`. Track injected tabs to avoid re-injection.
-8. **Interstitial detection** — after `navigate` completes, check page title/content against known patterns (CAPTCHA, sign-in walls). Emit `HUMAN_REQUIRED` error.
+1. **WebSocket client** — persistent connection to `ws://127.0.0.1:{port}/ws`. Reconnects on drop. Authenticates during handshake via `Sec-WebSocket-Protocol` using `bproxy.v1` plus `auth.{base64url(token)}` from storage.
+2. **Pairing bridge** — listens for `chrome.runtime.onMessageExternal` from CLI helper and accepts signed bootstrap payload (`extensionToken`, `wsUrl`, `protocolVersion`).
+3. **Request dispatch** — receives protocol messages from daemon, routes to appropriate handler (tab-level actions → content script, extension-level actions → direct API calls).
+4. **Dedupe table** — `chrome.storage.session` map of `{id → result}`. Prevents re-execution on replay-after-reconnect. Bounded size, TTL-based eviction.
+5. **Session/tab pin map** — `chrome.storage.session` keyed by session name → tab ID. Sticky targeting.
+6. **Frame table** — populated from `chrome.webNavigation.onCompleted` / `onHistoryStateUpdated`. Used for SPA detection and frame targeting.
+7. **Keepalive** — `chrome.alarms` every 30s + app-level WS ping every 20s.
+8. **Content script injection** — on first command targeting a tab, inject `content.ts` via `browser.scripting.executeScript`. Track injected tabs to avoid re-injection.
+9. **Interstitial detection** — after `navigate` completes, check page title/content against known patterns (CAPTCHA, sign-in walls). Emit `HUMAN_REQUIRED` error.
 
 ### SW Lifecycle
 
 ```
-SW starts → read token from storage → open WS → authenticate → listen for messages
+SW starts → read token from storage (if present)
+         → register external message handler for pairing
+         → if token exists: open WS with (`bproxy.v1`, `auth.{base64url(token)}`)
          → register chrome.alarms keepalive
          → register chrome.webNavigation listeners (frame table)
+
+On `pair.bootstrap` message from trusted sender
+             → validate sender id + payload shape
+             → persist token/wsUrl/protocol
+             → reconnect WS immediately
+             → ack `{ ok: true }`
 
 On WS message → parse → check dedupe table
              → if duplicate: return cached result
@@ -191,13 +197,40 @@ WXT's `ContentScriptContext` tracks whether the extension was updated/disabled. 
 
 WXT ref: [Content Scripts — Context](https://wxt.dev/guide/essentials/content-scripts.md)
 
-## Options Page
+## Pairing (No Options Page)
 
-**Files:** `entrypoints/options/index.html`, `entrypoints/options/main.ts`
+The extension does not expose manual token UI. Bootstrap happens via CLI-mediated pairing.
 
-Single text field for bearer token. On paste/type → save to `storage.local`. Minimal UI — no framework needed, vanilla DOM.
+### External message contract
 
-WXT ref: [Entrypoints — Options](https://wxt.dev/guide/essentials/entrypoints.md)
+Background SW accepts one external message type:
+
+```ts
+{
+  type: 'pair.bootstrap',
+  payload: {
+    extensionToken: string,
+    wsUrl: string,
+    protocolVersion: 1,
+    issuedAt: number,
+    expiresAt: number,
+    nonce: string
+  }
+}
+```
+
+Validation rules:
+- `sender.id` must match trusted companion extension/app id configured at build time.
+- `expiresAt` must be in the future.
+- `nonce` must be unseen in local replay cache (one-time accept).
+- `wsUrl` host must be loopback (`127.0.0.1` or `localhost`).
+
+On success:
+1. Store `extensionToken` (and optional `wsUrl`) in `storage.local`.
+2. Trigger immediate WS reconnect.
+3. Return `{ ok: true }`.
+
+On failure: return `{ ok: false, code: 'PAIR_REJECTED', reason: ... }` and keep current token unchanged.
 
 ## Optional: chrome.debugger
 
