@@ -14,14 +14,16 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | # | Phase | Purpose | Detail |
 |---|---|---|---|
 | 0 | PoC | De-risk three load-bearing technical assumptions | [phases/00-poc.md](./phases/00-poc.md) |
-| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | [phases/00b-doc-reconciliation.md](./phases/00b-doc-reconciliation.md) |
-| 1 | Shared types | The domain model | [phases/01-shared-types.md](./phases/01-shared-types.md) |
-| 2 | Daemon | Routing, auth, pacing, lifecycle | [phases/02-daemon.md](./phases/02-daemon.md) |
-| 3 | Extension | Browser-side execution | [phases/03-extension.md](./phases/03-extension.md) |
-| 4 | CLI | One-shot agent interface | [phases/04-cli.md](./phases/04-cli.md) |
-| 5 | Integration & hardening | End-to-end against documented scenarios | [phases/05-integration.md](./phases/05-integration.md) |
+| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | _plan written when Phase 0 closes_ |
+| 1 | Shared types | The domain model | _plan written when Phase 0.5 closes_ |
+| 2 | Daemon | Routing, auth, pacing, lifecycle | _plan written when Phase 1 closes_ |
+| 3 | Extension | Browser-side execution | _plan written when Phase 2 closes_ |
+| 4 | CLI | One-shot agent interface | _plan written when Phase 3 closes_ |
+| 5 | Integration & hardening | End-to-end against documented scenarios | _plan written when Phase 4 closes_ |
 
-Per-phase detail files live under [`docs/plans/phases/`](./phases/). Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; the phase files own the granular plan.
+Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
+
+**Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing all seven plans up front would lock in assumptions before they've been tested.
 
 ## Per-phase summary
 
