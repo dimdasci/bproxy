@@ -8,5 +8,12 @@ Solution: I want to have a browser plugin that can act on my behalf and provide 
 # Docs
 
 - Diagram: docs/browser-proxy-idea.png shows the idea of how it works.
-- Architecture: docs/architecture.md is the top-level guiding document for the project.
-- Technical solution: docs/tech-solution has the technical details of the implementation.
+- Architecture: docs/architecture.md — system shape, components, protocol, principles.
+- Decisions: docs/decisions.md — ADRs (why we chose X over Y), append-only.
+- Scenarios: docs/scenarios.md — driving use cases with bot-signal accounting.
+- Solution specs (implementation guides):
+  - docs/solution/extension.md — Chrome extension (WXT, background SW, content script).
+  - docs/solution/service.md — proxy daemon (Fastify, auth, pacing, WS).
+  - docs/solution/cli.md — CLI (citty, commands, client module).
+  - docs/solution/shared.md — shared TypeScript types (protocol, actions, errors).
+- Journal: docs/journal/ — raw design thinking and pivot notes.
