@@ -132,6 +132,7 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 - **2026-05-08** — Approach approved: layered bottom-up + preliminary PoC phase. Daemon-first ordering after Layer 1.
 - **2026-05-08** — PoC list locked: (1) MV3 SW + WebSocket + protocol envelope, (2) CLI → extension pairing transport, (3) paste-flavored writes on real frameworks (target page deferred to PoC time).
 - **2026-05-08** — Static analysis stack adopted ([ADR-012](../decisions.md#adr-012-static-analysis-stack)): `tsc` + Biome (format) + ESLint v9 (with `eslint-plugin-sonarjs`) + dependency-cruiser + knip, exposed via `pnpm check` and per-step scripts. Pre-commit hooks deferred to Phase 5; during active development, gates run on demand and in CI only. Concrete policy in [docs/quality-gates.md](../quality-gates.md).
+- **2026-05-08** — PoC 1 (MV3 SW + WebSocket + protocol envelope) completed with ✅ confirms-design verdict. Artifacts: `poc/mv3-ws-reconnect/` and `docs/journal/2026-05-08-poc-mv3-ws-reconnect.md`. No ADR/doc changes required.
 
 ## Relationship to other docs
 

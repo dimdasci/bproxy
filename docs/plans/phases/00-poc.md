@@ -63,13 +63,13 @@ PoCs use **pnpm** (`pnpm install`, `pnpm start`). Workspace is not yet configure
 
 **Timebox:** 1 day. If a definitive answer isn't reached, mark the PoC inconclusive and decide next step.
 
-- [ ] **Step 1: Scaffold the PoC directory.**
+- [x] **Step 1: Scaffold the PoC directory.**
 
 ```bash
 mkdir -p poc/mv3-ws-reconnect/extension
 ```
 
-- [ ] **Step 2: Write the README explaining the question and how to run.**
+- [x] **Step 2: Write the README explaining the question and how to run.**
 
 Create `poc/mv3-ws-reconnect/README.md`:
 
@@ -107,7 +107,7 @@ In a separate Chrome window:
 Findings → `docs/journal/2026-05-08-poc-mv3-ws-reconnect.md`.
 ```
 
-- [ ] **Step 3: Write `package.json`.**
+- [x] **Step 3: Write `package.json`.**
 
 Create `poc/mv3-ws-reconnect/package.json`:
 
@@ -127,7 +127,7 @@ Create `poc/mv3-ws-reconnect/package.json`:
 }
 ```
 
-- [ ] **Step 4: Install dependencies.**
+- [x] **Step 4: Install dependencies.**
 
 ```bash
 cd poc/mv3-ws-reconnect && pnpm install
@@ -135,7 +135,7 @@ cd poc/mv3-ws-reconnect && pnpm install
 
 Expected: `node_modules/` populated, no errors.
 
-- [ ] **Step 5: Write the WebSocket server.**
+- [x] **Step 5: Write the WebSocket server.**
 
 Create `poc/mv3-ws-reconnect/server.mjs`:
 
@@ -181,7 +181,7 @@ await app.listen({ host: '127.0.0.1', port: PORT });
 console.log(`Listening on ws://127.0.0.1:${PORT}/ws (token: ${TOKEN})`);
 ```
 
-- [ ] **Step 6: Write the extension manifest.**
+- [x] **Step 6: Write the extension manifest.**
 
 Create `poc/mv3-ws-reconnect/extension/manifest.json`:
 
@@ -199,7 +199,7 @@ Create `poc/mv3-ws-reconnect/extension/manifest.json`:
 }
 ```
 
-- [ ] **Step 7: Write the background SW.**
+- [x] **Step 7: Write the background SW.**
 
 Create `poc/mv3-ws-reconnect/extension/background.js`:
 
@@ -270,7 +270,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 connect();
 ```
 
-- [ ] **Step 8: Run Scenario A — initial connection.**
+- [x] **Step 8: Run Scenario A — initial connection.**
 
 In one terminal:
 ```bash
@@ -294,7 +294,7 @@ Expected server log lines including `event: "ws_connect"` and `event: "received"
 
 Note observed behavior in your scratch notes for the journal memo.
 
-- [ ] **Step 9: Run Scenario B — forced suspend / reconnect.**
+- [x] **Step 9: Run Scenario B — forced suspend / reconnect.**
 
 In SW devtools, click the "stop" / "Terminate" button (top of the panel; the icon and label vary by Chrome version. If absent, navigate to `chrome://serviceworker-internals/?devtools` and click "Stop" on this extension's SW row).
 
@@ -304,7 +304,7 @@ Expected: SW console shows a fresh `connecting…` / `open` / `received` cycle. 
 
 If the SW does NOT reconnect: this is a finding. The reconnect pattern needs revision. Document it in the memo.
 
-- [ ] **Step 10: Run Scenario C — wrong-token rejection.**
+- [x] **Step 10: Run Scenario C — wrong-token rejection.**
 
 Edit `poc/mv3-ws-reconnect/extension/background.js`: change `const TOKEN = 'test-token-deadbeef';` to `const TOKEN = 'wrong-token';`. Save.
 
@@ -314,7 +314,7 @@ Expected: SW console shows a `close` event with code `1006` or similar; no `open
 
 After observing, revert the token change to `'test-token-deadbeef'`.
 
-- [ ] **Step 11: Write the journal memo.**
+- [x] **Step 11: Write the journal memo.**
 
 Create `docs/journal/2026-05-08-poc-mv3-ws-reconnect.md`:
 
@@ -365,13 +365,13 @@ One of:
 - `poc/mv3-ws-reconnect/` (committed, never imported by production)
 ```
 
-- [ ] **Step 12: If verdict is "modifies" or "invalidates," amend the relevant ADR(s).**
+- [x] **Step 12: If verdict is "modifies" or "invalidates," amend the relevant ADR(s).** *(Skipped: verdict is "confirms".)*
 
 Most likely affected: ADR-008 (WebSocket transport), ADR-010 (subprotocol auth). If a finding modifies either, append a new section to the ADR ("Superseded note (2026-05-08): …") or — for invalidating findings — write a new ADR that supersedes the old one. Per `docs/decisions.md`, ADRs are append-only: never edit history; supersede.
 
 If verdict is "confirms," skip this step.
 
-- [ ] **Step 13: Commit.**
+- [x] **Step 13: Commit.**
 
 ```bash
 git add poc/mv3-ws-reconnect docs/journal/2026-05-08-poc-mv3-ws-reconnect.md
