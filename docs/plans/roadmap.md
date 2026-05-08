@@ -43,13 +43,13 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/). Each captur
 
 **Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/architecture.md`, `docs/decisions.md`, or `docs/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
 
-### Phase 1 — Shared types
+### Phase 1 — Shared types (and workspace scaffold)
 
-**Purpose:** the domain model. The TypeScript types that form the contract between CLI, daemon, and extension. Per [docs/solution/shared.md](../solution/shared.md).
+**Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per [docs/solution/shared.md](../solution/shared.md) and [docs/quality-gates.md](../quality-gates.md).
 
-**Output:** `@bproxy/shared` package compiling, with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types.
+**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types.
 
-**Done when:** every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; the package builds with `tsc --noEmit`; tests assert that the discriminated union is exhaustive.
+**Done when:** `pnpm check` passes from a clean checkout; every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; tests assert that the discriminated union is exhaustive.
 
 ### Phase 2 — Daemon
 
@@ -79,9 +79,9 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/). Each captur
 
 **Purpose:** validate the system against documented scenarios end-to-end and harden the rough edges.
 
-**Output:** Scenarios 1–3 from [docs/scenarios.md](../scenarios.md) pass against real sites; deadline timeouts behave correctly; error envelope is complete across all error codes; observability covers all lifecycle events.
+**Output:** Scenarios 1–3 from [docs/scenarios.md](../scenarios.md) pass against real sites; deadline timeouts behave correctly; error envelope is complete across all error codes; observability covers all lifecycle events; pre-commit hooks (Husky + lint-staged or equivalent) installed and wired to a fast subset of `pnpm check` per [docs/quality-gates.md](../quality-gates.md).
 
-**Done when:** Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles `HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step.
+**Done when:** Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles `HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step; pre-commit hooks block commits that fail format, lint, or per-file type-check on changed files.
 
 ## Cross-cutting rules
 
@@ -102,10 +102,11 @@ Every PoC has:
 Every layer (1–5) follows the same structure:
 
 1. **Decomposed into ≤1-day work units** — each unit is a named task with clear input and output. Captured in the phase detail file.
-2. **Definition of done = the checkpoint.** Three criteria, all required:
+2. **Definition of done = the checkpoint.** Four criteria, all required:
    - **Functional** — every interface consumed by later layers is implemented.
-   - **Design-asserted** — at least one test or static check confirms a design constraint. Examples: extension bundle contains no `MutationObserver` reference (static grep test); daemon's `onRequest` auth hook runs before any route handler; `fill` action handler dispatches `InputEvent` with `inputType: "insertFromPaste"`.
+   - **Design-asserted** — at least one test or static check confirms a design constraint. Examples: extension bundle contains no `MutationObserver` reference; daemon's `onRequest` auth hook runs before any route handler; `fill` action handler dispatches `InputEvent` with `inputType: "insertFromPaste"`.
    - **Documented** — package `README.md` and any updates to `docs/solution/*.md` are committed.
+   - **Static gates pass** — `pnpm check` succeeds (type checking, format, lint with complexity and size limits, architecture rules, dead-code and dependency hygiene). Per [docs/quality-gates.md](../quality-gates.md).
 3. **Layer scope is locked at start** — the phase detail file enumerates what's in scope; anything else is out of scope for that phase.
 
 ### Scope discipline
@@ -128,6 +129,7 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 
 - **2026-05-08** — Approach approved: layered bottom-up + preliminary PoC phase. Daemon-first ordering after Layer 1.
 - **2026-05-08** — PoC list locked: (1) MV3 SW + WebSocket + protocol envelope, (2) CLI → extension pairing transport, (3) paste-flavored writes on real frameworks (target page deferred to PoC time).
+- **2026-05-08** — Static analysis stack adopted ([ADR-012](../decisions.md#adr-012-static-analysis-stack)): `tsc` + Biome (format) + ESLint v9 (with `eslint-plugin-sonarjs`) + dependency-cruiser + knip, exposed via `pnpm check` and per-step scripts. Pre-commit hooks deferred to Phase 5; during active development, gates run on demand and in CI only. Concrete policy in [docs/quality-gates.md](../quality-gates.md).
 
 ## Relationship to other docs
 
@@ -137,5 +139,6 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 | [`docs/decisions.md`](../decisions.md) | Why we chose what we chose (ADRs) |
 | [`docs/solution/`](../solution/) | Per-component implementation specs |
 | [`docs/scenarios.md`](../scenarios.md) | Driving use cases the system must support |
+| [`docs/quality-gates.md`](../quality-gates.md) | Static analysis policy: tools, thresholds, commands |
 | [`docs/journal/`](../journal/) | Raw design thinking; PoC findings land here |
 | **this doc** | **How and in what order we build it** |

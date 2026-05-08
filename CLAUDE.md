@@ -16,4 +16,6 @@ Solution: I want to have a browser plugin that can act on my behalf and provide 
   - docs/solution/service.md — proxy daemon (Fastify, auth, pacing, WS).
   - docs/solution/cli.md — CLI (citty, commands, client module).
   - docs/solution/shared.md — shared TypeScript types (protocol, actions, errors).
+- Implementation roadmap: docs/plans/roadmap.md — phase order, definition of done, code-as-doc rules.
+- Quality gates: docs/quality-gates.md — static analysis policy (tsc, Biome, ESLint, dep-cruiser, knip) and `pnpm check` surface.
 - Journal: docs/journal/ — raw design thinking and pivot notes.

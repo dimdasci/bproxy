@@ -230,3 +230,35 @@ Server validates both subprotocol parts during upgrade and negotiates `bproxy.v1
 - Manual token paste UI (rejected: not aligned with current extension design).
 
 **Consequences:** Bootstrap is now fully documented, scriptable, and auditable; pairing code is one-time + TTL-bound; daemon and extension tokens are separated by role.
+
+---
+
+## ADR-012: Static analysis stack
+
+**Date:** 2026-05-08  
+**Status:** Accepted
+
+**Context:** The "code as documentation" non-functional requirement (`docs/plans/roadmap.md`) needs concrete enforcement. Without static gates, code structure and complexity drift quietly between commits. The project also has a clear architectural shape — four workspace packages with strict directional dependencies — which won't enforce itself.
+
+**Decision:** Adopt a composed five-concern static analysis stack:
+
+- **Type checking:** `tsc --noEmit` per workspace, with `strict: true` plus `noUncheckedIndexedAccess`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `isolatedModules`, `verbatimModuleSyntax`.
+- **Format:** Biome v2 (format-only; lint disabled to avoid double config).
+- **Lint:** ESLint v9 (flat config) with `@typescript-eslint`, `eslint-plugin-sonarjs` (cognitive complexity), and built-in size/depth rules.
+- **Architecture rules:** `dependency-cruiser` enforcing cross-package import constraints that mirror `docs/architecture.md`.
+- **Dead code & dependency hygiene:** `knip`.
+
+The full surface is exposed via `pnpm check` (umbrella) plus per-step scripts (`pnpm typecheck`, `pnpm format`, `pnpm lint`, `pnpm arch`, `pnpm deadcode`). Concrete configuration, thresholds, and command surface live in [`docs/quality-gates.md`](./quality-gates.md).
+
+**Alternatives considered:**
+
+- **Biome-only.** Single tool covers format and common-case lint. Rejected: Biome v2 lacks plugin parity for cognitive-complexity rules, layer-boundary enforcement, and dead-code analysis. Re-evaluate in 12 months as Biome's plugin ecosystem matures.
+- **ESLint + Prettier (no Biome).** The traditional stack. Works, but slower; Biome's format speed is a meaningful local-dev win.
+- **oxlint as primary lint.** Fast, but explicitly positioned as a complement to ESLint, not a replacement; no type-aware rules in 2026.
+- **Skip dependency-cruiser; rely on convention.** Rejected: a four-package monorepo with directional dependencies will drift without enforcement.
+
+**Consequences:**
+
+- Five tools to keep configured. Mitigated by (a) Biome and ESLint having stable upgrade paths, (b) `pnpm check` as the single umbrella, (c) all configs at the repo root.
+- `dependency-cruiser` rules and `docs/architecture.md` must be updated together. Documented as a maintenance rule in `docs/quality-gates.md`.
+- CI gates fail builds; auto-fix lives only in developer tooling (Biome `--write`, ESLint `--fix`). Pre-commit hooks deferred to Phase 5 — during active development, gates run on demand and in CI only.
