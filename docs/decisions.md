@@ -231,6 +231,8 @@ Server validates both subprotocol parts during upgrade and negotiates `bproxy.v1
 
 **Consequences:** Bootstrap is now fully documented, scriptable, and auditable; pairing code is one-time + TTL-bound; daemon and extension tokens are separated by role.
 
+**Superseded note (2026-05-08):** PoC 2 (`docs/journal/2026-05-08-poc-cli-extension-pairing.md`) confirmed that `chrome.runtime.onMessageExternal` is not reachable from a Node CLI process. Pairing transport changes to popup-driven claim: CLI prints pairing code; user pastes code in extension popup; popup calls `POST /pair/claim` directly and stores bootstrap payload.
+
 ---
 
 ## ADR-012: Static analysis stack
