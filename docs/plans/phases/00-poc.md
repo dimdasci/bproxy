@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** De-risk three load-bearing technical assumptions in the bproxy design — MV3 SW WebSocket lifecycle, CLI → extension pairing transport, and paste-flavored writes on real frameworks — and capture findings as journal memos and (if needed) ADR amendments.
+**Goal:** De-risk three load-bearing technical assumptions in the bproxy design — MV3 SW WebSocket lifecycle, CLI → extension pairing transport, and a write technique for hostile rich-text editors (LinkedIn post composer) — and capture findings as journal memos and (where appropriate, and only after the relevant PoC closes) ADR amendments.
 
 **Architecture:** Three independent throwaway PoCs under `poc/<name>/`, each answering one question with the smallest possible code. PoCs are standalone Node projects (their own `package.json`), never imported by production packages, but committed for reference. Each closes with a journal memo (question / method / finding / implication / verdict).
 
-**Tech Stack:** Node 18+, Chrome MV3, Fastify v5 + `@fastify/websocket` v11 (PoCs 1 + 2 servers), plain devtools-pasted JS (PoC 3).
+**Tech Stack:** Node 18+, Chrome MV3, Fastify v5 + `@fastify/websocket` v11 (PoCs 1 + 2 servers), Chrome MV3 extension only for PoC 3 (extension-only execution; no script injection / no devtools-pasted snippets).
 
 **Spec:** [`docs/plans/roadmap.md`](../roadmap.md) — Phase 0 section. Cross-cutting PoC structure rules in the same doc.
 
@@ -33,9 +33,15 @@ poc/
 │       ├── background.js
 │       ├── popup.html
 │       └── popup.js
-└── paste-fill/                        # PoC 3
+└── paste-fill/                        # PoC 3 (directory name retained; PoC pivoted to fiber-walk technique)
     ├── README.md
-    └── snippet.js
+    ├── snippet.js                     # historical artifact; not extended
+    └── extension/
+        ├── manifest.json
+        ├── background.js
+        ├── content.js
+        ├── popup.html
+        └── popup.js
 
 docs/journal/
 ├── 2026-05-08-poc-mv3-ws-reconnect.md
@@ -43,7 +49,7 @@ docs/journal/
 └── 2026-05-08-poc-paste-fill.md
 ```
 
-Each PoC is independent. Run order does not matter; PoC 3 is the cheapest if you want to start small.
+Each PoC is independent. Run order does not matter.
 
 PoCs use **pnpm** (`pnpm install`, `pnpm start`). Workspace is not yet configured at this phase, so each PoC's `package.json` is standalone.
 
@@ -750,152 +756,90 @@ EOF
 
 ---
 
-## Task 3: PoC 3 — Paste-flavored writes on real frameworks
+## Task 3: PoC 3 — Write technique for hostile rich-text editors (LinkedIn post composer)
 
 **Files:**
-- Create: `poc/paste-fill/README.md`
-- Create: `poc/paste-fill/snippet.js`
-- Create: `docs/journal/2026-05-08-poc-paste-fill.md`
+- Update: `poc/paste-fill/README.md`
+- Update: `poc/paste-fill/extension/manifest.json`
+- Update: `poc/paste-fill/extension/background.js`
+- Update: `poc/paste-fill/extension/content.js`
+- Update: `poc/paste-fill/extension/popup.html`
+- Update: `poc/paste-fill/extension/popup.js`
+- Append to: `docs/journal/2026-05-08-poc-paste-fill.md`
 
-**Question:** Does the paste-flavored input pattern (native value setter + `InputEvent('beforeinput'/'input', { inputType: 'insertFromPaste' })` + `Event('change')`) update controlled state in a real React/Vue application form, such that the user's eventual submit sends the pasted values?
+**Question:** Can the bproxy extension write text into LinkedIn's post composer (Lexical-backed contenteditable, hosted inside an open shadow root, with the editor's paste handler gating on `isTrusted`) by:
 
-**Timebox:** ½ day.
+1. Locating the editor element via a shadow-piercing recursive walker rooted at `document`.
+2. Walking React fibers (`__reactFiber$*` / `__reactProps$*`) up from that element to obtain the Lexical editor instance.
+3. Mutating editor state via the editor's own API (`editor.update(() => { ... })` or `editor.setEditorState(editor.parseEditorState(...))`) — no synthetic `InputEvent` / `ClipboardEvent` / `Event('change')`.
 
-**Target page:** Welcome to the Jungle's application form is the suggested first target. Final pick is at execution time — pick any modern React/Vue job application form. Document which one was used.
+**Background:** The original PoC 3 question (paste-flavored writes on traditional `<input>`/`<textarea>` forms) is **subsumed** by this one. Fiber-walk is strictly more powerful than paste events: it bypasses the `isTrusted` gate, survives shadow-DOM encapsulation, and generalises to traditional inputs (the same fiber-walk lands on any React/Vue component holding form state). There is no scenario in bproxy's design where paste events would succeed but fiber-walk would not. See `docs/journal/2026-05-08-poc-paste-fill.md` § 2026-05-09 for the pivot rationale.
 
-- [ ] **Step 1: Scaffold the PoC directory.**
+**Constraint (binding) — extension-only:** All execution goes through `chrome.scripting.executeScript`, content scripts, and popup-driven actions in `poc/paste-fill/extension/`. No devtools-pasted snippets, no `javascript:` URLs, no console-paste fallbacks. `poc/paste-fill/snippet.js` is a historical artifact; do not extend or run it. See journal § "constraint: extension-only, no script injection".
 
-```bash
-mkdir -p poc/paste-fill
-```
+**Constraint (binding) — no decision-doc edits in this task:** Do **not** modify `docs/decisions.md` (ADRs), `docs/architecture.md`, or `docs/solution/*` as part of PoC 3. ADR-007 and adjacent decision records are revisited as a separate task only **after** this PoC closes with a verdict. The journal memo for PoC 3 closes with a verdict; ADR work is downstream of the verdict, not inside this task.
 
-- [ ] **Step 2: Write the README.**
+**Target:** LinkedIn feed at `https://www.linkedin.com/feed/`. Post composer modal opened by clicking "Start a post".
 
-Create `poc/paste-fill/README.md`:
+**Timebox:** 2 days. If a definitive answer isn't reached, mark the PoC inconclusive and decide next step.
 
-```markdown
-# PoC 3 — Paste-flavored writes on real frameworks
+- [ ] **Step 1: Fix the "Start a post" trigger in `extension/popup.js`.**
 
-## Question
+The current finder iterates `[role="button"], button, div` and matches descendant text via `regex.test(textContent)`. Because `div` matches recursively, the first hit is the React root. Replace the candidate set with `[role="button"], button` only, and use exact-string `el.textContent.trim() === 'Start a post'` comparison. Verified live (see journal § "The PoC's 'Start a post' click finder picks the wrong element"): this lands the real trigger button, and `.click()` opens the modal.
 
-Does the paste-flavored input pattern (native value setter + `InputEvent('beforeinput'/'input', { inputType: 'insertFromPaste' })` + `Event('change')`) update controlled state in a real React/Vue application form?
+- [ ] **Step 2: Implement a shadow-piercing recursive walker.**
 
-## Run
+Add a helper that descends into every `element.shadowRoot` (open mode) from a root, yielding all elements. The composer's editor lives inside an open shadow root in the main document; `document.querySelector` and `chrome.scripting.executeScript({ allFrames: true })` do not pierce shadow boundaries (shadow roots are not frames; they are same-document encapsulation). Use this walker to locate the editor element by Lexical's conventional attributes — start with `[data-lexical-editor]`; if it does not match, fall back to `[contenteditable="true"][role="textbox"]` and verify the result is inside a shadow root.
 
-1. Open a real application form. Suggested: Welcome to the Jungle (https://www.welcometothejungle.com/) — find any "Apply" page that uses their multi-field application form. Any modern React/Vue form is fine; record which one you used.
-2. Open devtools console.
-3. Paste the contents of `snippet.js` into the console. (Browsers may require typing "allow pasting" first — follow the prompt.)
-4. Find a target field and call:
-   ```js
-   pasteFill('input[name="firstName"]', 'Test')
-   ```
-5. Observe:
-   - The value appears in the field.
-   - The framework's reflected state updates (verify by typing one extra character — does the form preserve `Test` plus your typed character, or does it reset to your character only?).
-   - If the form has any "review" or "summary" view that reads back the value, it shows the pasted value.
+- [ ] **Step 3: Implement React-fiber traversal to obtain the Lexical editor instance.**
 
-Findings → `docs/journal/2026-05-08-poc-paste-fill.md`.
-```
+From the editor element, walk upward via `__reactFiber$*` / `__reactProps$*` looking for a fiber whose `stateNode`, `memoizedState`, or `memoizedProps` exposes a Lexical editor instance (an object with `update()`, `getEditorState()`, `setEditorState()`, `parseEditorState()` methods). Capture the discovered instance and the fiber-key path in the popup log so the route can be replayed and inspected.
 
-- [ ] **Step 3: Write the snippet.**
+- [ ] **Step 4: Write to the editor via its own API.**
 
-Create `poc/paste-fill/snippet.js`:
+Call `editor.update(() => { ... })` using Lexical's builders (`$getRoot`, `$createParagraphNode`, `$createTextNode`) **or** `editor.setEditorState(editor.parseEditorState(serializedState))` to install the desired content. Do **not** dispatch synthetic `InputEvent`, `ClipboardEvent`, or `Event('change')`.
 
-```javascript
-window.pasteFill = function (selector, value) {
-  const el = document.querySelector(selector);
-  if (!el) { console.error('not found:', selector); return false; }
-  if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
-    console.error('not an input/textarea:', el);
-    return false;
-  }
-  el.focus();
-  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-  setter.call(el, value);
-  el.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertFromPaste', data: value, bubbles: true, cancelable: true }));
-  el.dispatchEvent(new InputEvent('input', { inputType: 'insertFromPaste', data: value, bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
-  console.log(`[poc] filled ${selector} with "${value}". Verify framework state by typing an extra character.`);
-  return true;
-};
-```
+- [ ] **Step 5: Read editor state back through the same fiber path.**
 
-- [ ] **Step 4: Test against at least three field types.**
+Replace the existing "Check current composer text" implementation. Read content via the editor's own API (e.g. `editor.getEditorState().read(() => $getRoot().getTextContent())`), not via DOM `textContent` — the latter cannot reliably reach across the shadow boundary from outside, and was the source of the false-negative documented in the original journal entry.
 
-For the chosen target page, exercise the snippet against:
+- [ ] **Step 6: Make the snapshot action shadow-aware.**
 
-- A short text input (e.g., first name).
-- An email input.
-- A textarea (e.g., cover letter or "tell us about yourself").
+The current snapshot misses everything behind shadow roots. Extend the walker from Step 2 so the snapshot enumerates shadow-DOM contents, attributing each element to its host so future probes don't re-hit the "where did the modal go" surprise.
 
-For each, after running `pasteFill`, type one extra character at the end of the field. The expected behavior is that the value becomes `<pasted-value><typed-char>`. If instead it becomes just `<typed-char>` (the pasted value vanished), the framework rejected the synthetic input — record this as a finding.
+- [ ] **Step 7: Validate end-to-end against the live LinkedIn composer.**
 
-If a target site's form rejects the pattern entirely, try at least one more site (Greenhouse, Lever, Workday, or another React-based form) before declaring the verdict.
+In Chrome:
 
-- [ ] **Step 5: Test a custom-component field if present.**
+1. `chrome://extensions` → enable Developer mode → Load unpacked → select `poc/paste-fill/extension/`.
+2. Open `https://www.linkedin.com/feed/`.
+3. Click the extension icon to open the popup.
+4. Click "Open composer" — verify the modal appears (Step 1 fix is exercised).
+5. Click "Fill composer" with a known test value.
+6. Click "Check current composer text" — value reads back equal to the input.
+7. Manually type one extra character at the end of the composer. The composer must preserve `<inserted><typed-char>`, not reset.
+8. Walk LinkedIn's own preview / post-confirmation flow far enough to verify the content is treated as legitimate. **Do not submit.**
 
-If the form uses a custom React-Select or similar dropdown for any field, attempt the same pattern on it (the underlying `<input>` inside the dropdown's DOM). Record the outcome separately — custom dropdowns may not respond to plain `insertFromPaste` and may need the `select` action's click-trigger pattern instead. This finding belongs in the memo even though it's outside ADR-007's scope.
+Record observed behaviour in scratch notes for Step 8: which selector landed the editor element, which fiber-key path exposed the instance, which API call mutated state, and any LinkedIn-specific quirks (placeholder behaviour, validation re-runs, dev warnings in console).
 
-- [ ] **Step 6: Write the journal memo.**
+- [ ] **Step 8: Append the verdict section to the journal memo.**
 
-Create `docs/journal/2026-05-08-poc-paste-fill.md`:
+Append a new dated section to `docs/journal/2026-05-08-poc-paste-fill.md` titled "Verdict — fiber-walk on LinkedIn post composer". Include:
 
-```markdown
-# PoC 3 — Paste-flavored writes on real frameworks
+- Question (the one above, restated).
+- Method (the steps above, summarised).
+- Finding (one bullet per scenario: shadow walker / fiber walk / write call / read-back / manual-edit preservation / LinkedIn-side legitimacy).
+- Implication (observations about what this means for bproxy's `fill` primitive, phrased as observations — not as ADR amendments).
+- Verdict: ✅ confirms / ⚠️ modifies / ❌ invalidates the fiber-walk hypothesis.
 
-Date: 2026-05-08
-Status: complete
+Do **not** edit `docs/decisions.md`, `docs/architecture.md`, or `docs/solution/*` in this step. ADR work is downstream of the verdict, in a separate task.
 
-## Question
-
-Does the paste-flavored input pattern update controlled state in a real React/Vue application form, such that the user's eventual submit sends the pasted values?
-
-## Method
-
-Devtools-pasted snippet (`poc/paste-fill/snippet.js`) running on a real application form. Tested against multiple field types and (if present) a custom-component field.
-
-## Target
-
-[Fill in: which site, which form, which framework if obvious. e.g., "Welcome to the Jungle / Stripe SF Engineering application page / React".]
-
-## Finding
-
-- **Plain text input:** [observed behavior]
-- **Email input:** [observed behavior]
-- **Textarea:** [observed behavior]
-- **Custom dropdown component (if tested):** [observed behavior]
-- **Edge cases / surprises:** [anything noteworthy — submit-behavior, validation re-runs, framework dev warnings in console]
-
-## Implication
-
-[Fill in: does ADR-007 hold? Are there field types that need a different approach? Does the `select` primitive need to be sharper?]
-
-## Verdict
-
-One of:
-
-- ✅ **Confirms the design** — ADR-007 stands. `fill` defaults to `insertFromPaste` as specified.
-- ⚠️ **Modifies the design** — pattern works for [X] but not [Y]; document the constraints; ADR-007 amended with the carve-out.
-- ❌ **Invalidates the design** — pattern does not work in modern React/Vue. Reconsider write strategy.
-
-## Artifacts
-
-- `poc/paste-fill/snippet.js` (committed)
-```
-
-- [ ] **Step 7: If verdict is "modifies" or "invalidates," amend ADR-007.**
-
-Append a "Superseded note" or follow-up section in `docs/decisions.md` ADR-007 capturing the constraint or invalidation. Per `docs/decisions.md` rules, ADRs are append-only; supersede rather than rewrite.
-
-- [ ] **Step 8: Commit.**
+- [ ] **Step 9: Commit.**
 
 ```bash
 git add poc/paste-fill docs/journal/2026-05-08-poc-paste-fill.md
-# If ADR amended:
-git add docs/decisions.md
 git commit -m "$(cat <<'EOF'
-poc: validate paste-flavored writes on real frameworks
+poc: validate fiber-walk write on LinkedIn post composer
 
 PoC 3 from docs/plans/phases/00-poc.md. Findings in
 docs/journal/2026-05-08-poc-paste-fill.md.

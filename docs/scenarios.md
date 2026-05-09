@@ -141,7 +141,7 @@ This is genuinely the cleanest technical solution and a real legal grey zone. Su
 
 ## Scenario 3 — Job application form fill
 
-User opens a job application page (LinkedIn, Greenhouse, Lever, Workday, or a custom company site), pinned to `--session apply-companyX`. They provide the candidate dossier (resume content, work history, answers to standard questions) in the conversation. The agent's job is to fill the form. **It must not submit** — the user reviews and submits.
+User opens a job application page (LinkedIn or a custom company site), pinned to `--session apply-companyX`. They provide the candidate dossier (resume content, work history, answers to standard questions) in the conversation. The agent's job is to fill the form. **It must not submit** — the user reviews and submits.
 
 ### Why "don't submit" is load-bearing
 

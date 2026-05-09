@@ -190,3 +190,69 @@ Pausing for the day. Next concrete steps (not yet executed):
 - [The 3 isTrusted:false Bugs That Made LinkedIn Posts Impossible From My MCP Server — DEV / achiya-automation, Apr 22 2026](https://dev.to/achiya-automation/the-3-istrustedfalse-bugs-that-made-linkedin-posts-impossible-from-my-mcp-server-102f)
 - [Bug: Synthetic Events Leak Automation with isTrusted — browser-use issue #3829](https://github.com/browser-use/browser-use/issues/3829)
 - [Speaking the Same Language — LinkedIn Engineering (Artdeco overview, 2016)](https://engineering.linkedin.com/blog/2016/05/speaking-the-same-language)
+
+---
+
+## 2026-05-09 — Welcome to the Jungle disqualified as a target
+
+The plan's suggested first target, Welcome to the Jungle (`https://www.welcometothejungle.com/`), is **out of scope** for PoC 3.
+
+Reason: the site's login flow does not complete for Dim in his Chrome — not a "login is required" gate (which would still let us reach a public Apply page), but the auth endpoint itself failing to produce a working session. Without a session we can't reach the application form behind it.
+
+This is an environmental block on the test harness, not evidence about the hypothesis. PoC 3's target needs to be a different React/Vue application-form surface that's reachable without sign-in. Specific replacement TBD; the user will pick.
+
+---
+
+## 2026-05-09 — constraint: extension-only, no script injection
+
+The "devtools-pasted snippet" path described in the original Method (`poc/paste-fill/snippet.js`) is **abandoned** and will not be revisited.
+
+What failed:
+- Console-paste friction (browsers gating `allow pasting`) made the loop slow and inconsistent.
+- The snippet runs in the page's main world but with the user gesture/origin context of devtools, which interacts unpredictably with focus, clipboard, and `isTrusted` checks.
+- It does not reflect how the production primitive will execute, so a ✅ in the snippet would not transfer.
+
+Going-forward rule (binds all future PoC work and production design):
+
+- **Only the extension surface is used to exercise write/read primitives.** All probes go through `chrome.scripting.executeScript` (or content scripts) from the PoC extension at `poc/paste-fill/extension/`, the same path the production `bproxy` extension will use.
+- **`snippet.js` is kept committed as a historical artifact only.** Do not extend it, do not run it, do not reference it as a fallback when extension-side probes are inconvenient.
+- **"Just paste this in the console" is not a valid investigation step.** If a probe is hard to run from the extension, fix the extension — the friction is the signal that the production primitive would have the same problem.
+
+Why this matters: bproxy's whole premise is that the extension is the execution surface. Any technique that only works from devtools is a dead end by construction.
+
+---
+
+## 2026-05-09 — PoC 3 pivot: fiber-walk on LinkedIn post composer (subsumes traditional-input question)
+
+PoC 3's question is rewritten. The old framing — "do paste-flavored writes update controlled state on traditional `<input>`/`<textarea>` forms?" — is **subsumed** by the new one, not just deferred.
+
+### New question
+
+Can the bproxy extension write text into LinkedIn's post composer (Lexical-backed contenteditable, inside an open shadow root, with the editor's paste handler gating on `isTrusted`) by:
+
+1. Locating the editor element via a shadow-piercing recursive walker rooted at `document`.
+2. Walking React fibers (`__reactFiber$*` / `__reactProps$*`) up from that element to obtain the Lexical editor instance.
+3. Mutating editor state via the editor's own API (`editor.update()` / `editor.setEditorState()`) — no synthetic `InputEvent` / `ClipboardEvent` / `Event('change')`.
+
+### Why subsumed, not deferred
+
+Fiber-walk is strictly more powerful than paste-flavored writes:
+
+- Bypasses the `isTrusted` gate (no synthetic events involved).
+- Survives shadow-DOM encapsulation (we already pierce shadow roots to locate the element).
+- Works regardless of framework reconciliation (we talk to the framework, not fake input to it).
+- Generalises to traditional inputs: the same fiber-walk technique lands on any React/Vue component holding form state — terminating at a different node, but the technique is the same.
+
+There is no scenario in bproxy's design where paste-flavored writes would succeed but fiber-walk would not. The inverse fails routinely — LinkedIn is the canonical example. So validating fiber-walk on the harder surface answers both the LinkedIn question and the traditional-input question; the original PoC 3 framing closes with the LinkedIn verdict alone.
+
+### What this changes in the plan
+
+`docs/plans/phases/00-poc.md` Task 3 is rewritten around the fiber-walk technique on LinkedIn. The Goal, Tech Stack, and File Structure sections are updated to match. Steps now exercise the existing PoC extension (`poc/paste-fill/extension/`) rather than describing a fresh scaffold; `snippet.js` remains a historical artifact, not a runnable path.
+
+### What this does NOT change yet
+
+`docs/decisions.md` (ADR-007 and adjacent), `docs/architecture.md`, and `docs/solution/*` are **untouched** by this pivot. The fiber-walk method is a hypothesis until PoC 3 confirms it. ADR-007 — and the broader question of whether the production `fill` primitive should be tiered (fiber-walk default, paste events as a cheap path for known-friendly sites) — is a separate task, downstream of the PoC 3 verdict, not inside it.
+
+### Practical consequence
+
+The journal section that closes PoC 3 produces a single verdict on the fiber-walk hypothesis on LinkedIn's post composer. ADR work happens after, not inside, this PoC.
