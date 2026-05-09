@@ -783,6 +783,42 @@ EOF
 
 **Timebox:** 2 days. If a definitive answer isn't reached, mark the PoC inconclusive and decide next step.
 
+**Execution mode for this PoC (required): Dev Browser connected to real Chrome**
+
+Use this workflow to inspect LinkedIn DOM and run popup-driven extension actions against a persistent logged-in Chrome profile:
+
+1. Quit Chrome fully.
+2. Start Chrome with remote debugging and persistent profile:
+   ```bash
+   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+     --remote-debugging-port=9222 \
+     --user-data-dir="$HOME/context/personal/chrome-devtools-profile"
+   ```
+3. Open `https://www.linkedin.com/feed/` and sign in (once). Reuse this same profile path in later sessions.
+4. Verify CDP is reachable:
+   ```bash
+   curl -sS http://127.0.0.1:9222/json/version
+   ```
+5. Verify Dev Browser can see the real Chrome tab:
+   ```bash
+   dev-browser --connect <<'EOF'
+   const tabs = await browser.listPages();
+   console.log(JSON.stringify(tabs, null, 2));
+   EOF
+   ```
+6. Attach to the LinkedIn tab by `id` from `listPages()` when you need scripted DOM/fiber reconnaissance:
+   ```bash
+   dev-browser --connect <<'EOF'
+   const page = await browser.getPage("<TAB_ID_FROM_LIST>");
+   console.log(JSON.stringify({ url: page.url(), title: await page.title() }, null, 2));
+   EOF
+   ```
+
+Notes:
+- Do not run standalone/headless Playwright Chromium for this PoC validation.
+- If `--connect` cannot discover Chrome, re-check that nothing else is listening on `9222`.
+- This does not replace the extension-only constraint for mutation logic; it is only the operator setup for reproducible investigation and validation.
+
 - [ ] **Step 1: Fix the "Start a post" trigger in `extension/popup.js`.**
 
 The current finder iterates `[role="button"], button, div` and matches descendant text via `regex.test(textContent)`. Because `div` matches recursively, the first hit is the React root. Replace the candidate set with `[role="button"], button` only, and use exact-string `el.textContent.trim() === 'Start a post'` comparison. Verified live (see journal § "The PoC's 'Start a post' click finder picks the wrong element"): this lands the real trigger button, and `.click()` opens the modal.

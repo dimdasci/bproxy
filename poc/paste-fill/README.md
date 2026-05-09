@@ -16,6 +16,7 @@ Validated live route in this PoC: `div.editor-content.ql-container.__quill`.
 ## Constraints
 
 - **Extension-only execution.** All probes and primitive calls run through `chrome.scripting.executeScript`, content scripts, and popup-driven actions in `extension/`. No devtools-pasted snippets, no `javascript:` URLs, no console-paste fallbacks. `snippet.js` is a historical artifact and is not used.
+- **Execution world is part of the method.** Runtime-handle access in this PoC (e.g., `__quill`) required `chrome.scripting.executeScript(..., { world: 'MAIN' })`. Isolated world was not sufficient for reliable runtime-instance discovery.
 - **No decision-doc edits during this PoC.** The fiber-walk method is a hypothesis. `docs/decisions.md` (ADR-007 and adjacent), `docs/architecture.md`, and `docs/solution/*` are revisited as a separate task only **after** PoC 3 closes with a verdict.
 
 ## Run
@@ -32,3 +33,5 @@ Validated live route in this PoC: `div.editor-content.ql-container.__quill`.
 ## Verdict
 
 See `docs/journal/2026-05-08-poc-paste-fill.md` final section (2026-05-09). Current verdict: **⚠️ Modifies** (runtime API approach confirmed on LinkedIn; Quill route observed in this session).
+
+Key architectural takeaway from this PoC: when fill/write depends on page-owned editor runtime instances, execution must run in **`MAIN` world**.
