@@ -256,3 +256,79 @@ There is no scenario in bproxy's design where paste-flavored writes would succee
 ### Practical consequence
 
 The journal section that closes PoC 3 produces a single verdict on the fiber-walk hypothesis on LinkedIn's post composer. ADR work happens after, not inside, this PoC.
+
+---
+
+## 2026-05-09 (later) — live DOM validation on Dim's logged-in LinkedIn: Quill instance path works; React-fiber/Lexical path not observed
+
+Resumed investigation against the real Chrome session (remote debugging on `9222`) with LinkedIn feed open and the post composer modal visibly open.
+
+### What was validated
+
+1. **Composer is reachable only through shadow-aware traversal in this session.**
+   - Main document queries return no direct editor candidates (`[contenteditable]`, `[role="textbox"]`, `[data-lexical-editor]` all absent in light DOM).
+   - Composer/modal content is found under an open shadow root hosted on `div.theme--light`.
+
+2. **The live editor element in this build is Quill-shaped.**
+   - Located element: `div.ql-editor[contenteditable="true"][role="textbox"]`.
+   - Placeholder attrs present (`data-placeholder` / `aria-placeholder`: "What do you want to talk about?").
+
+3. **React fiber markers were not found on the editor path.**
+   - No `__reactFiber$*` / `__reactProps$*` keys on the editor element or inspected ancestors in this modal subtree.
+
+4. **A Quill instance is directly reachable and mutable.**
+   - Found at `div.editor-content.ql-container.__quill`.
+   - Confirmed API methods: `setText`, `getText`, `setContents`, `getContents`, `focus`.
+   - Verified write/read loop in-session:
+     - `setText("bproxy quill test <timestamp>")` succeeded.
+     - `getText()` returned the exact value.
+     - `insertText(...)` appended one extra char and preserved prior content.
+
+### Implication for PoC 3 hypothesis
+
+- The currently observed LinkedIn surface in this session does **not** match the strict Lexical+fiber route assumed by the rewritten PoC question.
+- However, the higher-level principle is still supported: **synthetic events are unnecessary** when we can reach the editor's own runtime instance and mutate through its API.
+- On this concrete build/profile, that runtime instance is Quill (`__quill`), not a discovered Lexical instance via React fiber.
+
+### Status update
+
+PoC evidence now supports an implementable extension path on live LinkedIn using:
+- shadow-piercing discovery
+- editor-runtime API write/read
+
+The exact runtime binding must remain adaptable (Quill here; potentially Lexical/fiber on other LinkedIn builds/surfaces).
+
+---
+
+## 2026-05-09 (final) — PoC 3 verdict on live LinkedIn session
+
+Ran the extension end-to-end (version `0.0.5`) against Dim's logged-in LinkedIn tab.
+
+### Final method used
+
+1. Find and click visible `Start a post` control (`button,[role="button"]`, normalized exact text).
+2. Detect composer modal in open shadow root (`div#interop-outlet.theme--light` host).
+3. Resolve editor runtime handle with progressive short waits (`__quill` appears shortly after modal shell).
+4. Write/read through editor API (`setText` / `getText`), no synthetic input/paste/change events.
+
+### Observed result
+
+Successful fill log:
+
+- `ok: true`
+- `route: "root.query.__quill"`
+- `editorClass: "editor-content ql-container"`
+- `attempts: 4`
+- `value: "PoC LinkedIn test"`
+
+Timing probe confirmed async mount sequence in this build:
+- dialog first seen at ~101ms
+- editor + `__quill` first seen at ~409ms
+
+### Verdict
+
+⚠️ **Modifies** the strict fiber-walk/Lexical framing.
+
+- The PoC confirms the core hypothesis that **editor-runtime API mutation is implementable** on LinkedIn and avoids synthetic-event gates.
+- In the validated live surface, the working runtime is **Quill (`__quill`)**, not Lexical discovered through React fiber.
+- Therefore the practical PoC outcome is runtime-adaptive editor API access (Quill confirmed here; Lexical/fiber remains a possible variant on other builds).
