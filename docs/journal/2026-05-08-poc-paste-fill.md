@@ -125,13 +125,7 @@ Additionally, this PoC establishes primary architectural constraints for this wr
      - clickable controls in viewport
    - Only escalate to deeper traversal if needed.
 
-2. **Shadow-root graph index (incremental)**
-   - Maintain a lightweight map of:
-     - shadow hosts
-     - root metadata (has dialog? textbox? editor runtime?)
-   - Update via `MutationObserver` instead of rescanning whole page.
-
-3. **Scope by intent**
+2. **Scope by intent**
    - If action is “click button”, search visible `button,[role=button]` first.
    - If action is “fill text”, scope to:
      - focused control
@@ -139,24 +133,24 @@ Additionally, this PoC establishes primary architectural constraints for this wr
      - nearest editable subtree
    - Avoid global query for every action.
 
-4. **Viewport-first + hit-testing**
+3. **Viewport-first + hit-testing**
    - Use `elementsFromPoint` around interaction regions (center, cursor, target rect).
    - Resolve nearest shadow host and search only that root.
 
-5. **Stable route caching**
+4. **Stable route caching**
    - Cache successful element routes:
      - host chain + selector + role/name signature
    - Revalidate quickly next time; fallback to discovery only on miss.
 
-6. **Runtime-handle detection as a specialized pass**
+5. **Runtime-handle detection as a specialized pass**
    - For hostile editors, run targeted runtime probes (`__quill`, lexical/fiber patterns) only inside scoped root.
    - Keep this separate from generic DOM discovery.
 
-7. **Two-mode operation**
+6. **Two-mode operation**
    - **Fast mode (default):** bounded latency budget, scoped queries, cached routes.
    - **Explain/debug mode:** deeper traversal + rich diagnostics for agent reasoning.
 
-8. **Agent-facing DOM model = summarized graph, not raw tree**
+7. **Agent-facing DOM model = summarized graph, not raw tree**
    - Return:
      - interactive nodes
      - shadow boundaries
