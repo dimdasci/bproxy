@@ -882,7 +882,7 @@ EOF
 **Files:**
 - Verify only. No new files unless a gap is found.
 
-- [ ] **Step 1: Verify all three PoCs produced their three required outputs.**
+- [x] **Step 1: Verify all three PoCs produced their three required outputs.**
 
 For each of `mv3-ws-reconnect`, `cli-extension-pairing`, `paste-fill`, confirm:
 
@@ -893,11 +893,15 @@ ls docs/journal/2026-05-08-poc-<topic>.md     # memo present
 
 For each memo, confirm a **Verdict** section exists with one of: ✅ Confirms / ⚠️ Modifies / ❌ Invalidates.
 
-- [ ] **Step 2: Verify ADR amendments are in place for any "modifies" or "invalidates" verdict.**
+Verified 2026-05-12: all three PoCs have spike code, journal memos, and verdict sections (PoC 1: ✅ confirms, PoC 2: ⚠️ modifies, PoC 3: ⚠️ modifies).
+
+- [x] **Step 2: Verify ADR amendments are in place for any "modifies" or "invalidates" verdict.**
 
 If any PoC modified or invalidated a design decision, confirm the corresponding ADR in `docs/decisions.md` has a "Superseded note" or new ADR entry. Cross-check against the verdict in each memo.
 
-- [ ] **Step 3: Confirm no PoC code is imported by production packages.**
+Verified 2026-05-12: PoC 2 — ADR-011 has superseded note recording popup-driven claim pivot. PoC 3 — ADR amendments explicitly deferred to Phase 0.5 per task constraint ("no decision-doc edits in this task"); pending.
+
+- [x] **Step 3: Confirm no PoC code is imported by production packages.**
 
 Production packages don't exist yet at this phase, so this should be trivially true. The check exists as a habit: run
 
@@ -907,7 +911,9 @@ grep -rn "poc/" --include="*.ts" --include="*.tsx" --include="*.js" --include="*
 
 Expected: no output. If output appears, it's a leak — investigate.
 
-- [ ] **Step 4: Phase 0 done.**
+Verified 2026-05-12: no PoC imports found outside `poc/`. Clean.
+
+- [x] **Step 4: Phase 0 done.**
 
 The roadmap defines Phase 0 done as: "all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/journal/`, and any ADR amendments under `docs/decisions.md`. Each PoC closes with a verdict."
 
