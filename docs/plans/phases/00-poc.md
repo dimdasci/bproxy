@@ -33,13 +33,10 @@ poc/
 │       ├── background.js
 │       ├── popup.html
 │       └── popup.js
-└── paste-fill/                        # PoC 3 (directory name retained; PoC pivoted to fiber-walk technique)
+└── paste-fill/                        # PoC 3 (directory name retained; PoC pivoted to Quill runtime API path)
     ├── README.md
-    ├── snippet.js                     # historical artifact; not extended
     └── extension/
         ├── manifest.json
-        ├── background.js
-        ├── content.js
         ├── popup.html
         └── popup.js
 
@@ -760,9 +757,10 @@ EOF
 
 **Files:**
 - Update: `poc/paste-fill/README.md`
-- Update: `poc/paste-fill/extension/manifest.json`
-- Update: `poc/paste-fill/extension/background.js`
-- Update: `poc/paste-fill/extension/content.js`
+- Update: `poc/paste-fill/extension/manifest.json` (remove background SW — popup handles everything)
+- Delete: `poc/paste-fill/extension/background.js` (dead; message relay never called by current popup)
+- Delete: `poc/paste-fill/extension/content.js` (dead; superseded by inline MAIN-world executeScript in popup.js)
+- Delete: `poc/paste-fill/snippet.js` (historical artifact, preserved in git history)
 - Update: `poc/paste-fill/extension/popup.html`
 - Update: `poc/paste-fill/extension/popup.js`
 - Append to: `docs/journal/2026-05-08-poc-paste-fill.md`
@@ -819,31 +817,31 @@ Notes:
 - If `--connect` cannot discover Chrome, re-check that nothing else is listening on `9222`.
 - This does not replace the extension-only constraint for mutation logic; it is only the operator setup for reproducible investigation and validation.
 
-- [ ] **Step 1: Fix the "Start a post" trigger in `extension/popup.js`.**
+- [x] **Step 1: Fix the "Start a post" trigger in `extension/popup.js`.**
 
-The current finder iterates `[role="button"], button, div` and matches descendant text via `regex.test(textContent)`. Because `div` matches recursively, the first hit is the React root. Replace the candidate set with `[role="button"], button` only, and use exact-string `el.textContent.trim() === 'Start a post'` comparison. Verified live (see journal § "The PoC's 'Start a post' click finder picks the wrong element"): this lands the real trigger button, and `.click()` opens the modal.
+The original finder iterated `[role="button"], button, div` and matched descendant text via `regex.test(textContent)`. Because `div` matches recursively, the first hit was the React root. Replaced the candidate set with `button,[role="button"]` only, and used exact normalized-text comparison against an array of known labels (`'start a post'`, `'create a post'`, etc.). Verified live: this lands the real trigger button, and `.click()` opens the modal.
 
-- [ ] **Step 2: Implement a shadow-piercing recursive walker.**
+- [x] **Step 2: Detect composer inside shadow DOM.**
 
-Add a helper that descends into every `element.shadowRoot` (open mode) from a root, yielding all elements. The composer's editor lives inside an open shadow root in the main document; `document.querySelector` and `chrome.scripting.executeScript({ allFrames: true })` do not pierce shadow boundaries (shadow roots are not frames; they are same-document encapsulation). Use this walker to locate the editor element by Lexical's conventional attributes — start with `[data-lexical-editor]`; if it does not match, fall back to `[contenteditable="true"][role="textbox"]` and verify the result is inside a shadow root.
+The composer lives inside an open shadow root (`div#interop-outlet.theme--light`); light-DOM `querySelector` and `allFrames` do not pierce shadow boundaries. Implemented `collectShadowHosts()` scanning `document.querySelectorAll('*')` for elements with `.shadowRoot`, then `findComposerRoot()` searching each shadow root for a visible `[role="dialog"]`. All subsequent discovery is scoped to that root. The snapshot action (`pageTaskSnapshot`) uses a separate recursive `walk(root, hostLabel, out)` that descends into every `node.shadowRoot` for full-tree enumeration.
 
-- [ ] **Step 3: Implement React-fiber traversal to obtain the Lexical editor instance.**
+- [x] **Step 3: Resolve editor runtime handle (Quill, not Lexical/fiber).**
 
-From the editor element, walk upward via `__reactFiber$*` / `__reactProps$*` looking for a fiber whose `stateNode`, `memoizedState`, or `memoizedProps` exposes a Lexical editor instance (an object with `update()`, `getEditorState()`, `setEditorState()`, `parseEditorState()` methods). Capture the discovered instance and the fiber-key path in the popup log so the route can be replayed and inspected.
+The plan originally targeted React-fiber traversal to a Lexical editor instance. Live LinkedIn surface revealed **Quill**: the editor container is `.editor-content.ql-container` with a `__quill` runtime handle. Implemented `findQuillInRoot(root)`: first tries direct query for `.editor-content.ql-container, .ql-container, .editor-content` checking `.__quill`, then falls back to star-scan of all elements in the scoped root. Progressive wait with short pauses (50–400ms) handles async runtime mount. Execution in `MAIN` world (`chrome.scripting.executeScript(..., { world: 'MAIN' })`) is required — isolated world cannot see page-owned runtime handles.
 
-- [ ] **Step 4: Write to the editor via its own API.**
+- [x] **Step 4: Write via Quill runtime API.**
 
-Call `editor.update(() => { ... })` using Lexical's builders (`$getRoot`, `$createParagraphNode`, `$createTextNode`) **or** `editor.setEditorState(editor.parseEditorState(serializedState))` to install the desired content. Do **not** dispatch synthetic `InputEvent`, `ClipboardEvent`, or `Event('change')`.
+`quill.setText(value, 'api')` — Quill's own mutation API, no synthetic `InputEvent` / `ClipboardEvent` / `Event('change')`. The `'api'` source parameter tells Quill the change is programmatic. Content persists through manual append (typing extra characters preserves the inserted text).
 
-- [ ] **Step 5: Read editor state back through the same fiber path.**
+- [x] **Step 5: Read editor state via Quill runtime API.**
 
-Replace the existing "Check current composer text" implementation. Read content via the editor's own API (e.g. `editor.getEditorState().read(() => $getRoot().getTextContent())`), not via DOM `textContent` — the latter cannot reliably reach across the shadow boundary from outside, and was the source of the false-negative documented in the original journal entry.
+Separate `pageTaskRead()` function locates the Quill handle through the same shadow-root → dialog → `__quill` path and reads content via `quill.getText()`. This replaces the original DOM `textContent` approach which could not reliably reach across the shadow boundary.
 
-- [ ] **Step 6: Make the snapshot action shadow-aware.**
+- [x] **Step 6: Make the snapshot action shadow-aware.**
 
-The current snapshot misses everything behind shadow roots. Extend the walker from Step 2 so the snapshot enumerates shadow-DOM contents, attributing each element to its host so future probes don't re-hit the "where did the modal go" surprise.
+`pageTaskSnapshot()` uses a recursive `walk(root, hostLabel, out)` that descends into every `node.shadowRoot`, attributing each element to its shadow host. The snapshot includes `hasQuill` flag per element for runtime-handle visibility. Replaced the old content-script-based snapshot which was light-DOM only.
 
-- [ ] **Step 7: Validate end-to-end against the live LinkedIn composer.**
+- [x] **Step 7: Validate end-to-end against the live LinkedIn composer.**
 
 In Chrome:
 
@@ -858,19 +856,13 @@ In Chrome:
 
 Record observed behaviour in scratch notes for Step 8: which selector landed the editor element, which fiber-key path exposed the instance, which API call mutated state, and any LinkedIn-specific quirks (placeholder behaviour, validation re-runs, dev warnings in console).
 
-- [ ] **Step 8: Append the verdict section to the journal memo.**
+- [x] **Step 8: Append the verdict section to the journal memo.**
 
-Append a new dated section to `docs/journal/2026-05-08-poc-paste-fill.md` titled "Verdict — fiber-walk on LinkedIn post composer". Include:
+Journal rewritten as compact retrospective covering the full investigation arc (Phases A–E), wrong turns, and confirmed conclusions. Verdict: ⚠️ **Modifies** the strict Lexical/fiber framing — runtime API approach confirmed on LinkedIn via Quill handle, not React fiber walk. Key architectural constraints documented: MAIN world required for runtime-handle access; DOM discovery should be progressive and intent-scoped.
 
-- Question (the one above, restated).
-- Method (the steps above, summarised).
-- Finding (one bullet per scenario: shadow walker / fiber walk / write call / read-back / manual-edit preservation / LinkedIn-side legitimacy).
-- Implication (observations about what this means for bproxy's `fill` primitive, phrased as observations — not as ADR amendments).
-- Verdict: ✅ confirms / ⚠️ modifies / ❌ invalidates the fiber-walk hypothesis.
+`docs/decisions.md`, `docs/architecture.md`, and `docs/solution/*` not edited — ADR work is downstream.
 
-Do **not** edit `docs/decisions.md`, `docs/architecture.md`, or `docs/solution/*` in this step. ADR work is downstream of the verdict, in a separate task.
-
-- [ ] **Step 9: Commit.**
+- [x] **Step 9: Commit.**
 
 ```bash
 git add poc/paste-fill docs/journal/2026-05-08-poc-paste-fill.md
