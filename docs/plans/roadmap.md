@@ -11,15 +11,15 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 
 ## Phase order
 
-| # | Phase | Purpose | Detail |
-|---|---|---|---|
-| 0 | PoC | De-risk three load-bearing technical assumptions | [phases/00-poc.md](./phases/00-poc.md) |
-| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | _plan written when Phase 0 closes_ |
-| 1 | Shared types | The domain model | _plan written when Phase 0.5 closes_ |
-| 2 | Daemon | Routing, auth, pacing, lifecycle | _plan written when Phase 1 closes_ |
-| 3 | Extension | Browser-side execution | _plan written when Phase 2 closes_ |
-| 4 | CLI | One-shot agent interface | _plan written when Phase 3 closes_ |
-| 5 | Integration & hardening | End-to-end against documented scenarios | _plan written when Phase 4 closes_ |
+| # | Phase | Purpose | Status | Detail |
+|---|---|---|---|---|
+| 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
+| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | Not started | _plan written when Phase 0 closes_ |
+| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.5 closes_ |
+| 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
+| 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
+| 4 | CLI | One-shot agent interface | Not started | _plan written when Phase 3 closes_ |
+| 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
 
 Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
 
