@@ -414,13 +414,13 @@ EOF
 
 **Timebox:** 1 day.
 
-- [ ] **Step 1: Scaffold the PoC directory.**
+- [x] **Step 1: Scaffold the PoC directory.**
 
 ```bash
 mkdir -p poc/cli-extension-pairing/extension
 ```
 
-- [ ] **Step 2: Write the README.**
+- [x] **Step 2: Write the README.**
 
 Create `poc/cli-extension-pairing/README.md`:
 
@@ -463,7 +463,7 @@ Then in Chrome:
 Findings → `docs/journal/2026-05-08-poc-cli-extension-pairing.md`.
 ```
 
-- [ ] **Step 3: Write `package.json`.**
+- [x] **Step 3: Write `package.json`.**
 
 Create `poc/cli-extension-pairing/package.json`:
 
@@ -483,13 +483,13 @@ Create `poc/cli-extension-pairing/package.json`:
 }
 ```
 
-- [ ] **Step 4: Install dependencies.**
+- [x] **Step 4: Install dependencies.**
 
 ```bash
 cd poc/cli-extension-pairing && pnpm install
 ```
 
-- [ ] **Step 5: Write the Plan A attempt.**
+- [x] **Step 5: Write the Plan A attempt.**
 
 Create `poc/cli-extension-pairing/cli-attempt.mjs`:
 
@@ -508,7 +508,7 @@ try {
 console.log('[plan-a] verdict: chrome.* APIs are not available in Node — confirmed gap in ADR-011.');
 ```
 
-- [ ] **Step 6: Run the Plan A attempt and observe.**
+- [x] **Step 6: Run the Plan A attempt and observe.**
 
 ```bash
 node cli-attempt.mjs
@@ -524,7 +524,7 @@ Expected output:
 
 Note in scratch: confirmed Plan A unviable. Move to Plan D.
 
-- [ ] **Step 7: Write the mock daemon.**
+- [x] **Step 7: Write the mock daemon.**
 
 Create `poc/cli-extension-pairing/server.mjs`:
 
@@ -569,7 +569,7 @@ await app.listen({ host: '127.0.0.1', port: PORT });
 console.log(`Mock daemon listening on http://127.0.0.1:${PORT} (valid code: ${VALID_CODE})`);
 ```
 
-- [ ] **Step 8: Write the extension manifest.**
+- [x] **Step 8: Write the extension manifest.**
 
 Create `poc/cli-extension-pairing/extension/manifest.json`:
 
@@ -588,7 +588,7 @@ Create `poc/cli-extension-pairing/extension/manifest.json`:
 }
 ```
 
-- [ ] **Step 9: Write the popup HTML.**
+- [x] **Step 9: Write the popup HTML.**
 
 Create `poc/cli-extension-pairing/extension/popup.html`:
 
@@ -613,7 +613,7 @@ Create `poc/cli-extension-pairing/extension/popup.html`:
 </html>
 ```
 
-- [ ] **Step 10: Write the popup script.**
+- [x] **Step 10: Write the popup script.**
 
 Create `poc/cli-extension-pairing/extension/popup.js`:
 
@@ -652,7 +652,7 @@ button.addEventListener('click', async () => {
 });
 ```
 
-- [ ] **Step 11: Write the background SW.**
+- [x] **Step 11: Write the background SW.**
 
 Create `poc/cli-extension-pairing/extension/background.js`:
 
@@ -667,7 +667,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 ```
 
-- [ ] **Step 12: Run Plan D end-to-end.**
+- [x] **Step 12: Run Plan D end-to-end.**
 
 In one terminal:
 ```bash
@@ -684,7 +684,7 @@ In Chrome:
 
 Try a wrong code (e.g., `WRONG`). Popup should show a 400 response with `PAIRING_CODE_INVALID`.
 
-- [ ] **Step 13: Write the journal memo.**
+- [x] **Step 13: Write the journal memo.**
 
 Create `docs/journal/2026-05-08-poc-cli-extension-pairing.md`:
 
@@ -729,7 +729,7 @@ One of:
 - `poc/cli-extension-pairing/` (committed, never imported by production)
 ```
 
-- [ ] **Step 14: If verdict is "modifies," amend ADR-011.**
+- [x] **Step 14: If verdict is "modifies," amend ADR-011.**
 
 Append a "Superseded note" section to ADR-011 in `docs/decisions.md`:
 
@@ -739,7 +739,7 @@ Append a "Superseded note" section to ADR-011 in `docs/decisions.md`:
 
 If verdict is "confirms" (Plan A worked), skip this step.
 
-- [ ] **Step 15: Commit.**
+- [x] **Step 15: Commit.**
 
 ```bash
 git add poc/cli-extension-pairing docs/journal/2026-05-08-poc-cli-extension-pairing.md
