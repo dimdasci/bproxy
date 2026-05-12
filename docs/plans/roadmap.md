@@ -133,6 +133,8 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 - **2026-05-08** — PoC list locked: (1) MV3 SW + WebSocket + protocol envelope, (2) CLI → extension pairing transport, (3) paste-flavored writes on real frameworks (target page deferred to PoC time).
 - **2026-05-08** — Static analysis stack adopted ([ADR-012](../decisions.md#adr-012-static-analysis-stack)): `tsc` + Biome (format) + ESLint v9 (with `eslint-plugin-sonarjs`) + dependency-cruiser + knip, exposed via `pnpm check` and per-step scripts. Pre-commit hooks deferred to Phase 5; during active development, gates run on demand and in CI only. Concrete policy in [docs/quality-gates.md](../quality-gates.md).
 - **2026-05-08** — PoC 1 (MV3 SW + WebSocket + protocol envelope) completed with ✅ confirms-design verdict. Artifacts: `poc/mv3-ws-reconnect/` and `docs/journal/2026-05-08-poc-mv3-ws-reconnect.md`. No ADR/doc changes required.
+- **2026-05-08** — PoC 2 (CLI → extension pairing transport) completed with ⚠️ modifies-design verdict. Plan A (`chrome.runtime.onMessageExternal` from Node) confirmed unviable; Plan D (popup-driven claim via `POST /pair/claim`) adopted. ADR-011 amended with superseded note. Artifacts: `poc/cli-extension-pairing/` and `docs/journal/2026-05-08-poc-cli-extension-pairing.md`.
+- **2026-05-09** — PoC 3 (write technique for hostile rich-text editors) completed with ⚠️ modifies-design verdict. Pivoted from Lexical/React-fiber hypothesis to Quill runtime handle resolution (`__quill` via shadow-root scoping in `MAIN` world). Runtime API mutation confirmed on live LinkedIn composer. ADR amendments deferred to Phase 0.5. Artifacts: `poc/paste-fill/` and `docs/journal/2026-05-08-poc-paste-fill.md`.
 
 ## Relationship to other docs
 
