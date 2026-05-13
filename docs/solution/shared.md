@@ -85,6 +85,21 @@ export type Action =
   | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume'
   | 'debug.log' | 'debug.last' | 'debug.status';
 
+// Types for fill methods and world
+export type FillMethod = 'direct' | 'paste' | 'runtime-api';
+export type ExecutionWorld = 'isolated' | 'main';
+
+// Shadow-DOM route representation (ADR-014)
+export interface ElementRoute {
+  hosts: Array<{ selector: string; index?: number }>;  // shadow host chain from document
+  target: string;  // selector within deepest shadow root
+}
+
+// Target must be exactly one strategy: light-DOM selector or shadow route
+export type ElementTarget =
+  | { selector: string; route?: never }
+  | { selector?: never; route: ElementRoute };
+
 // Params per action — exhaustive, compiler-checked
 export interface ActionParams {
   navigate: { url: string };
@@ -95,9 +110,21 @@ export interface ActionParams {
   dom: { selector?: string; depth?: number };
   scroll: { by?: string; direction?: 'up' | 'down'; untilStable?: boolean };
   screenshot: { activate?: boolean; debugger?: boolean };
-  fill: { selector: string; value: string; method?: 'type' | 'paste' | 'auto' };
-  'fill-form': { fields: Array<{ selector: string; value: string; method?: 'type' | 'paste' | 'auto' }> };
-  select: { trigger: string; optionText: string };
+  fill: { 
+    target: ElementTarget;  // replaces selector-only
+    value: string; 
+    method: FillMethod;  // NOT optional — agent must choose
+    world: ExecutionWorld; // NOT optional — 'isolated' or 'main'
+  };
+  'fill-form': { 
+    fields: Array<{ 
+      target: ElementTarget;  // replaces selector
+      value: string; 
+      method: FillMethod;  // NOT optional
+      world: ExecutionWorld; // NOT optional
+    }> 
+  };
+  select: { trigger: ElementTarget; optionText: string };  // target replaces selector
   wait: { strategy: 'selector' | 'url' | 'navigation'; target: string; timeout?: number };
   'require-human': { reason: string; forAttach?: string };
   eval: { code: string };
@@ -126,7 +153,7 @@ export interface ActionResult {
   scroll: { before: number; after: number; scrolledPx: number; stable: boolean };
   screenshot: { base64: string; format: 'png' | 'jpeg' };
   fill: { filled: boolean; verifiedValue: string };
-  'fill-form': { results: Array<{ selector: string; filled: boolean; verifiedValue: string }> };
+  'fill-form': { results: Array<{ target: ElementTarget; filled: boolean; verifiedValue: string }> };
   select: { selected: boolean; optionText: string };
   wait: { matched: boolean; elapsed: number };
   'require-human': { resumed: boolean };
@@ -195,7 +222,7 @@ export interface BproxyError {
 
 ```typescript
 // src/sessions.ts
-export type PacingMode = 'human' | 'fast' | 'custom';
+export type PacingMode = 'human' | 'fast';
 
 export interface PacingConfig {
   navigate: { min: number; max: number };
@@ -214,12 +241,11 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
     scroll: { min: 0, max: 0 },
     fill: { min: 0, max: 0 },
   },
-  custom: {
-    navigate: { min: 1000, max: 3000 },
-    scroll: { min: 2000, max: 5000 },
-    fill: { min: 300, max: 1000 },
-  },
 };
+
+// Per-session PacingConfig overrides are deferred. When introduced, `session.bind`
+// params will accept `pacing?: PacingMode | PacingConfig` and the resolver will
+// branch on the runtime shape.
 
 export interface SessionInfo {
   name: string;
@@ -241,9 +267,10 @@ export interface TabInfo {
 ## Supporting Types
 
 ```typescript
-// Used in ActionResult
-export interface ElementInfo {
-  selector: string;        // stable CSS selector
+// Used in ActionResult. Composed from ElementTarget so an ElementInfo can be
+// passed directly anywhere an ElementTarget is expected (e.g. fed back into
+// `fill` after `elements` discovery), with no field-shape drift.
+export type ElementInfo = ElementTarget & {
   tag: string;
   type?: string;           // input type
   label?: string;
@@ -252,7 +279,10 @@ export interface ElementInfo {
   required?: boolean;
   options?: string[];      // for select/dropdown
   role?: string;
-}
+  // Framework/runtime markers for method selection
+  hasShadowRoot?: boolean;
+  runtimeHandle?: 'quill' | 'lexical' | 'prosemirror' | 'codemirror' | 'monaco' | 'slate';
+};
 
 export interface Landmark {
   tag: string;

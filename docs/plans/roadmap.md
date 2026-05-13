@@ -14,7 +14,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | # | Phase | Purpose | Status | Detail |
 |---|---|---|---|---|
 | 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
-| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | In progress | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
+| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
 | 1 | Shared types | The domain model | Not started | _plan written when Phase 0.5 closes_ |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
@@ -35,7 +35,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 1. **MV3 SW + WebSocket + protocol envelope round-trip** (~1 day) — smallest viable Fastify WS server plus minimal MV3 extension. Validates subprotocol auth, SW lifecycle under forced suspend, reconnect+replay pattern, and envelope shape.
 2. **CLI → extension pairing transport** (~½–1 day) — confirms whether `chrome.runtime.onMessageExternal` accepts native processes; if not, evaluates alternatives (CLI-opened companion page, in-band pairing through the daemon WS).
-3. **Paste-flavored writes on real frameworks** (~½ day) — manual test against a real React/Vue application form (Welcome to the Jungle or similar; final pick at PoC time). Validates [ADR-007](../decisions.md#adr-007-paste-flavored-writes-as-default).
+3. **Explicit write methods on real frameworks** (~½ day) — manual test against a real React/Vue application form. Validates [ADR-007](../decisions.md#adr-007-three-method-write-contract): `direct` for DOM, `paste` for frameworks, `runtime-api` for editor instances.
 
 **Done when:** all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/journal/`, and any ADR amendments under `docs/decisions.md`. Each PoC closes with a verdict (*confirms / modifies / invalidates the design*).
 
@@ -73,7 +73,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Purpose:** one-shot agent interface. Per [docs/solution/cli.md](../solution/cli.md).
 
-**Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `extension`, `session`, `tab`, and `debug` subcommands.
+**Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands.
 
 **Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens.
 
@@ -126,15 +126,6 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 - **Names carry meaning; comments are rare.** No comments explaining *what* the code does — names are the explanation. Comments only where the *why* is non-obvious (constraint, invariant, workaround). No TODOs or commented-out code in committed work.
 - **Tests read as specifications.** Test names describe behaviour in domain terms. A reader scanning test files should understand what the package does without reading the implementation.
 - **Per-package `README.md`** — purpose (1 paragraph), public API (link to entry point), how to develop locally, how to test. One file per package, kept short.
-
-## Decisions log
-
-- **2026-05-08** — Approach approved: layered bottom-up + preliminary PoC phase. Daemon-first ordering after Layer 1.
-- **2026-05-08** — PoC list locked: (1) MV3 SW + WebSocket + protocol envelope, (2) CLI → extension pairing transport, (3) paste-flavored writes on real frameworks (target page deferred to PoC time).
-- **2026-05-08** — Static analysis stack adopted ([ADR-012](../decisions.md#adr-012-static-analysis-stack)): `tsc` + Biome (format) + ESLint v9 (with `eslint-plugin-sonarjs`) + dependency-cruiser + knip, exposed via `pnpm check` and per-step scripts. Pre-commit hooks deferred to Phase 5; during active development, gates run on demand and in CI only. Concrete policy in [docs/quality-gates.md](../quality-gates.md).
-- **2026-05-08** — PoC 1 (MV3 SW + WebSocket + protocol envelope) completed with ✅ confirms-design verdict. Artifacts: `poc/mv3-ws-reconnect/` and `docs/journal/2026-05-08-poc-mv3-ws-reconnect.md`. No ADR/doc changes required.
-- **2026-05-08** — PoC 2 (CLI → extension pairing transport) completed with ⚠️ modifies-design verdict. Plan A (`chrome.runtime.onMessageExternal` from Node) confirmed unviable; Plan D (popup-driven claim via `POST /pair/claim`) adopted. ADR-011 amended with superseded note. Artifacts: `poc/cli-extension-pairing/` and `docs/journal/2026-05-08-poc-cli-extension-pairing.md`.
-- **2026-05-09** — PoC 3 (write technique for hostile rich-text editors) completed with ⚠️ modifies-design verdict. Pivoted from Lexical/React-fiber hypothesis to Quill runtime handle resolution (`__quill` via shadow-root scoping in `MAIN` world). Runtime API mutation confirmed on live LinkedIn composer. ADR amendments deferred to Phase 0.5. Artifacts: `poc/paste-fill/` and `docs/journal/2026-05-08-poc-paste-fill.md`.
 
 ## Relationship to other docs
 

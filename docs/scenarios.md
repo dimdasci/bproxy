@@ -68,7 +68,8 @@ User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They as
 1. read visible feed  (top ~6-8 posts already in DOM)
 2. extract URNs + author + truncated body + reactions/comments counts
 3. scroll one viewport down with paced behaviour
-4. wait for new posts to appear (DOM polling, no MutationObserver)
+4. wait for new posts to appear (DOM polling with jittered intervals [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver))
+   - Shadow-DOM aware: posts may appear inside open shadow roots
 5. read newly-loaded posts
 6. repeat 3-5 until N posts collected (cap: ~30, or ~5 scroll cycles)
 7. for each post: keep URN + permalink + truncated body
@@ -76,7 +77,7 @@ User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They as
 9. on any interstitial: HUMAN_REQUIRED → stop
 ```
 
-Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand, which keeps page-load volume low.
+Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand via popup click or permalink visit—the LinkedIn "see more" button opens a shadow-DOM modal (`#interop-outlet`, validated in PoC 3).
 
 ### New primitive — `bproxy scroll`
 
@@ -157,7 +158,7 @@ This is the same pattern as the LinkedIn digest: agent prepares, user reviews an
 
 ```
 1. read form structure        → bproxy elements --form
-2. LLM maps candidate fields  → {selector: value, method?: type|paste|select}
+2. LLM maps candidate fields  → {target: ElementTarget, value: string, method: FillMethod, world: ExecutionWorld}
 3. fill all fields            → bproxy fill-form <json>
 4. handle file inputs         → bproxy require-human --for-attach "#resume"
 5. read back filled state     → bproxy elements --form (verify framework accepted values)
@@ -198,7 +199,7 @@ The key signal is `inputType: "insertFromPaste"`. Frameworks (React, Vue, Angula
 
 The session's `--pacing` value governs the **delay between fields** (0.5–2 s with jitter), not delay between characters. Real humans paste fast within a field but pause between fields to glance, scroll, or read the next label. Total fill time of 30–90 s for a 20-field form is realistic.
 
-Typing per-character is available as opt-in (`--method typed`) for the rare cases where the agent legitimately composes text live and wants the keystroke pattern to look like composition. Default off.
+Explicit `method: direct`, `method: paste`, or `method: runtime-api` required—see fill-method-selection skill
 
 ### The framework-state trap
 
@@ -235,7 +236,7 @@ For MVP, option 3 is right. The user already needs to review the form before sub
 | Primitive | Purpose |
 |---|---|
 | `bproxy elements --form` | Form-shaped read: each field with `{label, type, currentValue, options, required, pattern, name}`. |
-| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. `--method type|paste|auto`. |
+| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. --method FillMethod, --world ExecutionWorld. |
 | `bproxy fill-form <json>` | Bulk fill in one round-trip with internal pacing. |
 | `bproxy select <trigger> <option-text>` | Custom-dropdown helper. Opens, waits, clicks option. |
 | `bproxy require-human --for-attach <selector>` | File upload handoff with deep-link to field. |
@@ -246,6 +247,8 @@ For MVP, option 3 is right. The user already needs to review the form before sub
 |---|---|---|
 | `isTrusted: false` on `input` events | Yes — every fill | low; frameworks accept |
 | `isTrusted: false` on click for custom dropdowns | Yes — opening menus | low for most components |
+| MAIN-world helper execution (`world: main`) | Used only for `runtime-api` writes; one-shot execution | low |
+| Hidden-tab destructive action guard | `fill`, `fill-form`, and `select` reject with `TAB_NOT_VISIBLE` when tab is hidden | low |
 | Typing pace fingerprint | None — paste, not typing | zero |
 | Per-field delay | 0.5–2 s with jitter (paste-realistic) | low |
 | Tab order / focus pattern | Agent fills in DOM order, not visual order | medium for paranoid scoring |

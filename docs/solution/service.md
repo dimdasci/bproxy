@@ -56,20 +56,22 @@ await app.listen({ host: '127.0.0.1', port: config.port });
 
 **File:** `src/auth.ts`
 
-Four-layer check on every request, with transport-specific token location.
+Four-layer check on every request, with **route-specific** token requirements.
 
 Token model:
-- **Daemon token** (`~/.bproxy/token`) authenticates CLI HTTP calls (including pairing claim).
-- **Extension token** (issued by daemon during pairing) authenticates WS upgrades.
+- **Daemon token** (`~/.bproxy/token`) authenticates CLI→daemon HTTP calls (`POST /`)
+- **Pairing code** authenticates popup→daemon `POST /pair/claim` (no daemon token)
+- **Extension token** (issued during pairing) authenticates WS upgrade (`GET /ws`)
 
-1. **Host header** — must be `127.0.0.1:{port}` or `localhost:{port}`. Rejects requests forwarded through a proxy.
-2. **Origin header** — if present, must be `chrome-extension://{extension-id}` (for WS from extension) or absent (for CLI, which sends no Origin).
-3. **Sec-Fetch-Site** — if present, must be `none` or `same-origin`. Rejects cross-site requests from web pages.
-4. **Auth secret**
-   - **HTTP (`POST /`, `POST /pair/claim`)**: `Authorization: Bearer {daemonToken}`
-   - **WS (`GET /ws`)**: `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+1. **Host header** — must be `127.0.0.1:{port}` or `localhost:{port}`. Rejects proxy-forwarded.
+2. **Origin header** — if present, must be `chrome-extension://{extension-id}` (WS/popup) or absent (CLI). Rejects cross-site.
+3. **Sec-Fetch-Site** — if present, must be `none` or `same-origin`. Rejects cross-site.
+4. **Auth secret (route-specific):**
+   - **HTTP `POST /`** → `Authorization: Bearer {daemonToken}`
+   - **HTTP `POST /pair/claim`** → pairing code in body (no bearer token)
+   - **WS `GET /ws`** → `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
 
-**Security invariant:** token secrecy is enforced by OS file ownership and mode. CLI must fail closed if token owner/mode is unsafe (see `solution/cli.md` token preflight).
+**Security invariant:** daemon token secrecy is enforced by OS file ownership and mode. CLI must fail closed if token owner/mode is unsafe.
 
 Failure at any layer → 401, connection closed.
 
@@ -115,25 +117,23 @@ The route is synchronous from the CLI's perspective: POST blocks until the exten
 
 **File:** `src/routes/pair.ts`
 
-This closes the token bootstrap loop without manual extension UI.
+Extension popup calls this to claim pairing code and receive bootstrap payload. **No daemon token required** — the pairing code itself is the auth factor for this route.
 
-Request (daemon-token authenticated):
+Request:
 
 ```json
 {
-  "code": "ABCD-EFGH",
-  "client": "cli",
-  "profile": "default"
+  "code": "ABCD-EFGH"
 }
 ```
 
-Response:
+Response (200):
 
 ```json
 {
   "ok": true,
   "data": {
-    "extensionToken": "...",
+    "extensionToken": "base64urlEncodedToken...",
     "wsUrl": "ws://127.0.0.1:9615/ws",
     "protocolVersion": 1,
     "issuedAt": 1714000000000,
@@ -144,11 +144,15 @@ Response:
 ```
 
 Validation/security checks:
-- pairing code exists, not expired (default TTL: 5 min), not already consumed
+- pairing code exists, not expired (TTL 5 min), not already consumed
 - code compare is constant-time
 - per-source rate limit (e.g. 5/min)
 - claim consumes code atomically (one-time)
 - bootstrap payload nonce is unique (extension enforces single accept)
+
+**No daemon bearer token required** — pairing code is the auth factor for this route.
+
+**Origin handling:** Popup `fetch` from `chrome-extension://` origin is expected and allowed.
 
 Failure codes:
 - `PAIRING_CODE_INVALID`
@@ -259,7 +263,7 @@ Default pacing (human mode):
 - Scroll: 4000–8000ms
 - Fill (per field): 500–2000ms
 
-Configurable per session via `bproxy session bind --pacing fast|human|custom`.
+Configurable per session via `bproxy session bind --pacing human|fast`. Per-session config overrides (arbitrary `PacingConfig` literal) are deferred to a later phase.
 
 ## Pending Request Map
 
@@ -302,7 +306,7 @@ Sessions are created implicitly on first command with `--session <name>`. Bound 
 5. Parent writes PID to lockfile, exits 0.
 6. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
 
-At startup the CLI prints machine-readable output including `pairingCode`, so flows can chain directly into `bproxy extension pair`.
+At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code—no CLI involvement. See [extension.md](../solution/extension.md) § Pairing.
 
 ### Shutdown (`bproxy service stop`)
 

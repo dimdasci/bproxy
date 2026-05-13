@@ -2,35 +2,44 @@
 
 Implementation spec for the Chrome Manifest V3 extension. Built with [WXT](https://wxt.dev).
 
-**Decisions that constrain this:** [ADR-001](../decisions.md#adr-001-default-instrumentation-strategy--read-mode) (read mode default), [ADR-002](../decisions.md#adr-002-extension-framework--wxt) (WXT), [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver) (DOM polling), [ADR-007](../decisions.md#adr-007-paste-flavored-writes-as-default) (paste default).
+**Decisions that constrain this:** [ADR-001](../decisions.md#adr-001-default-instrumentation-strategy--read-mode) (read mode), [ADR-002](../decisions.md#adr-002-extension-framework--wxt) (WXT), [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver) (jittered polling), [ADR-007](../decisions.md#adr-007-three-method-write-contract) (three methods), [ADR-013](../decisions.md#adr-013-main-world-runtime-api-writes) (MAIN world on-demand), [ADR-014](../decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting) (shadow-DOM targeting), [ADR-015](../decisions.md#adr-015-main-world-hygiene-contract) (hygiene), [ADR-016](../decisions.md#adr-016-web_accessible_resources-default-deny) (WAR default-deny).
+
+---
 
 ## Project Layout
 
 ```
 extension/
 ├── package.json              # devDeps: wxt, typescript, vitest
-├── wxt.config.ts             # manifest overrides, host_permissions, no content_scripts
+├── wxt.config.ts             # manifest overrides, host_permissions, no content_scripts, no WAR
 ├── tsconfig.json
 ├── entrypoints/
 │   ├── background.ts         # service worker
-│   └── content.ts            # isolated world, registration: 'runtime'
+│   ├── content.ts            # isolated world, registration: 'runtime'
+│   └── popup.html            # popup UI for pairing code entry
 ├── utils/
 │   ├── ws-client.ts          # WebSocket connection + reconnect logic
 │   ├── storage.ts            # typed storage items (session pins, token, domain config)
+│   ├── discovery.ts          # shadow-DOM-aware element discovery (intent-scoped)
+│   ├── targeting.ts          # route resolution beyond plain selectors
 │   └── actions/              # per-action handler modules
 │       ├── navigate.ts
 │       ├── text.ts
 │       ├── elements.ts
 │       ├── fill.ts
+│       ├── fill-form.ts
 │       ├── scroll.ts
 │       ├── screenshot.ts
 │       └── ...
 └── tests/                    # unit tests (vitest + fakeBrowser)
     ├── background.test.ts
+    ├── discovery.test.ts
     └── actions/
 ```
 
 Output: `extension/.output/chrome-mv3/` — loaded into Chrome, pointed at by E2E tests.
+
+---
 
 ## WXT Configuration
 
@@ -43,12 +52,18 @@ export default defineConfig({
     name: 'bproxy',
     permissions: ['tabs', 'scripting', 'webNavigation', 'alarms', 'storage', 'debugger'],
     host_permissions: ['<all_urls>'],
-    // No content_scripts — programmatic injection only
+    // No web_accessible_resources — default deny per ADR-016
+    // No declarative content_scripts — programmatic injection only per ADR-001
+    action: {
+      default_popup: 'popup.html',
+    },
   },
 });
 ```
 
-WXT refs: [Manifest config](https://wxt.dev/guide/essentials/config/guide/essentials/config/manifest.md), [Browser Startup](https://wxt.dev/guide/essentials/config/guide/essentials/config/browser-startup.md)
+WXT refs: [Manifest config](https://wxt.dev/guide/essentials/config/guide/essentials/config/manifest.md), [Browser Startup](https://wxt.dev/guide/essentials/config/guide/essentials/config/browser-startup.md), [Content Scripts](https://wxt.dev/guide/essentials/content-scripts.md), [Scripting](https://wxt.dev/guide/essentials/scripting.md)
+
+---
 
 ## Background Service Worker
 
@@ -58,35 +73,38 @@ WXT ref: [Entrypoints](https://wxt.dev/guide/essentials/entrypoints.md)
 
 ### Responsibilities
 
-1. **WebSocket client** — persistent connection to `ws://127.0.0.1:{port}/ws`. Reconnects on drop. Authenticates during handshake via `Sec-WebSocket-Protocol` using `bproxy.v1` plus `auth.{base64url(token)}` from storage.
-2. **Pairing bridge** — listens for `chrome.runtime.onMessageExternal` from CLI helper and accepts signed bootstrap payload (`extensionToken`, `wsUrl`, `protocolVersion`).
+1. **WebSocket client** — persistent connection to `ws://127.0.0.1:{port}/ws`. Reconnects on drop. Authenticates via `Sec-WebSocket-Protocol` with `bproxy.v1, auth.{base64url(token)}`.
+2. **Popup message handler** — receives `pair.complete` from popup after successful token storage.
 3. **Request dispatch** — receives protocol messages from daemon, routes to appropriate handler (tab-level actions → content script, extension-level actions → direct API calls).
 4. **Dedupe table** — `chrome.storage.session` map of `{id → result}`. Prevents re-execution on replay-after-reconnect. Bounded size, TTL-based eviction.
 5. **Session/tab pin map** — `chrome.storage.session` keyed by session name → tab ID. Sticky targeting.
-6. **Frame table** — populated from `chrome.webNavigation.onCompleted` / `onHistoryStateUpdated`. Used for SPA detection and frame targeting.
+6. **Frame table** — populated from `chrome.webNavigation.onCompleted` / `onHistoryStateUpdated`. SPA detection and frame targeting.
 7. **Keepalive** — `chrome.alarms` every 30s + app-level WS ping every 20s.
 8. **Content script injection** — on first command targeting a tab, inject `content.ts` via `browser.scripting.executeScript`. Track injected tabs to avoid re-injection.
-9. **Interstitial detection** — after `navigate` completes, check page title/content against known patterns (CAPTCHA, sign-in walls). Emit `HUMAN_REQUIRED` error.
+9. **Content script execution** — on-demand `chrome.scripting.executeScript` for MAIN-world calls (only for `runtime-api` method).
+10. **Interstitial detection** — after `navigate`, check against known patterns. Emit `HUMAN_REQUIRED`.
 
 ### SW Lifecycle
 
 ```
 SW starts → read token from storage (if present)
-         → register external message handler for pairing
          → if token exists: open WS with (`bproxy.v1`, `auth.{base64url(token)}`)
          → register chrome.alarms keepalive
          → register chrome.webNavigation listeners (frame table)
 
-On `pair.bootstrap` message from trusted sender
-             → validate sender id + payload shape
-             → persist token/wsUrl/protocol
-             → reconnect WS immediately
-             → ack `{ ok: true }`
+On popup 'pair.complete' message
+         → validate token shape + wsUrl loopback + expiresAt future
+         → trigger immediate WS reconnect
+         → ack popup with `{ ok: true }`
 
 On WS message → parse → check dedupe table
              → if duplicate: return cached result
              → if new: resolve target tab → inject content script if needed
                      → dispatch to handler → store result in dedupe → send response
+
+On `fill` with method='runtime-api'
+             → execute MAIN-world helper via chrome.scripting.executeScript
+             → world: 'MAIN', one-shot, no persistent scripts
 
 On WS close → exponential backoff reconnect (1s, 2s, 4s, max 30s)
 
@@ -102,6 +120,7 @@ Using WXT's typed storage (`wxt/utils/storage`):
 import { storage } from 'wxt/utils/storage';
 
 export const tokenItem = storage.defineItem<string>('local:token');
+export const wsUrlItem = storage.defineItem<string>('local:wsUrl');
 export const sessionPins = storage.defineItem<Record<string, number>>('session:pins', { defaultValue: {} });
 export const dedupeTable = storage.defineItem<Record<string, { result: unknown; ts: number }>>('session:dedupe', { defaultValue: {} });
 export const injectedTabs = storage.defineItem<number[]>('session:injectedTabs', { defaultValue: [] });
@@ -109,7 +128,63 @@ export const injectedTabs = storage.defineItem<number[]>('session:injectedTabs',
 
 WXT ref: [Storage](https://wxt.dev/guide/essentials/storage.md)
 
-## Content Script
+---
+
+## Popup Entrypoint
+
+**File:** `entrypoints/popup.html` + companion JS/TS
+
+Simple pairing code entry form. No options page per ADR-011.
+
+```typescript
+// Popup flow
+async function onSubmit(pairingCode: string) {
+  // 1. Call daemon POST /pair/claim
+  const res = await fetch('http://127.0.0.1:9615/pair/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: pairingCode }),
+  });
+  
+  if (!res.ok) {
+    showError(await res.json());
+    return;
+  }
+  
+  const payload = await res.json();
+  
+  // 2. Validate payload shape
+  if (!payload.extensionToken || !payload.wsUrl) {
+    showError({ code: 'PAIR_REJECTED', reason: 'invalid_payload' });
+    return;
+  }
+  
+  // 3. Store in chrome.storage.local
+  await chrome.storage.local.set({
+    token: payload.extensionToken,
+    wsUrl: payload.wsUrl,
+    issuedAt: payload.issuedAt,
+    expiresAt: payload.expiresAt,
+    nonce: payload.nonce,
+  });
+  
+  // 4. Notify background SW
+  await chrome.runtime.sendMessage({ type: 'pair.complete' });
+  
+  // 5. Show success, close popup
+  showSuccess();
+  setTimeout(() => window.close(), 1000);
+}
+```
+
+Popup validation:
+- `wsUrl` host must be loopback (`127.0.0.1` or `localhost`)
+- `expiresAt` must be in the future
+- `nonce` is stored but not validated here (background validates on first use)
+
+---
+
+## Content Script (ISOLATED World)
 
 **File:** `entrypoints/content.ts`
 
@@ -126,132 +201,346 @@ export default defineContentScript({
   main(ctx) {
     // Listen for messages from background SW
     // Dispatch to action handlers
-    // Use ctx for lifecycle (ctx.isValid, ctx.setTimeout, etc.)
+    // ISOLATED world only — no MAIN world code here
   },
 });
 ```
 
-### Action Handlers
+---
 
-Each action is a module in `utils/actions/`. Receives typed params, returns typed result. Runs in ISOLATED world.
+## Action Handlers
 
-**Read actions:**
+Each action is a module in `utils/actions/`. Receives typed params, returns typed result. Runs in ISOLATED world for reads and `direct`/`paste` writes.
+
+### Read actions
 
 | Action | Implementation |
 |---|---|
 | `text` | `document.querySelector(selector).innerText` |
-| `elements` | Walk interactive elements, generate stable selectors, extract labels/types/values |
-| `elements --form` | Filter to form fields, include `{label, type, currentValue, options, required, pattern, name}` |
-| `outline` | Extract landmarks (`<main>`, `<nav>`, `<header>`) + heading hierarchy |
-| `dom` | Recursive DOM walk at controlled depth, simplified output |
-| `images` | Visible `<img>` elements with src/alt/dimensions, filter by visibility |
+| `elements` | Walk interactive elements with shadow-DOM awareness, generate stable selectors, extract labels/types/values |
+| `elements --form` | Filter to form fields, shadow-aware targeting |
+| `outline` | Extract landmarks + heading hierarchy |
+| `dom` | Recursive DOM walk at controlled depth, shadow-aware, simplified output |
+| `images` | Visible `<img>` elements, shadow-aware traversal |
 
-**Scroll:**
-
-| Action | Implementation |
-|---|---|
-| `scroll` | `window.scrollBy({ top: distance, behavior: 'smooth' })` + DOM polling for stability (element count stable for 2 intervals at 200ms) |
-
-**Write actions:**
+### Scroll
 
 | Action | Implementation |
 |---|---|
-| `fill` | Focus → native value setter → `InputEvent('beforeinput', {inputType: 'insertFromPaste'})` → `InputEvent('input', {inputType: 'insertFromPaste'})` → `Event('change')` |
-| `fill-form` | Iterate fields with inter-field delay. Hidden-field guard (never write to invisible/honeypot fields). Read-back verify after fill. |
-| `select` | Click trigger → poll for menu appearance → find option by text → click option |
+| `scroll` | `window.scrollBy({ top: distance, behavior: 'smooth' })` + **jittered** DOM polling for stability. Bails on `document.hidden` unless explicitly user-initiated [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver). |
 
-**Screenshot:**
+### Write actions (ISOLATED world)
+
+| Action | Implementation |
+|---|---|
+| `fill` (method: `direct`) | Native setter: `el.value = v` / `el.textContent = v`. No events dispatched. |
+| `fill` (method: `paste`) | Native setter + `InputEvent('beforeinput', {inputType: 'insertFromPaste'})` + `InputEvent('input', {inputType: 'insertFromPaste'})` + `Event('change')`. ISOLATED world. |
+| `fill-form` | Iterate fields with inter-field pacing. Hidden-field guard. Read-back verify. |
+| `select` | Click trigger → poll for menu → find option → click. |
+
+### Write actions (MAIN world, on-demand)
+
+| Action | Implementation |
+|---|---|
+| `fill` (method: `runtime-api`) | One-shot `chrome.scripting.executeScript({ world: 'MAIN', func: ... })`. Target has `route` selecting editor handle in page scope. See MAIN-World Hygiene section. |
+
+### Screenshot
 
 | Action | Implementation |
 |---|---|
 | `screenshot` | Handled in background SW via `chrome.tabs.captureVisibleTab`. `--debugger` variant uses `chrome.debugger` → `Page.captureScreenshot`. |
 
-### Actionability Check
+---
 
-Before any write action, verify the target element is:
-- Visible (`display` not `none`, `visibility` not `hidden`, not `aria-hidden`)
-- Has non-zero dimensions
-- Not off-screen
-- Not covered by another element (optional, expensive)
+## Write Model
 
-Reject silently if honeypot-shaped. Return structured error if genuinely not found.
+Three explicit methods per [ADR-007](../decisions.md#adr-007-three-method-write-contract). No `auto`. No extension-side escalation.
 
-### DOM Polling for Stability
+### Method: `direct`
 
-Used by `scroll --until-stable` and `wait`:
+For plain HTML forms, bare `[contenteditable]` where DOM state is authority.
 
 ```typescript
-function pollUntilStable(selector: string, opts: { interval: number; stableCount: number; timeout: number }): Promise<{ stable: boolean; count: number }> {
-  // setInterval at opts.interval (default 200ms)
-  // Count elements matching selector
-  // If count unchanged for opts.stableCount consecutive checks → resolve stable
-  // If timeout reached → resolve with stable: false
+// ISOLATED world
+const el = document.querySelector(selector);
+if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+  el.value = value;
+} else if (el.isContentEditable) {
+  el.textContent = value;
 }
+// No events dispatched
 ```
 
-No MutationObserver. No installed listeners. Poll runs, resolves, disappears.
+### Method: `paste`
 
-### Context Invalidation
+For React/Vue/Angular controlled inputs that submit via framework state.
 
-WXT's `ContentScriptContext` tracks whether the extension was updated/disabled. All async operations use `ctx.setTimeout`, `ctx.setInterval` to auto-cancel on invalidation. Message listeners check `ctx.isValid` before responding.
+```typescript
+// ISOLATED world
+const el = document.querySelector(selector);
+el.focus();
 
-WXT ref: [Content Scripts — Context](https://wxt.dev/guide/essentials/content-scripts.md)
+// Native setter via prototype
+const nativeSetter = Object.getOwnPropertyDescriptor(
+  HTMLInputElement.prototype, 'value'
+)?.set;
+nativeSetter?.call(el, value);
 
-## Pairing (No Options Page)
+// Paste-flavored events (no fake keydown/keyup chain)
+el.dispatchEvent(new InputEvent('beforeinput', {
+  inputType: 'insertFromPaste',
+  data: value,
+  bubbles: true,
+}));
+el.dispatchEvent(new InputEvent('input', {
+  inputType: 'insertFromPaste',
+  data: value,
+  bubbles: true,
+}));
+el.dispatchEvent(new Event('change', { bubbles: true }));
+```
 
-The extension does not expose manual token UI. Bootstrap happens via CLI-mediated pairing.
+### Method: `runtime-api`
 
-### External message contract
+For page-owned editor instances (Quill, Lexical, ProseMirror, etc.). Requires MAIN world.
 
-Background SW accepts one external message type:
+```typescript
+// Called via chrome.scripting.executeScript({ world: 'MAIN', ... })
+// func is defined inline at call site to avoid identifying literals
 
-```ts
-{
-  type: 'pair.bootstrap',
-  payload: {
-    extensionToken: string,
-    wsUrl: string,
-    protocolVersion: 1,
-    issuedAt: number,
-    expiresAt: number,
-    nonce: string
+// Target has route indicating editor handle location
+// Example route: root.querySelector('#editor').__quill
+
+function mainWorldInjected(route: string, value: string) {
+  try {
+    // Resolve editor handle from route
+    const editor = resolveRoute(route);
+    if (!editor || typeof editor.setText !== 'function') {
+      return { ok: false, error: 'EDITOR_NOT_FOUND' };
+    }
+    
+    editor.setText(value, 'api');
+    const verified = editor.getText();
+    
+    return { ok: true, verified };
+  } catch (e) {
+    // Error normalized, no stack leak
+    return { ok: false, error: 'RUNTIME_ERROR' };
   }
 }
 ```
 
-Validation rules:
-- `sender.id` must match trusted companion extension/app id configured at build time.
-- `expiresAt` must be in the future.
-- `nonce` must be unseen in local replay cache (one-time accept).
-- `wsUrl` host must be loopback (`127.0.0.1` or `localhost`).
+See MAIN-World Hygiene section for route resolution and error handling.
 
-On success:
-1. Store `extensionToken` (and optional `wsUrl`) in `storage.local`.
-2. Trigger immediate WS reconnect.
-3. Return `{ ok: true }`.
+---
 
-On failure: return `{ ok: false, code: 'PAIR_REJECTED', reason: ... }` and keep current token unchanged.
+## MAIN-World Hygiene
+
+Per [ADR-015](../decisions.md#adr-015-main-world-hygiene-contract). Every MAIN-world execution follows:
+
+### 1. No identifying literals
+
+Injected function contains no `"chrome-extension"`, extension ID, or library names.
+
+```typescript
+// BAD: contains identifying strings
+const func = () => {
+  console.log('bproxy: injecting...');  // LEAK
+};
+
+// GOOD: string-free or generic
+const func = () => {
+  const t = (w: any, r: string) => { /* ... */ };
+  return t(window, route);
+};
+```
+
+### 2. Catch and normalize errors inside function
+
+```typescript
+const injected = (route: string, value: string) => {
+  try {
+    // ... resolve and write ...
+    return { s: true, v: verified };  // s = success, v = value
+  } catch (e) {
+    // Return normalized error, no throw
+    return { s: false, c: 'E' };  // c = error code
+  }
+};
+```
+
+### 3. Prevent chrome-extension URL leaks
+
+- Errors caught before crossing world boundary
+- No `Error` objects returned to ISOLATED world (strings only)
+- If page has `Error.prepareStackTrace` hook, our function returns before any throw
+
+### 4. One-shot execution
+
+```typescript
+// Background SW
+await browser.scripting.executeScript({
+  target: { tabId },
+  world: 'MAIN',
+  func: injected,
+  args: [route, value],
+});
+```
+
+No persistent scripts. No listeners installed. World is fresh per call.
+
+---
+
+## Shadow-DOM Discovery
+
+Per [ADR-014](../decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting). Targeting supports element routes encoding shadow-host chains.
+
+### Route representation
+
+```typescript
+interface ElementRoute {
+  // Chain of shadow hosts leading to the target
+  hosts: Array<{ selector: string; index?: number }>;
+  // Final selector within the deepest shadow root (or document if no hosts)
+  target: string;
+}
+
+// Example: modal inside #interop-outlet shadow root
+{
+  hosts: [{ selector: '#interop-outlet' }],
+  target: '[contenteditable="true"]'
+}
+
+// Example: plain light-DOM (no shadow)
+{
+  hosts: [],
+  target: 'input[name="email"]'
+}
+```
+
+### Progressive intent-scoped traversal
+
+```typescript
+// utils/discovery.ts
+export function findWithRoute(route: ElementRoute): Element | null {
+  let root: Document | ShadowRoot = document;
+  
+  // Traverse shadow hosts
+  for (const host of route.hosts) {
+    const hostEl = root.querySelector(host.selector);
+    if (!hostEl) return null;
+    if (!hostEl.shadowRoot) return null;  // Closed shadow = out of scope
+    root = hostEl.shadowRoot;
+  }
+  
+  // Final query within shadow root
+  return root.querySelector(route.target);
+}
+
+// Probing order (fastest to slowest)
+export function progressiveDiscovery(intent: 'click' | 'fill', hint?: Point) {
+  // 1. Active element chain
+  const active = getActiveElementChain();
+  
+  // 2. Visible dialogs/popovers
+  const dialogs = getVisibleDialogs();
+  
+  // 3. Hit-test around interaction point (center, cursor, target rect)
+  if (hint) {
+    const hit = document.elementsFromPoint(hint.x, hint.y);
+    // Check for shadow hosts
+  }
+  
+  // 4. Scoped subtree search (if candidate root identified)
+  // 5. Runtime-handle probe (only within scoped root, not full-page)
+}
+```
+
+### Closed shadow roots
+
+Explicitly out of scope. Discovery returns `null` for these targets; agent must use alternative strategy (different selector, click-to-focus, or handoff).
+
+### Runtime-handle probing (scoped)
+
+```typescript
+// Probe for __quill, __lexicalEditor, etc. — only within candidate root
+function probeRuntimeHandlers(root: Element): EditorHandle | null {
+  // Check known properties on root and immediate children
+  // Return typed handle or null
+}
+```
+
+Never full-page recursive scan. Always scoped to active modal/intent root [ADR-017](../decisions.md#adr-017-sensoractuator-boundary).
+
+---
+
+## DOM Polling for Stability
+
+Used by `scroll --until-stable`, `wait`, and after destructive actions.
+
+```typescript
+function pollUntilStable(opts: {
+  selector?: string;
+  intervalMin: number;      // jitter min (e.g., 180ms)
+  intervalMax: number;      // jitter max (e.g., 250ms)
+  stableCount: number;      // consecutive stable checks required (default: 2)
+  timeout: number;          // max total time (e.g., 5000ms)
+  respectVisibility: boolean; // bail if tab hidden (default: true for destructive)
+}): Promise<{ stable: boolean; count: number }> {
+  // Jitter: random interval between min and max
+  // Check document.visibilityState before destructive actions
+  // Count elements matching selector; stable = unchanged for stableCount checks
+}
+```
+
+- **Jittered intervals** — no fixed cadence [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver)
+- **Visibility-aware** — bails on hidden tabs for destructive actions
+- **Bounded** — resolves with `{stable: false}` on timeout
+
+---
+
+## Pairing (No Options Page)
+
+Popup-driven claim per [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing).
+
+Flow:
+1. `bproxy service start` generates pairing code
+2. CLI prints code; user opens popup, enters code
+3. Popup calls `POST /pair/claim`
+4. On success: popup stores token, notifies SW, SW reconnects WS
+
+Pairing bootstrap uses only popup claim (`POST /pair/claim`) and background `pair.complete` signaling.
+
+---
+
+## web_accessible_resources
+
+Default deny per [ADR-016](../decisions.md#adr-016-web_accessible_resources-default-deny).
+
+```typescript
+// wxt.config.ts
+export default defineConfig({
+  manifest: {
+    // Intentionally absent: web_accessible_resources
+  },
+});
+```
+
+No scanner-friendly resource enumeration. Any future WAR addition requires explicit ADR.
+
+---
 
 ## Optional: chrome.debugger
 
-Lazy-attached only when:
-- `--trusted` flag is used (produces `isTrusted === true` events)
-- `--debugger` screenshot requested (`Page.captureScreenshot` for full-page)
+Lazy-attached only when `--trusted` or `--debugger` flags used. Yellow banner acceptable as user-opted-in escalation.
 
-Attachment shows yellow "debugging" banner. Acceptable as user-opted-in escalation.
-
-Not attached by default. Not attached on extension load. Only on explicit command.
+---
 
 ## Observability
 
-The extension has no persistent log file — the SW console is ephemeral and lost on restart. Instead, the extension maintains a **ring buffer** in `chrome.storage.session`.
-
-### Ring Buffer
+Ring buffer in `chrome.storage.session` with version stamps to eliminate stale-build confusion.
 
 ```typescript
-// utils/storage.ts
-export const traceBuffer = storage.defineItem<TraceEntry[]>('session:trace', { defaultValue: [] });
-
 interface TraceEntry {
   id: string;
   action: string;
@@ -261,53 +550,11 @@ interface TraceEntry {
   result: 'ok' | 'error';
   errorCode?: string;
   replay: boolean;
+  extensionVersion: string;  // NEW: for stale-build detection
 }
 ```
 
-- **Capacity:** 50 entries (circular — oldest evicted on overflow).
-- **Written:** after every request completes (success or error).
-- **Survives:** SW restart (stored in `chrome.storage.session`, which persists until browser closes).
-- **Lost on:** browser restart (session storage is cleared). Acceptable — the daemon log has the durable record.
-
-### Queryable via CLI
-
-```bash
-bproxy debug log              # last 50 entries from extension ring buffer
-bproxy debug log --id 01HZX…  # single request trace
-```
-
-The `debug.log` action is handled by the background SW — reads from `traceBuffer` and returns as JSON.
-
-### Console Logging (dev mode)
-
-In `wxt dev`, the background SW logs to the SW console with structured format:
-
-```typescript
-console.log(`[bproxy] ${action} id=${id} tab=${tabId}`, params);
-// ... after execution:
-console.log(`[bproxy] ${action} id=${id} ${ok ? 'ok' : 'ERR:' + errorCode} ${elapsed}ms`);
-```
-
-This is visible in `chrome://extensions` → service worker → "Inspect". Useful during development, not relied upon for production debugging (use ring buffer + daemon log instead).
-
-### Badge as Status Indicator
-
-The extension icon badge reflects connection state:
-
-```typescript
-// In background SW, after WS state changes:
-function updateBadge(state: 'connected' | 'disconnected' | 'paused') {
-  const config = {
-    connected:    { text: '', color: '#22c55e' },      // green (no text, just color)
-    disconnected: { text: '!', color: '#ef4444' },     // red
-    paused:       { text: '❙❙', color: '#f59e0b' },    // yellow
-  }[state];
-  chrome.action.setBadgeText({ text: config.text });
-  chrome.action.setBadgeBackgroundColor({ color: config.color });
-}
-```
-
-At a glance: no badge = healthy. Red "!" = daemon disconnected. Yellow "❙❙" = HUMAN_REQUIRED, agent waiting.
+---
 
 ## Testing
 
@@ -317,7 +564,8 @@ Vitest + WXT's `fakeBrowser`:
 - Background SW dispatch logic
 - Dedupe table (dedup, eviction, TTL)
 - Session pin resolution
-- Individual action handlers (with mocked DOM for content script actions)
+- Discovery module (shadow-DOM traversal)
+- Individual action handlers
 
 WXT ref: [Unit Testing](https://wxt.dev/guide/essentials/unit-testing.md)
 
@@ -326,6 +574,8 @@ WXT ref: [Unit Testing](https://wxt.dev/guide/essentials/unit-testing.md)
 Playwright loads `.output/chrome-mv3/`. Full path: CLI → daemon → extension → real page.
 
 WXT ref: [E2E Testing](https://wxt.dev/guide/essentials/e2e-testing.md)
+
+---
 
 ## Development
 
