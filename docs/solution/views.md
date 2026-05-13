@@ -71,6 +71,8 @@ The artifact maintains exactly **six curated diagrams** plus an auto-derived com
 
 The Container diagram (02) is the canonical artifact. Most navigation flows through it: its nodes are clickable and drill into the auto-derived component graphs.
 
+**Implementation status:** the table above is the target end-state. Phase 0.7 requires only `02-containers.md`; the other five curated intent diagrams are added incrementally in follow-up PRs.
+
 ## Layering Model
 
 C4 as the spine, populated for bproxy:
@@ -153,7 +155,7 @@ Build fails on malformed frontmatter — typos in `sourcse:` or invalid ADR refs
 
 ### Mermaid in fenced blocks
 
-Diagrams live as ```` ```mermaid ```` fenced blocks inside the view's markdown file. The remark plugin transforms blocks to inline SVG at build time. Source stays in the file — agents reading raw markdown see the diagram source, not just rendered output.
+Diagrams live as ```` ```mermaid ```` fenced blocks inside the view's markdown file. In v1, `rehype-mermaid` runs in `pre-mermaid` mode: the built page keeps Mermaid source in `<pre class="mermaid">` blocks, and Mermaid renders them client-side at runtime. Source stays in the file — agents reading raw markdown see the diagram source, not just rendered output.
 
 ### Use `flowchart`, not `C4Container`
 
@@ -274,14 +276,14 @@ Not in v1: pan/zoom on diagrams, fullscreen overlay, search-within-diagram, per-
 |---|---|---|
 | Development | `pnpm docs:dev` | Starlight dev server on `localhost:4321`. Hot-reloads on edits to `docs/**` and `views/src/**`. |
 | Build | `pnpm docs:build` | Static `views/dist/` directory. |
-| CI | `pnpm docs:build` runs on every PR | Catches Mermaid syntax errors, frontmatter schema violations, broken intra-site links. Does **not** publish. |
+| CI | `pnpm docs:build` runs on every PR | Catches frontmatter schema violations and broken intra-site links. Mermaid rendering issues are surfaced in local `docs:dev` / preview runtime checks. Does **not** publish. |
 | Public hosting | _(deferred)_ | When bproxy goes public, add a GitHub Pages workflow that publishes `views/dist/` on merge to `main`. No decision required now. |
 
 ## Failure Modes
 
 | Failure | Surface |
 |---|---|
-| Mermaid syntax error in a view | Starlight build fails with file + line. |
+| Mermaid syntax error in a view | Page renders with Mermaid runtime error in `docs:dev` / preview. CI build may still pass in `pre-mermaid` mode. |
 | Malformed view frontmatter (missing field, wrong type) | Build fails via Zod with field path. |
 | `relatedAdrs` references a non-existent ADR | _(not enforced in v1)_ — add a custom integration if it becomes a real problem. |
 | `views:audit` reports nothing changed but author knows otherwise | The `sources` glob is wrong. Update the frontmatter — that's the maintenance loop. |

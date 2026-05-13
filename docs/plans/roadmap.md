@@ -52,7 +52,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
 
-**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on Mermaid syntax errors or `viewSchema` violations.
+**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on `viewSchema` violations or site-build regressions.
 
 **Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
 
@@ -60,7 +60,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per [docs/solution/shared.md](../solution/shared.md) and [docs/quality-gates.md](../quality-gates.md).
 
-**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types.
+**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types. **Phase 1 explicitly includes wiring the dependency-cruiser execution backend used by `views:regen` (Phase 0.7 ships only the planner/CLI contract).**
 
 **Done when:** `pnpm check` passes from a clean checkout; every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; tests assert that the discriminated union is exhaustive.
 
