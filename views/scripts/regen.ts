@@ -56,7 +56,7 @@ export function planRegen(
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 // Workspaces scanned by views:regen. Update when Phase 1 adds shared/, service/, etc.
-const KNOWN_WORKSPACES = ['shared', 'service', 'extension', 'cli'] as const;
+export const KNOWN_WORKSPACES = ['shared', 'service', 'extension', 'cli'] as const;
 
 function hasAnySourceFiles(dir: string): boolean {
   if (!existsSync(dir)) return false;
