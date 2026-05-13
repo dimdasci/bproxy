@@ -1,8 +1,6 @@
 ---
-title: bproxy — Architecture
+title: bproxy
 ---
-
-# bproxy
 
 Browser proxy for code agents. Exposes a Chrome Extension as a controlled browser surface reachable by CLI commands — bypassing Playwright-based anti-bot detection that blocks headless browsers.
 

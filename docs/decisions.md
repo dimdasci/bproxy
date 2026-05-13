@@ -1,4 +1,6 @@
-# bproxy — Architecture Decision Records
+---
+title: Architecture Decision Records
+---
 
 **Edition: 2026-05-13 (Phase 0.5)** — Authoritative current ADR set.
 

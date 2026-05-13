@@ -9,7 +9,7 @@ const docs = defineCollection({
     // Base points through the symlink at views/src/content/docs → ../../docs so that
     // Astro stores filePaths as 'src/content/docs/...' — required for Starlight's
     // autogenerate sidebar to strip the prefix and match directory names correctly.
-    pattern: '**/*.{md,mdx}',
+    pattern: ['**/*.{md,mdx}', '!journal/**', '!skills/**'],
     base: 'src/content/docs',
   }),
   // docsSchema({ extend }) only adds fields; it cannot relax a built-in required field.

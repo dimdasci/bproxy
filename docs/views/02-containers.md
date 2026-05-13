@@ -11,8 +11,6 @@ relatedAdrs: [ADR-003, ADR-008, ADR-010, ADR-013, ADR-017]
 related: [01-context, 03-deployment]
 ---
 
-# Containers
-
 The three runtime processes and how they communicate. This is the canonical bproxy diagram — every later view either zooms into one of the boxes below (Component-level) or describes a slice of behaviour that crosses them (Sequence, State).
 
 ```mermaid

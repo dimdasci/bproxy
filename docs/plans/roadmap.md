@@ -1,4 +1,6 @@
-# bproxy — Implementation Roadmap
+---
+title: Implementation Roadmap
+---
 
 > **Status:** Active. Owns the day-to-day shape of how bproxy gets built.
 > **Companion docs:** [`docs/architecture.md`](../architecture.md) (system shape), [`docs/decisions.md`](../decisions.md) (ADRs), [`docs/solution/`](../solution/) (per-component specs), [`docs/scenarios.md`](../scenarios.md) (driving use cases).

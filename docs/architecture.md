@@ -1,4 +1,6 @@
-# bproxy - Architecture
+---
+title: Architecture
+---
 
 ## Problem
 

@@ -1,4 +1,6 @@
-# Solution: Proxy Daemon (Service)
+---
+title: Proxy Daemon
+---
 
 Implementation spec for the localhost proxy daemon. Built with [Fastify](https://fastify.dev) + [`@fastify/websocket`](https://github.com/fastify/fastify-websocket).
 

@@ -1,4 +1,6 @@
-# Solution: Architecture Views
+---
+title: Architecture Views
+---
 
 Implementation spec for the visual architecture artifact and its rendering wrapper. A small static site built with [Astro Starlight](https://starlight.astro.build) renders a curated set of [Mermaid](https://mermaid.js.org) diagrams plus the existing prose docs. Two helper scripts keep the artifact discoverable when code or decisions change.
 

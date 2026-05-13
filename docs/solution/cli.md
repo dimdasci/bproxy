@@ -1,4 +1,6 @@
-# Solution: CLI
+---
+title: CLI
+---
 
 Implementation spec for the command-line interface. Built with [citty](https://github.com/unjs/citty).
 
