@@ -9,6 +9,7 @@ function remarkMermaid() {
         for (let i = 0; i < node.children.length; i++) {
           const child = node.children[i];
           if (child.type === 'code' && child.lang === 'mermaid') {
+            // value is trusted checked-in source; no sanitization needed
             node.children[i] = { type: 'html', value: `<pre class="mermaid">${child.value}</pre>` };
           } else {
             walk(child);
@@ -37,6 +38,7 @@ export default defineConfig({
           attrs: { type: 'module' },
           content: `
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+            // 'loose' allows HTML in labels (strict strips entities); safe for checked-in source
             mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
           `,
         },
