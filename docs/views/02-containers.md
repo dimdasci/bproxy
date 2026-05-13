@@ -1,0 +1,54 @@
+---
+title: Containers
+layer: c2
+sources:
+  - shared/**
+  - service/src/**
+  - extension/src/**
+  - cli/src/**
+  - docs/architecture.md
+relatedAdrs: [ADR-003, ADR-008, ADR-010, ADR-013, ADR-017]
+related: [01-context, 03-deployment]
+---
+
+# Containers
+
+The three runtime processes and how they communicate. This is the canonical bproxy diagram — every later view either zooms into one of the boxes below (Component-level) or describes a slice of behaviour that crosses them (Sequence, State).
+
+```mermaid
+flowchart LR
+  Agent([Code Agent])
+  User([Developer])
+
+  subgraph bproxy ["bproxy"]
+    CLI["CLI<br/><i>citty</i>"]
+    Daemon["Daemon<br/><i>Fastify, HTTP+WS</i>"]
+    subgraph Ext ["Chrome Extension (WXT, MV3)"]
+      BG["Background SW"]
+      CS["Content Script<br/><i>ISOLATED world</i>"]
+      Popup["Popup<br/><i>Pairing UI</i>"]
+    end
+  end
+
+  Page[("Web Page")]
+
+  Agent -- "shell" --> CLI
+  CLI -- "POST / (HTTP+Bearer)" --> Daemon
+  BG <-- "persistent WS" --> Daemon
+  BG -- "chrome.scripting" --> CS
+  CS -- "DOM read/write" --> Page
+  User -- "click" --> Popup
+  Popup -- "POST /pair/claim" --> Daemon
+```
+
+## What this picture tells you
+
+- **Three processes, four protocols.** The CLI talks HTTP to the Daemon. The Daemon talks WebSocket to the Extension's Background SW. The SW dispatches into Content Scripts via `chrome.scripting`. The Content Script reads and writes the page via the DOM. Two distinct authentication tokens secure the two daemon-facing routes ([ADR-010](../decisions.md#adr-010-websocket-auth-transport--two-token-model)).
+- **The agent never sees the page.** Only the Content Script touches the DOM, in the page's ISOLATED world. MAIN-world execution is on-demand and one-shot ([ADR-013](../decisions.md#adr-013-main-world-runtime-api-writes)).
+- **The user is a participant.** Pairing is popup-driven ([ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing)) — the CLI doesn't talk directly to the extension.
+
+## See also
+
+- Inside the Daemon: _coming in a later view._ Component-level breakdown will live at `docs/views/auto/daemon-components.svg` once Phase 2+ generates it.
+- Inside the Extension: _coming in a later view._ Same shape.
+- Trust boundaries and where each process runs: _Deployment view, coming in a later phase._
