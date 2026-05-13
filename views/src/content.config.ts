@@ -1,4 +1,5 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection } from 'astro:content';
+import { z } from 'zod';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob } from 'astro/loaders';
 import { viewSchema } from './lib/view-schema';
@@ -13,9 +14,7 @@ const docs = defineCollection({
   // Strip required 'title' then re-add as optional so prose docs fall back to their first H1.
   schema: (context) => {
     const baseSchema = docsSchema()(context);
-    return baseSchema.omit({ title: true }).merge(
-      z.object({ title: z.string().optional() })
-    );
+    return baseSchema.omit({ title: true }).extend({ title: z.string().optional() });
   },
 });
 

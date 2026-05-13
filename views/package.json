@@ -20,6 +20,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.7.0",
     "tsx": "^4.21.0",
