@@ -68,7 +68,8 @@ User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They as
 1. read visible feed  (top ~6-8 posts already in DOM)
 2. extract URNs + author + truncated body + reactions/comments counts
 3. scroll one viewport down with paced behaviour
-4. wait for new posts to appear (DOM polling, no MutationObserver)
+4. wait for new posts to appear (DOM polling with jittered intervals [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver))
+   - Shadow-DOM aware: posts may appear inside open shadow roots
 5. read newly-loaded posts
 6. repeat 3-5 until N posts collected (cap: ~30, or ~5 scroll cycles)
 7. for each post: keep URN + permalink + truncated body
@@ -76,7 +77,7 @@ User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They as
 9. on any interstitial: HUMAN_REQUIRED → stop
 ```
 
-Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand, which keeps page-load volume low.
+Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand via popup click or permalink visit—the LinkedIn "see more" button opens a shadow-DOM modal (`#interop-outlet`, validated in PoC 3).
 
 ### New primitive — `bproxy scroll`
 
