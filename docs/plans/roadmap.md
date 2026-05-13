@@ -35,7 +35,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 1. **MV3 SW + WebSocket + protocol envelope round-trip** (~1 day) — smallest viable Fastify WS server plus minimal MV3 extension. Validates subprotocol auth, SW lifecycle under forced suspend, reconnect+replay pattern, and envelope shape.
 2. **CLI → extension pairing transport** (~½–1 day) — confirms whether `chrome.runtime.onMessageExternal` accepts native processes; if not, evaluates alternatives (CLI-opened companion page, in-band pairing through the daemon WS).
-3. **Paste-flavored writes on real frameworks** (~½ day) — manual test against a real React/Vue application form (Welcome to the Jungle or similar; final pick at PoC time). Validates [ADR-007](../decisions.md#adr-007-paste-flavored-writes-as-default).
+3. **Explicit write methods on real frameworks** (~½ day) — manual test against a real React/Vue application form. Validates [ADR-007](../decisions.md#adr-007-three-method-write-contract): `direct` for DOM, `paste` for frameworks, `runtime-api` for editor instances.007-paste-flavored-writes-as-default).
 
 **Done when:** all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/journal/`, and any ADR amendments under `docs/decisions.md`. Each PoC closes with a verdict (*confirms / modifies / invalidates the design*).
 

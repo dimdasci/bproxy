@@ -158,7 +158,7 @@ This is the same pattern as the LinkedIn digest: agent prepares, user reviews an
 
 ```
 1. read form structure        → bproxy elements --form
-2. LLM maps candidate fields  → {selector: value, method?: type|paste|select}
+2. LLM maps candidate fields  → {target: ElementTarget, value: string, method: FillMethod, world: ExecutionWorld}
 3. fill all fields            → bproxy fill-form <json>
 4. handle file inputs         → bproxy require-human --for-attach "#resume"
 5. read back filled state     → bproxy elements --form (verify framework accepted values)
@@ -199,7 +199,7 @@ The key signal is `inputType: "insertFromPaste"`. Frameworks (React, Vue, Angula
 
 The session's `--pacing` value governs the **delay between fields** (0.5–2 s with jitter), not delay between characters. Real humans paste fast within a field but pause between fields to glance, scroll, or read the next label. Total fill time of 30–90 s for a 20-field form is realistic.
 
-Typing per-character is available as opt-in (`--method typed`) for the rare cases where the agent legitimately composes text live and wants the keystroke pattern to look like composition. Default off.
+Explicit `method: direct`, `method: paste`, or `method: runtime-api` required—see fill-method-selection skill
 
 ### The framework-state trap
 
@@ -236,7 +236,7 @@ For MVP, option 3 is right. The user already needs to review the form before sub
 | Primitive | Purpose |
 |---|---|
 | `bproxy elements --form` | Form-shaped read: each field with `{label, type, currentValue, options, required, pattern, name}`. |
-| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. `--method type|paste|auto`. |
+| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. --method FillMethod, --world ExecutionWorld. |
 | `bproxy fill-form <json>` | Bulk fill in one round-trip with internal pacing. |
 | `bproxy select <trigger> <option-text>` | Custom-dropdown helper. Opens, waits, clicks option. |
 | `bproxy require-human --for-attach <selector>` | File upload handoff with deep-link to field. |
