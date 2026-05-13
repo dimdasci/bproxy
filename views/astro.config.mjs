@@ -30,7 +30,43 @@ export default defineConfig({
     starlight({
       title: 'bproxy — Architecture',
       description: 'Architecture views and design docs for bproxy.',
-      sidebar: [],
+      sidebar: [
+        {
+          label: 'Overview',
+          items: [
+            { label: 'README', link: '/' },
+            { label: 'Architecture', link: '/architecture/' },
+            { label: 'Scenarios', link: '/scenarios/' },
+          ],
+        },
+        {
+          label: 'Views',
+          collapsed: false,
+          items: [{ autogenerate: { directory: 'views' } }],
+        },
+        {
+          label: 'Solution Specs',
+          items: [{ autogenerate: { directory: 'solution' } }],
+        },
+        {
+          label: 'Reference',
+          items: [
+            { label: 'Decisions (ADRs)', link: '/decisions/' },
+            { label: 'Quality Gates', link: '/quality-gates/' },
+          ],
+        },
+        {
+          label: 'Plans',
+          collapsed: true,
+          items: [
+            { label: 'Roadmap', link: '/plans/roadmap/' },
+            {
+              label: 'Phases',
+              items: [{ autogenerate: { directory: 'plans/phases' } }],
+            },
+          ],
+        },
+      ],
       customCss: ['./src/styles/custom.css'],
       head: [
         {
