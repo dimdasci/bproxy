@@ -28,8 +28,9 @@ views/                              # new workspace (TS, Astro Starlight)
 ├── astro.config.mjs                # Starlight config; content sourced from ../docs
 ├── tsconfig.json
 ├── src/
-│   ├── content/
-│   │   └── config.ts               # Zod schema for view frontmatter (load-bearing)
+│   ├── content.config.ts           # Astro content collections (docs + views)
+│   ├── lib/
+│   │   └── view-schema.ts          # Zod schema for view frontmatter (load-bearing; imports raw `zod`)
 │   ├── components/                 # Starlight overrides (breadcrumb hook, ADR footer)
 │   └── styles/                     # minimal theme tweaks
 └── scripts/
@@ -93,25 +94,41 @@ The frontmatter of each view file is **load-bearing**. Two consumers read it:
 1. Starlight at build time (validates, generates sidebar, renders ADR footer)
 2. `views:audit` at lint time (compares declared `sources` to the diff)
 
-A single Zod schema covers both, exported from `views/src/content/config.ts`:
+A single Zod schema covers both. To make it importable from a plain Node script (the audit CLI), it lives in its own file that imports `zod` directly — not from `astro:content`, which only resolves inside an Astro build.
 
 ```typescript
-// views/src/content/config.ts
-import { defineCollection, z } from 'astro:content';
+// views/src/lib/view-schema.ts
+import { z } from 'zod';
 
 export const viewSchema = z.object({
-  title: z.string(),
   layer: z.enum(['c1', 'c2', 'c3', 'c4', 'behavior', 'threat']),
   sources: z.array(z.string()).min(1),  // glob patterns vs repo root
   relatedAdrs: z.array(z.string().regex(/^ADR-\d{3}$/)).optional(),
   related: z.array(z.string()).optional(),  // sibling view slugs
 });
 
-export const collections = {
-  views: defineCollection({ type: 'content', schema: viewSchema }),
-};
-
 export type View = z.infer<typeof viewSchema>;
+```
+
+The Astro content config imports the same schema:
+
+```typescript
+// views/src/content.config.ts
+import { defineCollection } from 'astro:content';
+import { glob } from 'astro/loaders';
+import { docsSchema } from '@astrojs/starlight/schema';
+import { viewSchema } from './lib/view-schema';
+
+export const collections = {
+  docs: defineCollection({
+    loader: glob({ pattern: ['**/*.{md,mdx}', '!views/**'], base: '../docs' }),
+    schema: docsSchema(),
+  }),
+  views: defineCollection({
+    loader: glob({ pattern: '**/*.md', base: '../docs/views' }),
+    schema: docsSchema({ extend: viewSchema }),
+  }),
+};
 ```
 
 Example frontmatter (`docs/views/02-containers.md`):
@@ -212,7 +229,9 @@ Views potentially affected:
 Hint: run `pnpm views:regen` if any component graph under docs/views/auto/ is stale.
 ```
 
-The audit imports `viewSchema` from `views/src/content/config.ts` and reads view frontmatter directly. No second-source schema.
+The audit imports `viewSchema` from `views/src/lib/view-schema.ts` and validates every parsed frontmatter through `safeParse`. Parse failures surface in the report with the offending file path and Zod field path (e.g., `02-containers.md: sources — Required`); the audit still exits 0 (advisory contract preserved), but malformed frontmatter shows up loudly instead of silently passing.
+
+Frontmatter is parsed with `js-yaml`, not a hand-rolled extractor — single source of truth requires a real YAML reader.
 
 Glob matching: minimatch against repo-relative paths.
 
