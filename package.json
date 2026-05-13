@@ -8,7 +8,7 @@
   "scripts": {
     "docs:dev": "pnpm --filter views dev",
     "docs:build": "pnpm --filter views build",
-    "views:audit": "pnpm --filter views audit",
+    "views:audit": "pnpm --filter views run audit",
     "views:regen": "pnpm --filter views regen",
     "test": "pnpm --filter views test"
   },

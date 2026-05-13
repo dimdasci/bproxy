@@ -6,8 +6,9 @@ import { viewSchema } from './lib/view-schema';
 
 const docs = defineCollection({
   loader: glob({
-    // Exclude docs/views/ — served by the separate `views` collection below
-    pattern: ['**/*.{md,mdx}', '!views/**'],
+    // Include docs/views/** so Starlight generates pages for view entries.
+    // The separate `views` collection below still validates viewSchema at build time.
+    pattern: '**/*.{md,mdx}',
     base: '../docs',
   }),
   // docsSchema({ extend }) only adds fields; it cannot relax a built-in required field.
