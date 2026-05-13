@@ -39,7 +39,7 @@ cli/
         ├── eval.ts
         ├── tab.ts            # subCommands: list, pin, unpin, open, close
         ├── session.ts        # subCommands: list, bind, unbind, resume
-        ├── extension.ts      # subCommands: pair
+        ├── extension.ts      # REMOVED: no extension subcommands
         └── debug.ts          # subCommands: log, last, status
 ```
 
@@ -260,6 +260,8 @@ export default defineCommand({
     // 4. Write PID to ~/.bproxy/bproxy.pid
     // 5. Wait for port file to appear (daemon is listening)
     // 6. Output { ok: true, data: { pid, port, pairingCode, pairingExpiresAt } }
+    //    pairingCode is one-time, short TTL (5 min), single-use
+    //    Copy displayed for user to paste into extension popup—no CLI call to /pair/claim
   },
 });
 ```
@@ -274,24 +276,16 @@ Read PID → check if alive → read port → report.
 
 ## `extension` Subcommands
 
-### `bproxy extension pair --code <CODE>`
+**Removed.** Pairing is popup-driven—see [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing).
 
-Claims one-time pairing code and bootstraps extension token without options-page UI.
+1. CLI prints pairing code in `bproxy service start` output
+2. User opens extension popup, enters code
+3. Popup calls `POST /pair/claim` directly
+4. Daemon returns bootstrap payload to popup
+5. Extension stores token
+6. CLI queries status via `bproxy service status`
 
-Flow:
-1. Resolve daemon port + daemon token (`~/.bproxy/token`) with same token preflight checks.
-2. POST `http://127.0.0.1:{port}/pair/claim` with bearer token and `{ code }`.
-3. Receive bootstrap payload `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`.
-4. Deliver payload to extension via runtime external messaging bridge.
-5. Print JSON `{ ok: true, data: { paired: true } }`.
-
-### Pipe-friendly usage
-
-```bash
-bproxy service start --json | bproxy extension pair --from-stdin
-```
-
-`--from-stdin` reads JSON from stdin and extracts `data.pairingCode`.
+No `bproxy extension pair` command. No `--from-stdin` bootstrap pipeline. No CLI runtime messaging to extension.
 
 ## Token preflight (fail closed)
 

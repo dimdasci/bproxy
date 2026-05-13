@@ -85,6 +85,21 @@ export type Action =
   | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume'
   | 'debug.log' | 'debug.last' | 'debug.status';
 
+// Types for fill methods and world
+export type FillMethod = 'direct' | 'paste' | 'runtime-api';
+export type ExecutionWorld = 'isolated' | 'main';
+
+// Target that supports shadow-DOM routes
+export interface ElementTarget {
+  // For simple light-DOM targeting
+  selector?: string;
+  // For shadow-DOM targeting (ADR-014)
+  route?: {
+    hosts: Array<{ selector: string; index?: number }>;  // shadow host chain
+    target: string;  // selector within deepest shadow root
+  };
+}
+
 // Params per action — exhaustive, compiler-checked
 export interface ActionParams {
   navigate: { url: string };
@@ -95,9 +110,21 @@ export interface ActionParams {
   dom: { selector?: string; depth?: number };
   scroll: { by?: string; direction?: 'up' | 'down'; untilStable?: boolean };
   screenshot: { activate?: boolean; debugger?: boolean };
-  fill: { selector: string; value: string; method?: 'type' | 'paste' | 'auto' };
-  'fill-form': { fields: Array<{ selector: string; value: string; method?: 'type' | 'paste' | 'auto' }> };
-  select: { trigger: string; optionText: string };
+  fill: { 
+    target: ElementTarget;  // replaces selector-only
+    value: string; 
+    method: FillMethod;  // NOT optional — agent must choose
+    world: ExecutionWorld; // NOT optional — 'isolated' or 'main'
+  };
+  'fill-form': { 
+    fields: Array<{ 
+      target: ElementTarget;  // replaces selector
+      value: string; 
+      method: FillMethod;  // NOT optional
+      world: ExecutionWorld; // NOT optional
+    }> 
+  };
+  select: { trigger: ElementTarget; optionText: string };  // target replaces selector
   wait: { strategy: 'selector' | 'url' | 'navigation'; target: string; timeout?: number };
   'require-human': { reason: string; forAttach?: string };
   eval: { code: string };
@@ -243,7 +270,8 @@ export interface TabInfo {
 ```typescript
 // Used in ActionResult
 export interface ElementInfo {
-  selector: string;        // stable CSS selector
+  selector: string;        // stable CSS selector (light-DOM)
+  route?: ElementRoute;    // shadow-DOM host chain if applicable
   tag: string;
   type?: string;           // input type
   label?: string;
@@ -252,6 +280,16 @@ export interface ElementInfo {
   required?: boolean;
   options?: string[];      // for select/dropdown
   role?: string;
+  // Framework/runtime markers for method selection
+  hasShadowRoot?: boolean;
+  runtimeHandle?: 'quill' | 'lexical' | 'prosemirror' | 'codemirror' | 'monaco' | 'slate';
+}
+
+// Shadow-DOM route representation (ADR-014)
+export interface ElementRoute {
+  hosts: Array<{ selector: string; index?: number }>;  // shadow host chain from document
+  target: string;  // selector within deepest shadow root
+  closed?: boolean;  // true if any host in chain is closed shadow
 }
 
 export interface Landmark {
