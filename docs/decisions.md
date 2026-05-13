@@ -4,9 +4,7 @@
 
 ---
 
-## Unchanged (minor formatting only)
-
-### ADR-001: Default instrumentation strategy — read mode
+## ADR-001: Default instrumentation strategy — read mode
 **Date:** 2026-04-30
 **Status:** Accepted
 
@@ -14,7 +12,7 @@ Read mode (Concept B) is the default. No MAIN-world presence, no declarative con
 
 ---
 
-### ADR-002: Extension framework — WXT
+## ADR-002: Extension framework — WXT
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -22,7 +20,7 @@ Use [WXT](https://wxt.dev) (v0.20+) as the extension build framework. Extension 
 
 ---
 
-### ADR-003: Service framework — Fastify
+## ADR-003: Service framework — Fastify
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -30,7 +28,7 @@ Use [Fastify](https://fastify.dev) + [`@fastify/websocket`](https://github.com/f
 
 ---
 
-### ADR-004: CLI framework — citty
+## ADR-004: CLI framework — citty
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -38,7 +36,7 @@ Use [citty](https://github.com/unjs/citty) from the UnJS ecosystem. Lazy imports
 
 ---
 
-### ADR-005: TypeScript as project language
+## ADR-005: TypeScript as project language
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -46,7 +44,7 @@ TypeScript throughout. Shared types in a `shared/` workspace package consumed by
 
 ---
 
-### ADR-008: WebSocket over Native Messaging
+## ADR-008: WebSocket over Native Messaging
 **Date:** 2026-04-30
 **Status:** Accepted
 
@@ -54,7 +52,7 @@ WebSocket to `ws://127.0.0.1:9615/ws`. Development-friendly, no platform-specifi
 
 ---
 
-### ADR-009: Observability as a first-class design constraint
+## ADR-009: Observability as a first-class design constraint
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -62,7 +60,7 @@ Every component independently observable. Request `id` is the universal correlat
 
 ---
 
-### ADR-012: Static analysis stack
+## ADR-012: Static analysis stack
 **Date:** 2026-05-08
 **Status:** Accepted
 
@@ -70,9 +68,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-## Rewritten
-
-### ADR-006: DOM polling over MutationObserver
+## ADR-006: DOM polling over MutationObserver
 **Date:** 2026-05-13 (rewritten)
 **Status:** Accepted
 
@@ -87,7 +83,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-### ADR-007: Three-method write contract
+## ADR-007: Three-method write contract
 **Date:** 2026-05-13 (rewritten)
 **Status:** Accepted
 
@@ -108,7 +104,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-### ADR-010: WebSocket auth transport — two-token model
+## ADR-010: WebSocket auth transport — two-token model
 **Date:** 2026-05-13 (rewritten)
 **Status:** Accepted
 
@@ -124,7 +120,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-### ADR-011: Extension token bootstrap via popup-driven pairing
+## ADR-011: Extension token bootstrap via popup-driven pairing
 **Date:** 2026-05-13 (rewritten)
 **Status:** Accepted
 
@@ -141,9 +137,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-## New
-
-### ADR-013: MAIN-world runtime-api writes
+## ADR-013: MAIN-world runtime-api writes
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -162,7 +156,7 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 
 ---
 
-### ADR-014: Shadow-DOM-aware discovery + route-based targeting
+## ADR-014: Shadow-DOM-aware discovery + route-based targeting
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -180,7 +174,7 @@ No deep global scans. Runtime-handle probing stays scoped to candidate editor ro
 
 ---
 
-### ADR-015: MAIN-world hygiene contract
+## ADR-015: MAIN-world hygiene contract
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -194,7 +188,7 @@ No deep global scans. Runtime-handle probing stays scoped to candidate editor ro
 
 ---
 
-### ADR-016: `web_accessible_resources` default-deny
+## ADR-016: `web_accessible_resources` default-deny
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -209,7 +203,7 @@ Default-deny does not eliminate all extension side channels, but it removes the 
 
 ---
 
-### ADR-017: Sensor+actuator boundary
+## ADR-017: Sensor+actuator boundary
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -232,7 +226,7 @@ Caching of successful routes belongs at the proxy layer, keyed by request shape.
 
 ---
 
-### ADR-018: Agent guidance ownership
+## ADR-018: Agent guidance ownership
 **Date:** 2026-05-13
 **Status:** Accepted
 
@@ -250,4 +244,3 @@ Caching of successful routes belongs at the proxy layer, keyed by request shape.
 The skill is what agents load and apply; the extension contract is the three methods plus read primitives that inform the choice.
 
 ---
-
