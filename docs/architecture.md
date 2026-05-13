@@ -12,6 +12,8 @@ A Chrome extension running in a real user browser, controlled by agents through 
 Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page
 ```
 
+The extension is a thin sensor+actuator layer. It exposes capabilities honestly (shadow-aware reads, MAIN-world capability, three write methods) and never strategizes internally.
+
 The extension operates in the real page context — real cookies, real session, real user fingerprint — which closes the easy detection paths. The default mode (**read mode**) has no MAIN-world presence: no wrapped globals, no MutationObserver, no history patches. The agent reads pages via ISOLATED-world DOM access and navigates via URLs.
 
 **Write operations** use one of three explicit methods selected by the agent per call ([ADR-007](./decisions.md#adr-007-three-method-write-contract)):
