@@ -1,0 +1,18 @@
+{
+  "name": "bproxy",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Browser proxy for code agents.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "docs:dev": "pnpm --filter views dev",
+    "docs:build": "pnpm --filter views build",
+    "views:audit": "pnpm --filter views audit",
+    "views:regen": "pnpm --filter views regen",
+    "test": "pnpm --filter views test"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}
