@@ -15,7 +15,8 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 |---|---|---|---|---|
 | 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
 | 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
-| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.5 closes_ |
+| 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | Not started | _plan written when Phase 0.5 closes_ |
+| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.7 closes_ |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
 | 4 | CLI | One-shot agent interface | Not started | _plan written when Phase 3 closes_ |
@@ -44,6 +45,16 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 **Purpose:** propagate PoC verdicts into the design docs before Layer 1 starts.
 
 **Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/architecture.md`, `docs/decisions.md`, or `docs/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
+
+### Phase 0.7 — Architecture viewer (v1)
+
+**Purpose:** stand up the architecture views site so the rest of the build has a visual onboarding and presentation surface from day one, and so the sync helpers are wired before any production code lands. Per [docs/solution/views.md](../solution/views.md).
+
+**Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
+
+**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on Mermaid syntax errors or `viewSchema` violations.
+
+**Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
 
 ### Phase 1 — Shared types (and workspace scaffold)
 
