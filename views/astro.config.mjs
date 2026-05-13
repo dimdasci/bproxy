@@ -28,7 +28,7 @@ export default defineConfig({
   },
   integrations: [
     starlight({
-      title: 'bproxy — Architecture',
+      title: 'bproxy — Design',
       description: 'Architecture views and design docs for bproxy.',
       sidebar: [
         {
