@@ -17,7 +17,6 @@
     "astro": "^6.3.1",
     "js-yaml": "^4.1.1",
     "minimatch": "^10.2.5",
-    "rehype-mermaid": "^3.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

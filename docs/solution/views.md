@@ -5,7 +5,7 @@ Implementation spec for the visual architecture artifact and its rendering wrapp
 **Decisions that constrain this:** [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript), [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint) (every artifact independently inspectable), [ADR-012](../decisions.md#adr-012-static-analysis-stack) (dep-cruiser already in the stack — reused for auto-derived component graphs).
 
 **Follow-up ADRs (this spec implies, to be appended to `decisions.md`):**
-- Site generator — Astro Starlight (rationale: typed content collections align with sync helpers; TS-native; renders Mermaid via remark plugin)
+- Site generator — Astro Starlight (rationale: typed content collections align with sync helpers; TS-native; Mermaid rendered via inline remark plugin + CDN, no Playwright)
 - Diagram notation — Mermaid in markdown, with `flowchart` + subgraphs used in place of the experimental `C4Container` syntax
 - Layering spine — C4 model (Context / Container / Component / Code), with Diátaxis as the broader site IA
 
@@ -24,7 +24,7 @@ The artifact is a wrapper. The existing prose docs (`architecture.md`, `decision
 
 ```
 views/                              # new workspace (TS, Astro Starlight)
-├── package.json                    # deps: astro, @astrojs/starlight, rehype-mermaid, zod
+├── package.json                    # deps: astro, @astrojs/starlight, zod
 ├── astro.config.mjs                # Starlight config; content sourced from ../docs
 ├── tsconfig.json
 ├── src/
@@ -155,7 +155,9 @@ Build fails on malformed frontmatter — typos in `sourcse:` or invalid ADR refs
 
 ### Mermaid in fenced blocks
 
-Diagrams live as ```` ```mermaid ```` fenced blocks inside the view's markdown file. In v1, `rehype-mermaid` runs in `pre-mermaid` mode: the built page keeps Mermaid source in `<pre class="mermaid">` blocks, and Mermaid renders them client-side at runtime. Source stays in the file — agents reading raw markdown see the diagram source, not just rendered output.
+Diagrams live as ```` ```mermaid ```` fenced blocks inside the view's markdown file. An inline remark plugin (12 lines, zero new deps) converts them to `<pre class="mermaid">` blocks at build time; Mermaid's CDN ESM bundle renders them client-side at runtime. Source stays in the file — agents reading raw markdown see the diagram source, not just rendered output.
+
+`rehype-mermaid` was evaluated and rejected: it carries `mermaid-isomorphic` as a hard dependency, which in turn lists `playwright` as a peer dependency unconditionally — even for strategies that never invoke Playwright. Playwright is not permitted in this project.
 
 ### Use `flowchart`, not `C4Container`
 
