@@ -38,3 +38,6 @@ tmp/
 # Monorepo workspace artifacts
 **/.astro/
 **/.cache/
+
+# pnpm local store (when store-dir is inside the repo)
+.pnpm-store/
