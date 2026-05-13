@@ -1,4 +1,4 @@
-# bproxy — Architecture
+# bproxy - Architecture
 
 ## Problem
 
@@ -12,19 +12,28 @@ A Chrome extension running in a real user browser, controlled by agents through 
 Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page
 ```
 
-The extension operates in the real page context — real cookies, real session, real user fingerprint — which closes the easy detection paths. The default mode (**read mode**) has no MAIN-world presence: no wrapped globals, no MutationObserver, no history patches. The agent reads pages via ISOLATED-world DOM access and navigates via URLs. Write operations use paste-flavored events. Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real usage shows they're needed.
+The extension operates in the real page context — real cookies, real session, real user fingerprint — which closes the easy detection paths. The default mode (**read mode**) has no MAIN-world presence: no wrapped globals, no MutationObserver, no history patches. The agent reads pages via ISOLATED-world DOM access and navigates via URLs.
+
+**Write operations** use one of three explicit methods selected by the agent per call ([ADR-007](./decisions.md#adr-007-three-method-write-contract)):
+- `direct` — DOM state (`.value` / `.textContent`), ISOLATED world
+- `paste` — Framework events with `inputType: "insertFromPaste"`, ISOLATED world
+- `runtime-api` — Page-owned editor APIs (`__quill`, Lexical, ProseMirror, etc.), MAIN world (on-demand one-shot)
+
+Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real usage shows they're needed.
 
 ## Design Principles
 
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + scroll.
-- **DOM polling beats MutationObserver** as the default "is page settled" mechanism.
+- **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
-- **Paste, not typing** — `fill` defaults to paste-flavored input events.
-- **Interact mode is a thin extension of read mode** — paste-shaped writes, form-shaped reads, file-upload handoff. No MAIN-world shim, no MutationObserver, no `--trusted` by default.
+- **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
+- **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
+- **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
+- **Shadow-DOM-aware targeting** — element routes encode shadow-host chains; open shadow roots only [ADR-014](./decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting).
 - **Interstitial detection + `HUMAN_REQUIRED`** — agent stops, user resolves CAPTCHAs/logins.
 - **"Don't submit" handoff** — agent prepares, user reviews and submits.
 - **Escape hatches stay on the shelf** until real usage signals need.
-- **Observability is structural** — every component is independently debuggable via the request `id` as universal correlation key. Logging is not an afterthought; it’s part of the spec.
+- **Observability is structural** — every component is independently debuggable via the request `id` as universal correlation key. Logging is not an afterthought; it's part of the spec.
 
 ## Components
 
@@ -36,12 +45,17 @@ Implementation: [solution/service.md](./solution/service.md)
 
 ### Browser Extension
 
-Chrome Manifest V3 extension. Two runtime layers:
+Chrome Manifest V3 extension. Three runtime layers:
 
-- **Background service worker** — WebSocket client to the daemon, request routing, tab/session management, frame table, keepalive.
-- **Content script** (isolated world, injected programmatically on first command per tab) — DOM reads, form fills, scroll, stability polling.
+- **Background service worker** — WebSocket client to the daemon, request routing, tab/session management, frame table, keepalive, popup message handler.
+- **Content script** (ISOLATED world, injected programmatically on first command per tab) — DOM reads, `direct`/`paste` writes, scroll, stability polling.
+- **Popup** — pairing code entry, token storage. No options page.
 
-No MAIN-world presence by default. Optional `chrome.debugger` attachment for trusted events.
+**Dual execution model:**
+- ISOLATED world for reads and `direct`/`paste` writes
+- MAIN world (on-demand via `chrome.scripting.executeScript`) only for `runtime-api` writes
+
+**Shadow-aware discovery** — targeting supports element routes beyond plain selectors, traversing open shadow roots scoped to active modal/intent.
 
 Implementation: [solution/extension.md](./solution/extension.md)
 
@@ -53,21 +67,22 @@ Implementation: [solution/cli.md](./solution/cli.md)
 
 ## Extension Token Bootstrap (Pairing)
 
-The extension has no manual token-entry UI. Pairing is explicit and CLI-mediated.
+The extension has no manual token-entry UI. Pairing is explicit and popup-driven ([ADR-011](./decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing)).
 
 1. `bproxy service start` starts daemon and creates:
    - daemon bearer token in `~/.bproxy/token` (CLI → daemon HTTP auth)
    - one-time pairing code (short TTL, single-use)
-2. User/agent calls `bproxy extension pair --code XXXX-XXXX`.
-3. CLI authenticates to daemon with `Authorization: Bearer {daemon-token}` and calls bootstrap claim route.
-4. Daemon validates pairing code and returns bootstrap payload (`extensionToken`, `wsUrl`, `protocol`).
-5. CLI sends payload to installed extension via runtime messaging bridge.
-6. Extension stores token in `storage.local`, reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`.
+2. CLI prints pairing code in machine-readable output (`{pairingCode, expiresAt}`)
+3. User opens extension popup, enters pairing code
+4. Popup calls `POST /pair/claim` with the code, receives bootstrap payload
+5. Popup stores `{extensionToken, wsUrl, protocol}` in `chrome.storage.local`
+6. Popup notifies background SW; SW reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
 
 Security properties:
-- Pairing code is one-time and expires quickly.
-- Claim route requires daemon bearer token (local-file gated).
+- Pairing code is one-time and expires quickly (TTL 5 minutes).
+- Claim route validates pairing code only; no daemon bearer token required.
 - Daemon never exposes long-lived token over unauthenticated endpoint.
+- Bootstrap payload includes cryptographic nonce; extension enforces single accept.
 - Pairing events are logged and auditable.
 
 ## Protocol
@@ -127,7 +142,7 @@ Errors use a single RFC 9457-aligned envelope:
 | `dom`        | Simplified subtree at controlled depth.                                               |
 | `scroll`     | ISOLATED-world `window.scrollBy` + DOM polling for stability.                        |
 | `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` opt-ins.                            |
-| `fill`       | Paste-flavored input: native setter + `insertFromPaste` events.                      |
+| `fill`       | Three explicit methods: `direct` (DOM), `paste` (events), `runtime-api` (editor).      |
 | `fill-form`  | Bulk fill in one round-trip with internal pacing.                                    |
 | `select`     | Custom-dropdown helper: click trigger, wait for menu, click option.                  |
 | `wait`       | Strategies: `selector` / `url` / `navigation`. DOM polling.                          |
@@ -141,12 +156,12 @@ Errors use a single RFC 9457-aligned envelope:
 ## Reliability
 
 - **At-most-once** for destructive actions (client-supplied `id`, proxy pending map, extension dedupe table).
-- **Pacing** — daemon-enforced human-pace delays. Agent cannot bypass.
-- **`HUMAN_REQUIRED`** — structured stop signal on interstitials. No retry through bot detection.
+- **Pacing** - daemon-enforced human-pace delays. Agent cannot bypass.
+- **`HUMAN_REQUIRED`** - structured stop signal on interstitials. No retry through bot detection.
 
 ## Related Documents
 
-- [decisions.md](./decisions.md) — Architecture Decision Records (why we chose X over Y)
-- [scenarios.md](./scenarios.md) — Driving use cases and bot-signal accounting
-- [solution/](./solution/) — Implementation specs (how to build each component)
-- [journal/](./journal/) — Raw design thinking and pivot notes
+- [decisions.md](./decisions.md) - Architecture Decision Records (why we chose X over Y)
+- [scenarios.md](./scenarios.md) - Driving use cases and bot-signal accounting
+- [solution/](./solution/) - Implementation specs (how to build each component)
+- [journal/](./journal/) - Raw design thinking and pivot notes
