@@ -247,6 +247,8 @@ For MVP, option 3 is right. The user already needs to review the form before sub
 |---|---|---|
 | `isTrusted: false` on `input` events | Yes — every fill | low; frameworks accept |
 | `isTrusted: false` on click for custom dropdowns | Yes — opening menus | low for most components |
+| MAIN-world helper execution (`world: main`) | Used only for `runtime-api` writes; one-shot execution | low |
+| Hidden-tab destructive action guard | `fill`, `fill-form`, and `select` reject with `TAB_NOT_VISIBLE` when tab is hidden | low |
 | Typing pace fingerprint | None — paste, not typing | zero |
 | Per-field delay | 0.5–2 s with jitter (paste-realistic) | low |
 | Tab order / focus pattern | Agent fills in DOM order, not visual order | medium for paranoid scoring |

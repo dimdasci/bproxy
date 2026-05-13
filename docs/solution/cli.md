@@ -39,7 +39,6 @@ cli/
         ├── eval.ts
         ├── tab.ts            # subCommands: list, pin, unpin, open, close
         ├── session.ts        # subCommands: list, bind, unbind, resume
-        ├── extension.ts      # REMOVED: no extension subcommands
         └── debug.ts          # subCommands: log, last, status
 ```
 
@@ -84,7 +83,6 @@ const main = defineCommand({
     eval:           () => import('./commands/eval').then(m => m.default),
     tab:            () => import('./commands/tab').then(m => m.default),
     session:        () => import('./commands/session').then(m => m.default),
-    extension:      () => import('./commands/extension').then(m => m.default),
     debug:          () => import('./commands/debug').then(m => m.default),
   },
 });
@@ -274,18 +272,16 @@ Read PID → send SIGTERM → wait for exit → clean up lockfile.
 
 Read PID → check if alive → read port → report.
 
-## `extension` Subcommands
+## Pairing workflow
 
-**Removed.** Pairing is popup-driven—see [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing).
+Pairing is popup-driven—see [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing).
 
-1. CLI prints pairing code in `bproxy service start` output
-2. User opens extension popup, enters code
-3. Popup calls `POST /pair/claim` directly
-4. Daemon returns bootstrap payload to popup
-5. Extension stores token
-6. CLI queries status via `bproxy service status`
-
-No `bproxy extension pair` command. No `--from-stdin` bootstrap pipeline. No CLI runtime messaging to extension.
+1. CLI prints pairing code in `bproxy service start` output.
+2. User opens extension popup and enters code.
+3. Popup calls `POST /pair/claim`.
+4. Daemon returns bootstrap payload to popup.
+5. Extension stores token.
+6. CLI reads pairing state via `bproxy service status`.
 
 ## Token preflight (fail closed)
 

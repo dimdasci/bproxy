@@ -89,16 +89,16 @@ export type Action =
 export type FillMethod = 'direct' | 'paste' | 'runtime-api';
 export type ExecutionWorld = 'isolated' | 'main';
 
-// Target that supports shadow-DOM routes
-export interface ElementTarget {
-  // For simple light-DOM targeting
-  selector?: string;
-  // For shadow-DOM targeting (ADR-014)
-  route?: {
-    hosts: Array<{ selector: string; index?: number }>;  // shadow host chain
-    target: string;  // selector within deepest shadow root
-  };
+// Shadow-DOM route representation (ADR-014)
+export interface ElementRoute {
+  hosts: Array<{ selector: string; index?: number }>;  // shadow host chain from document
+  target: string;  // selector within deepest shadow root
 }
+
+// Target must be exactly one strategy: light-DOM selector or shadow route
+export type ElementTarget =
+  | { selector: string; route?: never }
+  | { selector?: never; route: ElementRoute };
 
 // Params per action — exhaustive, compiler-checked
 export interface ActionParams {
@@ -153,7 +153,7 @@ export interface ActionResult {
   scroll: { before: number; after: number; scrolledPx: number; stable: boolean };
   screenshot: { base64: string; format: 'png' | 'jpeg' };
   fill: { filled: boolean; verifiedValue: string };
-  'fill-form': { results: Array<{ selector: string; filled: boolean; verifiedValue: string }> };
+  'fill-form': { results: Array<{ target: ElementTarget; filled: boolean; verifiedValue: string }> };
   select: { selected: boolean; optionText: string };
   wait: { matched: boolean; elapsed: number };
   'require-human': { resumed: boolean };
@@ -283,13 +283,6 @@ export interface ElementInfo {
   // Framework/runtime markers for method selection
   hasShadowRoot?: boolean;
   runtimeHandle?: 'quill' | 'lexical' | 'prosemirror' | 'codemirror' | 'monaco' | 'slate';
-}
-
-// Shadow-DOM route representation (ADR-014)
-export interface ElementRoute {
-  hosts: Array<{ selector: string; index?: number }>;  // shadow host chain from document
-  target: string;  // selector within deepest shadow root
-  closed?: boolean;  // true if any host in chain is closed shadow
 }
 
 export interface Landmark {

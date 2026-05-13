@@ -1,6 +1,6 @@
 # bproxy — Architecture Decision Records
 
-**Edition: 2026-05-13 (Phase 0.5)** — Current state after PoC phase. Journal entries in `docs/journal/` preserve historical deliberation; this document is the authoritative current edition.
+**Edition: 2026-05-13 (Phase 0.5)** — Authoritative current ADR set.
 
 ---
 
@@ -139,8 +139,6 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 6. Popup stores token in `chrome.storage.local`, notifies background SW
 7. Background SW reconnects WS with subprotocol auth
 
-**Superseded:** Original design assumed CLI→extension runtime messaging bridge via `chrome.runtime.onMessageExternal`. PoC 2 confirmed this is unreachable from Node (`typeof chrome: undefined`). Plan D (popup-driven claim) adopted.
-
 ---
 
 ## New
@@ -253,19 +251,3 @@ The skill is what agents load and apply; the extension contract is the three met
 
 ---
 
-## Edition History
-
-| Date | Change |
-|------|--------|
-| 2026-04-30 | Initial ADRs 001–009 |
-| 2026-05-08 | Added ADR-010, ADR-011, ADR-012 |
-| 2026-05-13 | **Edition rewrite (Phase 0.5).** ADR-006, ADR-007, ADR-010, ADR-011 rewritten. New ADR-013 through ADR-018 added. Appendix-only framing replaced with edition-based. |
-
----
-
-## Superseded Decisions (Historical)
-
-The following decisions were superseded by the 2026-05-13 edition. Original text preserved in `docs/journal/`:
-
-- **ADR-007 (original):** "Paste-flavored writes as default" — evolved to three-method explicit contract
-- **ADR-011 (original):** "CLI-mediated pairing via `chrome.runtime.onMessageExternal`" — transport unviable from Node, replaced with popup-driven claim

@@ -509,7 +509,7 @@ Flow:
 3. Popup calls `POST /pair/claim`
 4. On success: popup stores token, notifies SW, SW reconnects WS
 
-**Removed:** All `onMessageExternal` / `sender.id` bootstrap text. CLI does not call `/pair/claim`. No `bproxy extension pair` command.
+Pairing bootstrap uses only popup claim (`POST /pair/claim`) and background `pair.complete` signaling.
 
 ---
 
