@@ -6,10 +6,11 @@ import { viewSchema } from './lib/view-schema';
 
 const docs = defineCollection({
   loader: glob({
-    // Include docs/views/** so Starlight generates pages for view entries.
-    // The separate `views` collection below still validates viewSchema at build time.
+    // Base points through the symlink at views/src/content/docs → ../../docs so that
+    // Astro stores filePaths as 'src/content/docs/...' — required for Starlight's
+    // autogenerate sidebar to strip the prefix and match directory names correctly.
     pattern: '**/*.{md,mdx}',
-    base: '../docs',
+    base: 'src/content/docs',
   }),
   // docsSchema({ extend }) only adds fields; it cannot relax a built-in required field.
   // Strip required 'title' then re-add as optional so prose docs fall back to their first H1.
@@ -22,7 +23,7 @@ const docs = defineCollection({
 const views = defineCollection({
   loader: glob({
     pattern: '**/*.md',
-    base: '../docs/views',
+    base: 'src/content/docs/views',
   }),
   schema: docsSchema({ extend: viewSchema }),
 });
