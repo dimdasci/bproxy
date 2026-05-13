@@ -5,6 +5,7 @@ import { viewSchema } from './lib/view-schema';
 
 const docs = defineCollection({
   loader: glob({
+    // Exclude docs/views/ — served by the separate `views` collection below
     pattern: ['**/*.{md,mdx}', '!views/**'],
     base: '../docs',
   }),
