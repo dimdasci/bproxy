@@ -263,7 +263,7 @@ Default pacing (human mode):
 - Scroll: 4000–8000ms
 - Fill (per field): 500–2000ms
 
-Configurable per session via `bproxy session bind --pacing fast|human|custom`.
+Configurable per session via `bproxy session bind --pacing human|fast`. Per-session config overrides (arbitrary `PacingConfig` literal) are deferred to a later phase.
 
 ## Pending Request Map
 

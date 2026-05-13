@@ -222,7 +222,7 @@ export interface BproxyError {
 
 ```typescript
 // src/sessions.ts
-export type PacingMode = 'human' | 'fast' | 'custom';
+export type PacingMode = 'human' | 'fast';
 
 export interface PacingConfig {
   navigate: { min: number; max: number };
@@ -241,12 +241,11 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
     scroll: { min: 0, max: 0 },
     fill: { min: 0, max: 0 },
   },
-  custom: {
-    navigate: { min: 1000, max: 3000 },
-    scroll: { min: 2000, max: 5000 },
-    fill: { min: 300, max: 1000 },
-  },
 };
+
+// Per-session PacingConfig overrides are deferred. When introduced, `session.bind`
+// params will accept `pacing?: PacingMode | PacingConfig` and the resolver will
+// branch on the runtime shape.
 
 export interface SessionInfo {
   name: string;
@@ -268,10 +267,10 @@ export interface TabInfo {
 ## Supporting Types
 
 ```typescript
-// Used in ActionResult
-export interface ElementInfo {
-  selector: string;        // stable CSS selector (light-DOM)
-  route?: ElementRoute;    // shadow-DOM host chain if applicable
+// Used in ActionResult. Composed from ElementTarget so an ElementInfo can be
+// passed directly anywhere an ElementTarget is expected (e.g. fed back into
+// `fill` after `elements` discovery), with no field-shape drift.
+export type ElementInfo = ElementTarget & {
   tag: string;
   type?: string;           // input type
   label?: string;
@@ -283,7 +282,7 @@ export interface ElementInfo {
   // Framework/runtime markers for method selection
   hasShadowRoot?: boolean;
   runtimeHandle?: 'quill' | 'lexical' | 'prosemirror' | 'codemirror' | 'monaco' | 'slate';
-}
+};
 
 export interface Landmark {
   tag: string;
