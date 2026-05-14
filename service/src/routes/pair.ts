@@ -9,7 +9,7 @@ const ClaimBody = z.object({ code: z.string() }).strict();
 export interface PairRouteDeps {
 	pairing: PairingStore;
 	logger: Logger;
-	wsUrl: string;
+	wsUrl: () => string;
 }
 
 export function pairRoute(deps: PairRouteDeps) {
@@ -24,7 +24,7 @@ export function pairRoute(deps: PairRouteDeps) {
 			}
 			const r = deps.pairing.claim(body.data.code, () => ({
 				extensionToken: randomBytes(32).toString("base64url"),
-				wsUrl: deps.wsUrl,
+				wsUrl: deps.wsUrl(),
 				protocolVersion: 1,
 			}));
 			if (!r.ok) {

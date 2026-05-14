@@ -97,7 +97,7 @@ async function registerRoutes(
 		pairRoute({
 			pairing: deps.pairing,
 			logger: opts.logger,
-			wsUrl: `ws://127.0.0.1:${opts.port}/ws`,
+			wsUrl: () => `ws://127.0.0.1:${getPort()}/ws`,
 		}),
 	);
 	await app.register(
