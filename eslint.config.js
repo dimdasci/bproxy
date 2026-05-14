@@ -46,4 +46,12 @@ export default [
 			"no-warning-comments": ["error", { terms: ["TODO", "FIXME", "XXX"] }],
 		},
 	},
+	{
+		files: ["**/__tests__/**/*.ts", "**/*.test.ts"],
+		rules: {
+			"max-lines-per-function": "off",
+			"max-lines": "off",
+			"sonarjs/cognitive-complexity": "off",
+		},
+	},
 ];
