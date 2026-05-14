@@ -7,7 +7,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "docs:dev": "pnpm --filter views dev",
-    "docs:build": "pnpm --filter views build",
+    "docs:build": "pnpm --filter views build && bash views/scripts/assert-no-md-links.sh",
     "views:audit": "pnpm --filter views run audit",
     "views:regen": "pnpm --filter views regen",
     "test": "pnpm --filter views test"
