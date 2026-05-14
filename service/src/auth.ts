@@ -125,7 +125,9 @@ export function makeAuthHook(deps: AuthHookDeps) {
 			bodyPairingCode: deps.readBodyPairingCode(req),
 		});
 		if (!decision.ok) {
-			reply.code(401).send({ ok: false, error: { code: "UNAUTHORIZED", reason: decision.reason } });
+			return reply
+				.code(401)
+				.send({ ok: false, error: { code: "UNAUTHORIZED", reason: decision.reason } });
 		}
 	};
 }
