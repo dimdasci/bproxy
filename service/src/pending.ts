@@ -39,7 +39,7 @@ function overloadedResponse(id: string): BproxyResponse {
 	return errorResponse(id, {
 		code: "OVERLOADED",
 		category: "transport",
-		retry: "conditional",
+		retry: "safe",
 		message: "Daemon pending map is full",
 	});
 }
