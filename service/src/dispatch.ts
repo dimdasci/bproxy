@@ -35,7 +35,15 @@ function createTabLock() {
 	return function withTabLock<T>(tabId: number, fn: () => Promise<T>): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
 			function run() {
-				fn().then(
+				let p: Promise<T>;
+				try {
+					p = fn();
+				} catch (e) {
+					reject(e);
+					unlock(tabId);
+					return;
+				}
+				p.then(
 					(v) => {
 						resolve(v);
 						unlock(tabId);
