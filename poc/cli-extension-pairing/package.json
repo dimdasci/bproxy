@@ -1,13 +1,13 @@
 {
-  "name": "poc-cli-extension-pairing",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node server.mjs",
-    "attempt": "node cli-attempt.mjs"
-  },
-  "dependencies": {
-    "fastify": "^5.0.0"
-  }
+	"name": "poc-cli-extension-pairing",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "node server.mjs",
+		"attempt": "node cli-attempt.mjs"
+	},
+	"dependencies": {
+		"fastify": "^5.0.0"
+	}
 }

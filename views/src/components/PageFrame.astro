@@ -1,9 +1,11 @@
 ---
-import Default from '@astrojs/starlight/components/PageFrame.astro';
-import RelatedAdrs from './RelatedAdrs.astro';
+import Default from "@astrojs/starlight/components/PageFrame.astro";
+import RelatedAdrs from "./RelatedAdrs.astro";
 
 // `relatedAdrs` is only present on entries from the `views` collection.
-const adrs = (Astro.locals.starlightRoute?.entry.data as { relatedAdrs?: readonly string[] } | undefined)?.relatedAdrs;
+const adrs = (
+	Astro.locals.starlightRoute?.entry.data as { relatedAdrs?: readonly string[] } | undefined
+)?.relatedAdrs;
 ---
 
 <Default {...Astro.props}>

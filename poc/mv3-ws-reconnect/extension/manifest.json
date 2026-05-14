@@ -1,11 +1,11 @@
 {
-  "manifest_version": 3,
-  "name": "bproxy PoC: MV3 WS reconnect",
-  "version": "0.0.1",
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "permissions": ["storage", "alarms"],
-  "host_permissions": ["http://127.0.0.1:9090/*"]
+	"manifest_version": 3,
+	"name": "bproxy PoC: MV3 WS reconnect",
+	"version": "0.0.1",
+	"background": {
+		"service_worker": "background.js",
+		"type": "module"
+	},
+	"permissions": ["storage", "alarms"],
+	"host_permissions": ["http://127.0.0.1:9090/*"]
 }

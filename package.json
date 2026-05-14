@@ -1,18 +1,37 @@
 {
-  "name": "bproxy",
-  "private": true,
-  "version": "0.0.0",
-  "description": "Browser proxy for code agents.",
-  "license": "MIT",
-  "packageManager": "pnpm@9.15.0",
-  "scripts": {
-    "docs:dev": "pnpm --filter views dev",
-    "docs:build": "pnpm --filter views build && bash views/scripts/assert-no-md-links.sh",
-    "views:audit": "pnpm --filter views run audit",
-    "views:regen": "pnpm --filter views regen",
-    "test": "pnpm --filter views test"
-  },
-  "engines": {
-    "node": ">=22.12"
-  }
+	"name": "bproxy",
+	"private": true,
+	"type": "module",
+	"version": "0.0.0",
+	"description": "Browser proxy for code agents.",
+	"license": "MIT",
+	"packageManager": "pnpm@9.15.0",
+	"scripts": {
+		"typecheck": "pnpm -r typecheck",
+		"format": "biome check --formatter-enabled=true --linter-enabled=false .",
+		"format:fix": "biome check --fix --formatter-enabled=true --linter-enabled=false .",
+		"lint": "eslint . --max-warnings 0",
+		"lint:fix": "eslint . --fix",
+		"arch": "depcruise --config .dependency-cruiser.cjs shared/src service/src cli/src extension/src",
+		"deadcode": "knip",
+		"check": "pnpm typecheck && pnpm format && pnpm lint && pnpm arch && pnpm deadcode",
+		"test": "pnpm -r test",
+		"docs:dev": "pnpm --filter views dev",
+		"docs:build": "pnpm --filter views build && bash views/scripts/assert-no-md-links.sh",
+		"views:audit": "pnpm --filter views run audit",
+		"views:regen": "pnpm --filter views regen"
+	},
+	"engines": {
+		"node": ">=22.12"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@typescript-eslint/eslint-plugin": "^8.59.3",
+		"@typescript-eslint/parser": "^8.59.3",
+		"dependency-cruiser": "^17.4.0",
+		"eslint": "^10.3.0",
+		"eslint-plugin-sonarjs": "^4.0.3",
+		"knip": "^6.13.1",
+		"typescript": "^6.0.3"
+	}
 }

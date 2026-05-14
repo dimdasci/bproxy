@@ -1,2 +1,6 @@
 packages:
+  - shared
+  - service
+  - extension
+  - cli
   - views
