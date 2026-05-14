@@ -318,6 +318,38 @@ export function buildLogger(config: ServiceConfig): Logger {
 export function buildTestLogger(): Logger {
 	return pino({ level: "silent" });
 }
+
+export interface CapturedLogger {
+	logger: Logger;
+	lines: readonly Record<string, unknown>[];
+	clear(): void;
+}
+
+export function buildCapturedLogger(): CapturedLogger {
+	const lines: Record<string, unknown>[] = [];
+	const logger = pino(
+		{ level: "trace" },
+		{
+			write(chunk: string) {
+				for (const line of chunk.split("\n")) {
+					if (!line) continue;
+					try {
+						lines.push(JSON.parse(line) as Record<string, unknown>);
+					} catch {
+						/* skip non-JSON */
+					}
+				}
+			},
+		} as pino.DestinationStream,
+	);
+	return {
+		logger,
+		lines,
+		clear() {
+			lines.length = 0;
+		},
+	};
+}
 ```
 
 - [ ] **Step 3: Write `service/src/__tests__/logger.test.ts`** (failing first)
@@ -508,7 +540,9 @@ import { createPacing } from "../pacing";
 import { createSessionRegistry } from "../sessions";
 
 describe("pacing engine", () => {
-	it("waits the configured delay on a paced action", async () => {
+	// One pinned-jitter test locks the formula. Other tests assert ranges so
+	// changes to the jitter formula don't churn unrelated tests.
+	it("waits the configured delay on a paced action (pinned jitter)", async () => {
 		let clock = 1_000_000;
 		const sleeps: number[] = [];
 		const sessions = createSessionRegistry();
@@ -531,18 +565,43 @@ describe("pacing engine", () => {
 		expect(sleeps).toEqual([2750 - 100]);
 	});
 
+	it("waits a delay inside the preset range under real jitter", async () => {
+		let clock = 0;
+		const sleeps: number[] = [];
+		const sessions = createSessionRegistry();
+		sessions.getOrCreate("s");
+		const pacing = createPacing({
+			sessions,
+			now: () => clock,
+			sleep: async (ms) => {
+				sleeps.push(ms);
+				clock += ms;
+			},
+			random: () => Math.random(),
+		});
+
+		await pacing.waitForSlot("s", "navigate"); // no prior action
+		await pacing.waitForSlot("s", "navigate");
+		expect(sleeps.length).toBe(1);
+		const { min, max } = PACING_PRESETS.human.navigate;
+		expect(sleeps[0]).toBeGreaterThanOrEqual(min - 1);
+		expect(sleeps[0]).toBeLessThanOrEqual(max);
+	});
+
 	it("passes through unpaced actions immediately", async () => {
+		const sleep = vi.fn();
 		const pacing = createPacing({
 			sessions: createSessionRegistry(),
 			now: () => 0,
-			sleep: vi.fn(),
+			sleep,
 			random: () => 0,
 		});
 		await pacing.waitForSlot("s", "text");
 		await pacing.waitForSlot("s", "elements");
+		expect(sleep).not.toHaveBeenCalled();
 	});
 
-	it("respects per-session pacing mode override", async () => {
+	it("respects per-session pacing mode override (pinned)", async () => {
 		let clock = 0;
 		const sleeps: number[] = [];
 		const sessions = createSessionRegistry();
@@ -559,35 +618,29 @@ describe("pacing engine", () => {
 
 		await pacing.waitForSlot("fast-session", "fill"); // first call
 		clock += 10;
-		await pacing.waitForSlot("fast-session", "fill"); // 100–400 → 250
+		await pacing.waitForSlot("fast-session", "fill"); // fast preset 100–400 → 250
 		expect(sleeps).toEqual([250 - 10]);
 	});
 
-	it("never returns a negative delay", async () => {
+	it("never sleeps when elapsed already exceeds the configured delay", async () => {
 		let clock = 0;
-		const sleeps: number[] = [];
+		const sleep = vi.fn(async (ms: number) => {
+			clock += ms;
+		});
 		const sessions = createSessionRegistry();
 		sessions.getOrCreate("s");
 		const pacing = createPacing({
 			sessions,
 			now: () => clock,
-			sleep: async (ms) => {
-				sleeps.push(ms);
-				clock += ms;
-			},
+			sleep,
 			random: () => 0.5,
 		});
 
 		await pacing.waitForSlot("s", "navigate");
 		clock += 10_000; // wait longer than the preset max
 		await pacing.waitForSlot("s", "navigate");
-		expect(sleeps).every((ms) => ms >= 0);
-	});
-
-	// Sanity check on PACING_PRESETS to keep tests grounded
-	it("uses PACING_PRESETS from shared", () => {
-		expect(PACING_PRESETS.human.navigate.min).toBe(1500);
-		expect(PACING_PRESETS.fast.fill.max).toBe(400);
+		// Sleep must not be called for the second slot — elapsed already exceeds target.
+		expect(sleep).not.toHaveBeenCalled();
 	});
 });
 ```
@@ -665,7 +718,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { createPending } from "../pending";
 
-function req(id: string, deadline = Date.now() + 5000): BproxyRequest {
+const BASE = 1_000_000;
+
+function req(id: string, deadline = BASE + 5000): BproxyRequest {
 	return {
 		protocol_version: 1,
 		id,
@@ -690,7 +745,7 @@ function okResponse(id: string): BproxyResponse {
 
 describe("pending map", () => {
 	it("registers and resolves a request by id", async () => {
-		const pending = createPending({ maxSize: 10 });
+		const pending = createPending({ maxSize: 10, now: () => BASE });
 		const send = vi.fn();
 		const p = pending.register(req("a"), send);
 		expect(send).toHaveBeenCalledOnce();
@@ -699,7 +754,7 @@ describe("pending map", () => {
 	});
 
 	it("dedupes by id: same id returns the existing promise without re-sending", async () => {
-		const pending = createPending({ maxSize: 10 });
+		const pending = createPending({ maxSize: 10, now: () => BASE });
 		const send = vi.fn();
 		const p1 = pending.register(req("a"), send);
 		const p2 = pending.register(req("a"), send);
@@ -711,34 +766,65 @@ describe("pending map", () => {
 
 	it("times out at deadline with an error envelope", async () => {
 		vi.useFakeTimers();
-		const pending = createPending({ maxSize: 10 });
-		const p = pending.register(req("a", Date.now() + 100), vi.fn());
+		vi.setSystemTime(BASE);
+		const pending = createPending({ maxSize: 10, now: () => Date.now() });
+		const p = pending.register(req("a", BASE + 100), vi.fn());
 		vi.advanceTimersByTime(150);
 		await expect(p).resolves.toMatchObject({ ok: false, error: { code: "TIMEOUT" } });
 		vi.useRealTimers();
 	});
 
-	it("rejects with OVERLOADED when bounded size is reached", async () => {
-		const pending = createPending({ maxSize: 2 });
-		pending.register(req("a"), vi.fn());
-		pending.register(req("b"), vi.fn());
-		const overflow = await pending.register(req("c"), vi.fn());
-		expect(overflow).toMatchObject({ ok: false, error: { code: "OVERLOADED" } });
+	it("resolves immediately with TIMEOUT when the deadline is already in the past", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(BASE);
+		const pending = createPending({ maxSize: 10, now: () => Date.now() });
+		const p = pending.register(req("a", BASE - 1), vi.fn());
+		vi.advanceTimersByTime(0); // flush the 0-ms timer
+		await expect(p).resolves.toMatchObject({ ok: false, error: { code: "TIMEOUT" } });
+		vi.useRealTimers();
 	});
 
-	it("replays in-flight requests when client reconnects", async () => {
-		const pending = createPending({ maxSize: 10 });
+	it("rejects with OVERLOADED when bounded size is reached", async () => {
+		const sendFull = vi.fn();
+		const pending = createPending({ maxSize: 2, now: () => BASE });
+		pending.register(req("a"), sendFull);
+		pending.register(req("b"), sendFull);
+		const overflowSend = vi.fn();
+		const overflow = await pending.register(req("c"), overflowSend);
+		expect(overflow).toMatchObject({ ok: false, error: { code: "OVERLOADED" } });
+		expect(overflowSend).not.toHaveBeenCalled();
+	});
+
+	it("replays in-flight requests: original promise resolves when replayed send is responded", async () => {
+		const pending = createPending({ maxSize: 10, now: () => BASE });
 		const send1 = vi.fn();
-		pending.register(req("a"), send1);
+		const original = pending.register(req("a"), send1);
+		expect(send1).toHaveBeenCalledOnce();
+
+		// First client drops; new client connects.
 		const send2 = vi.fn();
-		pending.replayForClient(send2, ["a"]);
+		pending.replayForClient(send2);
 		expect(send2).toHaveBeenCalledOnce();
-		const sent = send2.mock.calls[0][0] as BproxyRequest;
-		expect(sent.id).toBe("a");
+		const replayed = send2.mock.calls[0][0] as BproxyRequest;
+		expect(replayed.id).toBe("a");
+
+		// The new client responds — the ORIGINAL promise must resolve.
+		pending.resolveById("a", okResponse("a"));
+		await expect(original).resolves.toMatchObject({ ok: true, id: "a" });
+	});
+
+	it("replayForClient with id filter only replays matching ids", () => {
+		const pending = createPending({ maxSize: 10, now: () => BASE });
+		pending.register(req("a"), vi.fn());
+		pending.register(req("b"), vi.fn());
+		const send = vi.fn();
+		pending.replayForClient(send, ["a"]);
+		expect(send).toHaveBeenCalledOnce();
+		expect((send.mock.calls[0][0] as BproxyRequest).id).toBe("a");
 	});
 
 	it("snapshot lists pending ids", () => {
-		const pending = createPending({ maxSize: 10 });
+		const pending = createPending({ maxSize: 10, now: () => BASE });
 		pending.register(req("a"), vi.fn());
 		pending.register(req("b"), vi.fn());
 		expect(pending.size()).toBe(2);
@@ -764,6 +850,7 @@ interface PendingEntry {
 
 export interface PendingOptions {
 	maxSize: number;
+	now?: () => number;
 }
 
 export interface PendingMap {
@@ -780,6 +867,7 @@ function errorResponse(id: string, error: BproxyError): BproxyResponse {
 
 export function createPending(opts: PendingOptions): PendingMap {
 	const entries = new Map<string, PendingEntry>();
+	const now = opts.now ?? (() => Date.now());
 
 	return {
 		register(cmd, send) {
@@ -802,7 +890,7 @@ export function createPending(opts: PendingOptions): PendingMap {
 				resolveOuter = resolve;
 			});
 
-			const wait = Math.max(0, cmd.deadline - Date.now());
+			const wait = Math.max(0, cmd.deadline - now());
 			const timer = setTimeout(() => {
 				const e = entries.get(cmd.id);
 				if (!e) return;
@@ -939,7 +1027,7 @@ describe("dispatch", () => {
 		await expect(p).resolves.toMatchObject({ ok: true });
 	});
 
-	it("serialises two commands targeting the same tab", async () => {
+	it("serialises commands targeting the same tab in FIFO order", async () => {
 		const sessions = createSessionRegistry();
 		sessions.bind("default", 42);
 		const clients = createClients();
@@ -950,16 +1038,45 @@ describe("dispatch", () => {
 
 		const p1 = dispatch.send(req("a"));
 		const p2 = dispatch.send(req("b"));
-		// only the first should have been forwarded so far
+		const p3 = dispatch.send(req("c"));
+		// Only the first should have been forwarded so far.
 		expect(sendMock).toHaveBeenCalledOnce();
+		expect((sendMock.mock.calls[0][0] as BproxyRequest).id).toBe("a");
 
 		pending.resolveById("a", ok("a"));
 		await p1;
-		// after the first resolves, the second is forwarded
+		// After 'a' resolves, 'b' (not 'c') is forwarded next — order preserved.
 		expect(sendMock).toHaveBeenCalledTimes(2);
+		expect((sendMock.mock.calls[1][0] as BproxyRequest).id).toBe("b");
 
 		pending.resolveById("b", ok("b"));
 		await p2;
+		expect(sendMock).toHaveBeenCalledTimes(3);
+		expect((sendMock.mock.calls[2][0] as BproxyRequest).id).toBe("c");
+
+		pending.resolveById("c", ok("c"));
+		await p3;
+	});
+
+	it("runs commands targeting different tabs in parallel (per-tab lock only)", async () => {
+		const sessions = createSessionRegistry();
+		sessions.bind("s-a", 1);
+		sessions.bind("s-b", 2);
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const dispatch = createDispatch({ clients, pending, sessions });
+
+		const pa = dispatch.send(req("a", "s-a"));
+		const pb = dispatch.send(req("b", "s-b"));
+		// Different tabs → both forwarded immediately, no serialization between them.
+		expect(sendMock).toHaveBeenCalledTimes(2);
+
+		pending.resolveById("b", ok("b"));
+		await pb;
+		pending.resolveById("a", ok("a"));
+		await pa;
 	});
 });
 ```
@@ -1099,20 +1216,14 @@ git commit -m "feat(service): WS client registry and per-tab serialized dispatch
 
 ```typescript
 import { describe, expect, it } from "vitest";
-import type { Action } from "@bproxy/shared";
-import { ACTION_PARAM_SCHEMAS, parseRequest } from "../schemas";
-
-const ALL_ACTIONS: Action[] = [
-	"navigate", "text", "images", "elements", "outline", "dom", "scroll",
-	"screenshot", "fill", "fill-form", "select", "wait", "require-human", "eval",
-	"tab.list", "tab.pin", "tab.unpin", "tab.open", "tab.close",
-	"session.list", "session.bind", "session.unbind", "session.resume",
-	"debug.log", "debug.last", "debug.status",
-];
+import { ACTIONS, ACTION_PARAM_SCHEMAS, parseRequest } from "../schemas";
 
 describe("request schemas", () => {
 	it("provides a params validator for every Action", () => {
-		for (const a of ALL_ACTIONS) {
+		// ACTIONS is `satisfies readonly Action[]` in schemas.ts — adding a new
+		// Action in @bproxy/shared without extending ACTIONS fails TypeScript.
+		// This runtime test asserts every key has a schema entry.
+		for (const a of ACTIONS) {
 			expect(ACTION_PARAM_SCHEMAS[a]).toBeDefined();
 		}
 	});
@@ -1169,6 +1280,23 @@ Define one Zod schema per `Action` mirroring the `ActionParams[action]` shape fr
 ```typescript
 import { z } from "zod";
 import type { Action, BproxyRequest } from "@bproxy/shared";
+
+// Runtime list of every action. `satisfies readonly Action[]` makes the
+// compiler verify that ACTIONS only contains valid Action literals; the
+// _AssertCovers type below verifies the inverse — every Action is present.
+export const ACTIONS = [
+	"navigate", "text", "images", "elements", "outline", "dom", "scroll",
+	"screenshot", "fill", "fill-form", "select", "wait", "require-human", "eval",
+	"tab.list", "tab.pin", "tab.unpin", "tab.open", "tab.close",
+	"session.list", "session.bind", "session.unbind", "session.resume",
+	"debug.log", "debug.last", "debug.status",
+] as const satisfies readonly Action[];
+
+// If a new Action is added to @bproxy/shared without being appended to ACTIONS,
+// this type resolves to a non-`true` literal and the constant assignment fails.
+type _AssertCovers = Exclude<Action, (typeof ACTIONS)[number]> extends never ? true : false;
+const _coverage: _AssertCovers = true;
+void _coverage;
 
 const elementTarget = z.union([
 	z.object({ selector: z.string() }).strict(),
@@ -1860,14 +1988,13 @@ export interface WsRouteDeps {
 	clients: ClientsRegistry;
 	pending: PendingMap;
 	logger: Logger;
+	newClientId: () => string;
 }
-
-let counter = 0;
 
 export function wsRoute(deps: WsRouteDeps) {
 	return async function (app: FastifyInstance): Promise<void> {
 		app.get("/ws", { websocket: true }, (socket: WebSocket, _req: FastifyRequest) => {
-			const id = `client-${++counter}`;
+			const id = deps.newClientId();
 			deps.logger.info({ event: "ws_connect", ws_client: id });
 
 			const handle = {
@@ -1906,10 +2033,38 @@ export function wsRoute(deps: WsRouteDeps) {
 }
 ```
 
-- [ ] **Step 5: Commit (no tests yet — routes are integration-tested in Task 12)**
+- [ ] **Step 5: Write `service/src/__tests__/debug-actions.test.ts`**
+
+Guards the daemon-local routing decision. `debug.log` must be forwarded to the extension (not handled locally) — a one-line guard prevents future regressions.
+
+```typescript
+import { describe, expect, it } from "vitest";
+import { isDaemonLocal } from "../debug-actions";
+
+describe("isDaemonLocal", () => {
+	it("returns true for debug.last and debug.status", () => {
+		expect(isDaemonLocal("debug.last")).toBe(true);
+		expect(isDaemonLocal("debug.status")).toBe(true);
+	});
+
+	it("returns false for debug.log (must be forwarded to the extension)", () => {
+		expect(isDaemonLocal("debug.log")).toBe(false);
+	});
+
+	it("returns false for all non-debug actions", () => {
+		for (const a of ["navigate", "text", "fill", "scroll", "session.bind"]) {
+			expect(isDaemonLocal(a)).toBe(false);
+		}
+	});
+});
+```
+
+- [ ] **Step 6: Run tests — debug-actions unit test passes; routes are integration-tested in Task 12.**
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add service/src/routes service/src/debug-actions.ts
+git add service/src/routes service/src/debug-actions.ts service/src/__tests__/debug-actions.test.ts
 git commit -m "feat(service): HTTP and WS route handlers (Phase 2 Task 10)"
 ```
 
@@ -1961,7 +2116,7 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 	const app = Fastify({ logger: false });
 	const sessions = opts.sessions ?? createSessionRegistry();
 	const clients = createClients();
-	const pending = createPending({ maxSize: 100 });
+	const pending = createPending({ maxSize: 100, now: () => Date.now() });
 	const dispatch = createDispatch({ clients, pending, sessions });
 	const pacing = createPacing({
 		sessions,
@@ -1970,6 +2125,9 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		random: () => Math.random(),
 	});
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
+
+	let clientCounter = 0;
+	const newClientId = (): string => `client-${++clientCounter}`;
 
 	await app.register(websocket);
 	app.addHook(
@@ -1996,7 +2154,7 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		debug: { clients, sessions, startedAt, traces },
 	}));
 	await app.register(pairRoute({ pairing, logger: opts.logger, wsUrl: `ws://127.0.0.1:${opts.port}/ws` }));
-	await app.register(wsRoute({ clients, pending, logger: opts.logger }));
+	await app.register(wsRoute({ clients, pending, logger: opts.logger, newClientId }));
 
 	return { app, clients, pending, sessions, pairing };
 }
@@ -2030,13 +2188,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { buildServer, type BuiltServer } from "../server";
-import { buildTestLogger } from "../logger";
+import { buildCapturedLogger, buildTestLogger, type CapturedLogger } from "../logger";
 
 const daemonToken = "test-daemon-token";
 const extensionToken = "test-extension-token";
 
 let built: BuiltServer;
 let port: number;
+let captured: CapturedLogger;
+
+function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
+	return {
+		protocol_version: 1,
+		id: overrides.id ?? `01HZX${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(21, "0")}`,
+		action: "text",
+		params: {},
+		session: "default",
+		deadline: Date.now() + 5000,
+		destructive: false,
+		...overrides,
+	};
+}
 
 async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Response> {
 	return fetch(`http://127.0.0.1:${port}/`, {
@@ -2057,8 +2229,21 @@ function connectClient(): Promise<WebSocket> {
 	});
 }
 
+function waitUntil(fn: () => boolean, timeoutMs = 2000): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const start = Date.now();
+		const tick = () => {
+			if (fn()) return resolve();
+			if (Date.now() - start > timeoutMs) return reject(new Error("waitUntil timeout"));
+			setTimeout(tick, 10);
+		};
+		tick();
+	});
+}
+
 beforeEach(async () => {
-	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: buildTestLogger() });
+	captured = buildCapturedLogger();
+	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
 });
@@ -2067,18 +2252,39 @@ afterEach(async () => {
 	await built.app.close();
 });
 
-describe("round-trip", () => {
-	it("rejects POST / without a bearer token before any handler runs", async () => {
+describe("round-trip — design-asserted invariants", () => {
+	// This test is the "auth-before-handler" design assertion. It is engineered so
+	// it CANNOT pass if auth is removed: the request body is a fully valid
+	// BproxyRequest (no schema-validation false positive) and a positive control
+	// confirms the same body reaches the handler when the bearer is correct.
+	it("auth runs before any route handler", async () => {
 		const handlerSpy = vi.spyOn(built.pending, "register");
-		const res = await fetch(`http://127.0.0.1:${port}/`, {
+		const cmd = makeCmd({ id: "auth-test", action: "debug.status" });
+
+		// Negative: missing bearer → 401, handler never called.
+		const noAuth = await fetch(`http://127.0.0.1:${port}/`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: "{}",
+			body: JSON.stringify(cmd),
 		});
-		expect(res.status).toBe(401);
+		expect(noAuth.status).toBe(401);
 		expect(handlerSpy).not.toHaveBeenCalled();
-	});
 
+		// Negative: wrong bearer → 401, handler never called.
+		const badAuth = await postCommand(cmd, "wrong-token");
+		expect(badAuth.status).toBe(401);
+		expect(handlerSpy).not.toHaveBeenCalled();
+
+		// Positive control: SAME body with the right bearer succeeds. This proves
+		// the negative result above was caused by auth, not schema parsing or
+		// some other early rejection. debug.status is daemon-local so it does
+		// not need a WS client.
+		const okRes = await postCommand(cmd);
+		expect(okRes.status).toBe(200);
+	});
+});
+
+describe("round-trip — happy path", () => {
 	it("forwards a command to a connected WS client and resolves with the response", async () => {
 		built.sessions.bind("default", 42);
 		const ws = await connectClient();
@@ -2096,15 +2302,7 @@ describe("round-trip", () => {
 			ws.send(JSON.stringify(resp));
 		});
 
-		const cmd: BproxyRequest = {
-			protocol_version: 1,
-			id: "01HZX0000000000000000000ZZ",
-			action: "text",
-			params: {},
-			session: "default",
-			deadline: Date.now() + 5000,
-			destructive: false,
-		};
+		const cmd = makeCmd({ id: "01HZX0000000000000000000ZZ" });
 		const res = await postCommand(cmd);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as BproxyResponse;
@@ -2113,15 +2311,7 @@ describe("round-trip", () => {
 	});
 
 	it("debug.status is handled daemon-locally even without a WS client", async () => {
-		const cmd: BproxyRequest = {
-			protocol_version: 1,
-			id: "01HZX0000000000000000000DD",
-			action: "debug.status",
-			params: {},
-			session: "default",
-			deadline: Date.now() + 5000,
-			destructive: false,
-		};
+		const cmd = makeCmd({ id: "01HZX0000000000000000000DD", action: "debug.status" });
 		const res = await postCommand(cmd);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as BproxyResponse;
@@ -2142,7 +2332,95 @@ describe("round-trip", () => {
 		expect(body.data.extensionToken.length).toBeGreaterThan(0);
 	});
 });
+
+describe("round-trip — reconnect and replay", () => {
+	// Proves end-to-end replay: an in-flight request whose client drops mid-flight
+	// is replayed to the next client that connects, and the ORIGINAL HTTP POST
+	// resolves with the response from the new client.
+	it("replays an in-flight request to a reconnecting client and resolves the original POST", async () => {
+		built.sessions.bind("default", 42);
+		let ws = await connectClient();
+
+		// Client 1 receives the command but disconnects WITHOUT responding.
+		const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
+			ws.once("message", (raw) => resolve(JSON.parse(raw.toString()) as BproxyRequest));
+		});
+
+		const cmd = makeCmd({ id: "01HZX0000000000000000000RP", deadline: Date.now() + 10_000 });
+		const postPromise = postCommand(cmd);
+		await seenByClient1; // make sure client 1 actually received it
+		ws.close();
+		await waitUntil(() => built.clients.size() === 0);
+
+		// Client 2 reconnects — pending replays should re-send the in-flight command.
+		ws = await connectClient();
+		const replayed = await new Promise<BproxyRequest>((resolve) => {
+			ws.once("message", (raw) => resolve(JSON.parse(raw.toString()) as BproxyRequest));
+		});
+		expect(replayed.id).toBe(cmd.id);
+
+		// Client 2 responds — the ORIGINAL HTTP request must resolve.
+		ws.send(
+			JSON.stringify({
+				protocol_version: 1,
+				id: replayed.id,
+				ok: true,
+				data: { text: "from-client-2" },
+				page: { url: "https://x", title: "", state: "ready", busy: false },
+				replay: false,
+			} satisfies BproxyResponse),
+		);
+
+		const res = await postPromise;
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as BproxyResponse;
+		expect(body).toMatchObject({ ok: true, id: cmd.id });
+		if (body.ok && body.data && "text" in body.data) {
+			expect(body.data.text).toBe("from-client-2");
+		}
+		ws.close();
+	});
+});
+
+describe("round-trip — observability (ADR-009)", () => {
+	// Asserts the lifecycle events from service.md § Observability are emitted
+	// with the documented fields. Failure here means a log consumer (debug.last,
+	// ops tooling, ADR-009 promise) would break.
+	it("emits received → pacing_wait? → response with the request id on every command", async () => {
+		const cmd = makeCmd({ id: "01HZX000000000000000000OBS", action: "debug.status" });
+		await postCommand(cmd);
+
+		const eventsForId = captured.lines.filter((l) => l.id === cmd.id);
+		const events = eventsForId.map((l) => l.event);
+		expect(events).toContain("received");
+		expect(events).toContain("response");
+
+		const received = eventsForId.find((l) => l.event === "received");
+		expect(received).toMatchObject({
+			id: cmd.id,
+			action: "debug.status",
+			session: "default",
+			destructive: false,
+		});
+
+		const response = eventsForId.find((l) => l.event === "response");
+		expect(response).toMatchObject({ id: cmd.id, ok: true });
+	});
+
+	it("emits ws_connect and ws_disconnect when a client connects and drops", async () => {
+		captured.clear();
+		const ws = await connectClient();
+		await waitUntil(() => captured.lines.some((l) => l.event === "ws_connect"));
+		ws.close();
+		await waitUntil(() => captured.lines.some((l) => l.event === "ws_disconnect"));
+
+		const connect = captured.lines.find((l) => l.event === "ws_connect");
+		expect(connect).toHaveProperty("ws_client");
+	});
+});
 ```
+
+> **Note on the auth test:** the body is a valid `BproxyRequest`; the positive control sends the same body with a correct bearer and asserts 200. Together these prove the 401 response is caused by auth, not by schema validation, body parsing, or any other early rejection — which is the only way to assert "auth runs *before* any handler" without reading source.
 
 - [ ] **Step 2: Run the integration test**
 
@@ -2150,13 +2428,13 @@ describe("round-trip", () => {
 pnpm --filter @bproxy/service test
 ```
 
-Expected: all four cases pass. The first proves the auth invariant; the second proves end-to-end dispatch; the third proves daemon-local handling; the fourth proves the pairing route.
+Expected: all test cases pass. The first proves the auth-before-handler invariant (negative + positive control); the happy-path group proves end-to-end dispatch, daemon-local routing, and pairing; the reconnect-and-replay test proves end-to-end replay survives a client drop; the observability group proves ADR-009 lifecycle events are emitted with documented fields.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add service/src/__tests__/round-trip.test.ts
-git commit -m "test(service): end-to-end round-trip + auth-before-handler invariant (Phase 2 Task 12)"
+git commit -m "test(service): end-to-end round-trip, replay, and observability invariants (Phase 2 Task 12)"
 ```
 
 ---
@@ -2169,16 +2447,19 @@ git commit -m "test(service): end-to-end round-trip + auth-before-handler invari
 
 - [ ] **Step 1: Write `service/src/lifecycle.ts`**
 
-Implement, in this order:
-1. `ensureStateDir(stateDir)` — `mkdirSync` recursive.
-2. `readPid(stateDir): number | null` — read & parse lockfile; return null if absent.
+Implement, in this order. Every function takes the resolved `ServiceConfig` from `config.ts` (not just `stateDir`) so test code can stub paths and ports cleanly:
+
+1. `ensureStateDir(config)` — `mkdirSync(config.stateDir, { recursive: true })`.
+2. `readPid(config): number | null` — read & parse lockfile; return null if absent.
 3. `isAlive(pid): boolean` — `process.kill(pid, 0)` swallows ESRCH → false; EPERM → true.
-4. `writeToken(stateDir): string` — `randomBytes(32).toString('hex')`; write to `~/.bproxy/token` with mode `0o600`; if pre-existing file has owner != current uid OR mode != `0o600`, throw `BproxyError({ code: "INSECURE_TOKEN_FILE", ... })`.
-5. `clearToken(stateDir)`, `writePort`, `writePidFile`.
-6. `startForeground(config)` — build the server (Task 11), listen on the configured port, register SIGTERM/SIGINT handlers that call `app.close()` then `process.exit(0)`. Print pairing code as one machine-readable JSON line on stdout: `{"pairingCode":"ABCD-EFGH","expiresAt":...}`.
+4. **`writeToken(config): string`** — generate `randomBytes(32).toString('hex')`; if `~/.bproxy/token` already exists, `statSync` it and fail closed by throwing `Error('INSECURE_TOKEN_FILE: ...')` when `(st.mode & 0o777) !== 0o600` OR `st.uid !== process.getuid?.()`. Otherwise write the token with `{ mode: 0o600 }` and return it. **This is the auth-gate security invariant from `service.md` § Auth Gate; the matching test is in Step 4.**
+5. `clearToken(config)`, `writePort(config, port)`, `writePidFile(config, pid)`.
+6. `startForeground(config)` — build the server (Task 11), listen on the configured port, register **both** SIGTERM **and** SIGINT handlers that call `app.close()` then `process.exit(0)`. Print pairing code as one machine-readable JSON line on stdout: `{"pairingCode":"ABCD-EFGH","expiresAt":...}`.
 7. `startDetached(config)` — `child_process.spawn(process.execPath, [bin, 'daemonize'], { detached: true, stdio: 'ignore' })`, then write child PID to lockfile, then exit 0.
-8. `stop(stateDir)` — read PID, `process.kill(pid, 'SIGTERM')`, remove lockfile & port file & token after kill (best-effort).
-9. `status(stateDir)` — `{ running: boolean; pid?: number; port?: number }`.
+8. `stop(config)` — read PID, `process.kill(pid, 'SIGTERM')`, remove lockfile & port file & token after kill (best-effort).
+9. `status(config)` — `{ running: boolean; pid?: number; port?: number }`. Returns `{ running: false }` when no lockfile exists OR the lockfile's PID is not alive.
+
+Export `writeToken` so the security test in Step 4 can call it directly.
 
 - [ ] **Step 2: Replace `service/src/index.ts`**
 
@@ -2237,46 +2518,95 @@ A short test that:
 4. asserts exit code 0.
 
 ```typescript
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { writeToken } from "../lifecycle";
 
 const BIN = resolve(__dirname, "../../dist/index.mjs");
-let home: string;
 
+function waitForFile(path: string, timeoutMs = 5000): Promise<void> {
+	return new Promise((resolveOK, reject) => {
+		const start = Date.now();
+		const poll = setInterval(() => {
+			if (existsSync(path)) {
+				clearInterval(poll);
+				resolveOK();
+			} else if (Date.now() - start > timeoutMs) {
+				clearInterval(poll);
+				reject(new Error(`timeout waiting for ${path}`));
+			}
+		}, 30);
+	});
+}
+
+async function runDaemonized(home: string, signal: "SIGTERM" | "SIGINT"): Promise<void> {
+	const child = spawn(process.execPath, [BIN, "daemonize"], {
+		env: { ...process.env, BPROXY_HOME: home, BPROXY_PORT: "0" },
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	try {
+		await waitForFile(join(home, "port"));
+		const port = Number.parseInt(readFileSync(join(home, "port"), "utf8"), 10);
+		expect(port).toBeGreaterThan(0);
+	} finally {
+		child.kill(signal);
+		const code = await new Promise<number | null>((r) => child.once("exit", (c) => r(c)));
+		expect(code).toBe(0);
+	}
+}
+
+let home: string;
 beforeEach(() => {
 	home = mkdtempSync(join(tmpdir(), "bproxy-test-"));
 });
 
 describe("lifecycle smoke", () => {
-	it("daemonize listens and exits cleanly on SIGTERM", async () => {
-		expect(existsSync(BIN), `Run \`pnpm --filter @bproxy/service build\` first`).toBe(true);
-		const child = spawn(process.execPath, [BIN, "daemonize"], {
-			env: { ...process.env, BPROXY_HOME: home, BPROXY_PORT: "0" },
-			stdio: ["ignore", "pipe", "pipe"],
+	it("daemonize listens, writes port, and exits 0 on SIGTERM", async () => {
+		expect(existsSync(BIN), "Run `pnpm --filter @bproxy/service build` first").toBe(true);
+		await runDaemonized(home, "SIGTERM");
+	});
+
+	it("daemonize also exits 0 on SIGINT (Ctrl-C)", async () => {
+		expect(existsSync(BIN)).toBe(true);
+		await runDaemonized(home, "SIGINT");
+	});
+
+	it("status reports running:false when no daemon is running", () => {
+		expect(existsSync(BIN)).toBe(true);
+		const out = spawnSync(process.execPath, [BIN, "status"], {
+			env: { ...process.env, BPROXY_HOME: home },
+			encoding: "utf8",
 		});
-		try {
-			await new Promise<void>((resolve, reject) => {
-				const timer = setTimeout(() => reject(new Error("timeout")), 5000);
-				const poll = setInterval(() => {
-					if (existsSync(join(home, "port"))) {
-						clearInterval(poll);
-						clearTimeout(timer);
-						resolve();
-					}
-				}, 50);
-			});
-			const port = Number.parseInt(readFileSync(join(home, "port"), "utf8"), 10);
-			expect(port).toBeGreaterThan(0);
-		} finally {
-			child.kill("SIGTERM");
-			await new Promise((r) => child.once("exit", r));
-		}
+		expect(out.status).toBe(0);
+		const parsed = JSON.parse(out.stdout) as { running: boolean };
+		expect(parsed.running).toBe(false);
+	});
+});
+
+describe("token-file security (auth-gate invariant from service.md § Auth Gate)", () => {
+	it("writes the token with mode 0600", () => {
+		writeToken({ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" });
+		const st = statSync(join(home, "token"));
+		// Lower 9 bits are permission; expect rw-------.
+		expect(st.mode & 0o777).toBe(0o600);
+	});
+
+	it("refuses to start with INSECURE_TOKEN_FILE when an existing token is world-readable", () => {
+		// Plant a token file with insecure mode 0644.
+		const tokenPath = join(home, "token");
+		writeFileSync(tokenPath, "deadbeef", { mode: 0o644 });
+		chmodSync(tokenPath, 0o644);
+		expect(() =>
+			writeToken({ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" }),
+		).toThrow(/INSECURE_TOKEN_FILE/);
 	});
 });
 ```
+
+> **The `writeToken` security test is the design-asserted invariant for the auth gate** (per `service.md` § Auth Gate "Security invariant: daemon token secrecy is enforced by OS file ownership and mode"). The test plants a 0644 token file and asserts `writeToken` fails closed. Ownership check (uid mismatch) is harder to test portably; the mode check is the load-bearing assertion.
 
 - [ ] **Step 5: Run tests**
 
@@ -2363,11 +2693,16 @@ git commit -m "docs(views): link Container Daemon node to service component grap
   - `service start | stop | status` work.
 
 - [ ] **Design-asserted** — at least one test or static check per design constraint.
-  - **Auth hook runs before any route handler** — `round-trip.test.ts` § "rejects POST / without a bearer token before any handler runs" (`pending.register` not called when auth fails).
-  - **Pacing engine waits the configured jittered interval** — `pacing.test.ts` § "waits the configured delay on a paced action".
+  - **Auth hook runs before any route handler** — `round-trip.test.ts` § "auth runs before any route handler" (valid `BproxyRequest` body, missing/wrong bearer → 401 + `pending.register` never called; positive control with correct bearer → 200, proving the 401 is auth-caused, not parser-caused).
+  - **Daemon token file is fail-closed on insecure mode** — `lifecycle.test.ts` § "refuses to start with INSECURE_TOKEN_FILE when an existing token is world-readable" (security invariant from `service.md` § Auth Gate).
+  - **Pacing engine waits the configured interval** — `pacing.test.ts` § "waits the configured delay on a paced action (pinned jitter)" + range-based jitter test for non-coupled regression coverage.
   - **Pending map deduplicates by id** — `pending.test.ts` § "dedupes by id".
-  - **Pending map replays on reconnect** — `pending.test.ts` § "replays in-flight requests when client reconnects".
-  - **Per-tab serialization** — `dispatch.test.ts` § "serialises two commands targeting the same tab".
+  - **Pending map replays the original promise on reconnect** — `pending.test.ts` § "replays in-flight requests: original promise resolves when replayed send is responded" + integration-level `round-trip.test.ts` § "replays an in-flight request to a reconnecting client and resolves the original POST".
+  - **Pending map treats past-deadline registrations as immediate timeouts** — `pending.test.ts` § "resolves immediately with TIMEOUT when the deadline is already in the past".
+  - **Per-tab serialization is FIFO; different tabs run in parallel** — `dispatch.test.ts` § "serialises commands targeting the same tab in FIFO order" + "runs commands targeting different tabs in parallel".
+  - **`debug.log` is forwarded, not daemon-local** — `debug-actions.test.ts` § "returns false for debug.log".
+  - **Observability lifecycle events from service.md § Observability are emitted with documented fields** — `round-trip.test.ts` § "emits received → pacing_wait? → response with the request id" + "emits ws_connect and ws_disconnect" (honours ADR-009 as a first-class constraint).
+  - **Action schema completeness** — `schemas.ts` `_AssertCovers` (compile-time check that every `Action` from `@bproxy/shared` is listed in `ACTIONS`) + `schemas.test.ts` § "provides a params validator for every Action".
 
 - [ ] **Documented** — `service/README.md` committed; `docs/solution/service.md` matches reality (no doc edits needed unless deviations occurred — flag any to the user). `docs/views/02-containers.md` updated with click directive.
 
@@ -2420,7 +2755,11 @@ git commit -m "docs: mark Phase 2 (Daemon) as done"
 
 ## Self-review notes
 
-- **Spec coverage:** every route, the pacing engine, the pending map (timeout/replay/dedupe/bounded), per-tab serialization, the four-layer auth gate, lifecycle (`start`/`stop`/`status`), structured logging with the request `id`, and views integration all map to numbered tasks above. Daemon-local debug routing (`debug.last`, `debug.status`) is covered in Task 10.
-- **Type consistency:** `BproxyRequest`, `BproxyResponse`, `BproxyError`, `PACING_PRESETS`, and `Action` are imported by name from `@bproxy/shared` throughout. The Zod schemas in Task 7 mirror — not duplicate — the `ActionParams` shapes from `shared.md`; if `shared.md` adds an action, the test in Task 7 fails until the schema is added.
-- **Daemon-local debug actions:** `debug.last` and `debug.status` are routed before dispatch per `service.md` § Dispatch. `debug.log` is forwarded to the extension (Phase 3 will implement the ring buffer).
-- **Auth-before-handler invariant** is captured in `round-trip.test.ts` (Task 12) as a spy on `pending.register`, not by reading source — the test would fail even if someone reorders the Fastify lifecycle hooks.
+- **Spec coverage:** every route, the pacing engine, the pending map (timeout/replay/dedupe/bounded/past-deadline), per-tab serialization (with FIFO + parallel-across-tabs assertions), the four-layer auth gate, lifecycle (`start`/`stop`/`status`, SIGTERM **and** SIGINT, "no daemon running"), structured logging with the request `id`, and views integration all map to numbered tasks above. Daemon-local debug routing (`debug.last`, `debug.status` daemon-local; `debug.log` forwarded) is covered in Task 10 with a dedicated unit test.
+- **Type consistency:** `BproxyRequest`, `BproxyResponse`, `BproxyError`, `PACING_PRESETS`, and `Action` are imported by name from `@bproxy/shared` throughout. The Zod schemas in Task 7 mirror — not duplicate — the `ActionParams` shapes from `shared.md`. The `ACTIONS` const is `satisfies readonly Action[]` and is paired with a compile-time `_AssertCovers` check so adding an `Action` to shared without extending `ACTIONS` fails the typecheck.
+- **Auth-before-handler invariant** is captured by sending a fully valid `BproxyRequest` body, asserting 401 + `pending.register` never called, **and** a positive control where the same body with a correct bearer reaches the handler. This proves the 401 was caused by auth, not by schema validation, body parsing, or any other early rejection — fail closed even if someone reorders Fastify hooks or changes the parser.
+- **Daemon token file invariant** (the named "Security invariant" in `service.md` § Auth Gate) is tested in `lifecycle.test.ts` by planting a 0644 token and asserting `writeToken` throws `INSECURE_TOKEN_FILE`.
+- **Replay invariant** is tested at both layers: the unit test asserts the *original* promise resolves when the replayed `send` is responded; the integration test in `round-trip.test.ts` exercises the full WS reconnect path end-to-end.
+- **Observability is asserted, not just emitted.** A captured-logger helper (`buildCapturedLogger`) wraps pino and exposes the structured lines; `round-trip.test.ts` asserts the `received` and `response` events from `service.md` § Observability are emitted with the documented fields (`id`, `action`, `session`, `destructive`, `ok`). Honours ADR-009 as a first-class constraint.
+- **Determinism:** all clock-dependent code (pacing, pending) takes an injected `now`. Tests that don't need real timers use frozen clocks; the integration test uses real wall-clock but with generous deadlines.
+- **No leaky module state:** `wsRoute` accepts `newClientId` via deps (no module-level counter), so tests can reset per-suite without relying on test-execution order.
