@@ -19,7 +19,9 @@ export default [
 		languageOptions: {
 			parser: tsparser,
 			parserOptions: {
-				projectService: true,
+				projectService: {
+					allowDefaultProject: ["*.config.ts", "*/*.config.ts"],
+				},
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},

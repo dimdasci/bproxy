@@ -37,21 +37,18 @@ export interface CapturedLogger {
 
 export function buildCapturedLogger(): CapturedLogger {
 	const lines: Record<string, unknown>[] = [];
-	const logger = pino(
-		{ level: "trace" },
-		{
-			write(chunk: string) {
-				for (const line of chunk.split("\n")) {
-					if (!line) continue;
-					try {
-						lines.push(JSON.parse(line) as Record<string, unknown>);
-					} catch {
-						/* skip non-JSON */
-					}
+	const logger = pino({ level: "trace" }, {
+		write(chunk: string) {
+			for (const line of chunk.split("\n")) {
+				if (!line) continue;
+				try {
+					lines.push(JSON.parse(line) as Record<string, unknown>);
+				} catch {
+					/* skip non-JSON */
 				}
-			},
-		} as pino.DestinationStream,
-	);
+			}
+		},
+	} as pino.DestinationStream);
 	return {
 		logger,
 		lines,
