@@ -9,6 +9,7 @@ export default defineConfig({
 	splitting: false,
 	sourcemap: true,
 	dts: false,
+	noExternal: ["@bproxy/shared"],
 	banner: { js: "#!/usr/bin/env node" },
 	outExtension() {
 		return { js: ".mjs" };

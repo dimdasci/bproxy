@@ -1,11 +1,31 @@
-async function main(): Promise<void> {
-	const cmd = process.argv[2] ?? "help";
-	if (cmd !== "start" && cmd !== "stop" && cmd !== "status" && cmd !== "daemonize") {
-		process.stdout.write("usage: bproxy-service <start|stop|status>\n");
-		process.exit(cmd === "help" ? 0 : 2);
+import { loadConfig } from "./config";
+import { startDetached, startForeground, status, stop } from "./lifecycle";
+
+async function main(): Promise<number> {
+	const cmd = process.argv[2];
+	const config = loadConfig();
+	switch (cmd) {
+		case "start": {
+			startDetached(config);
+			return 0;
+		}
+		case "daemonize": {
+			await startForeground(config);
+			return 0;
+		}
+		case "stop": {
+			stop(config);
+			return 0;
+		}
+		case "status": {
+			const s = status(config);
+			process.stdout.write(`${JSON.stringify(s)}\n`);
+			return 0;
+		}
+		default:
+			process.stdout.write("usage: bproxy-service <start|stop|status>\n");
+			return cmd ? 2 : 0;
 	}
-	process.stdout.write(`bproxy-service ${cmd}: not yet implemented\n`);
-	process.exit(0);
 }
 
-void main();
+void main().then((code) => process.exit(code));
