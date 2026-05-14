@@ -3,17 +3,6 @@ import { join } from "node:path";
 import pino, { type Logger } from "pino";
 import { logDir, type ServiceConfig } from "./config";
 
-export type LifecycleEvent =
-	| "received"
-	| "pacing_wait"
-	| "forwarded"
-	| "response"
-	| "timeout"
-	| "replay"
-	| "ws_connect"
-	| "ws_disconnect"
-	| "pacing_config";
-
 export function buildLogger(config: ServiceConfig): Logger {
 	const dir = logDir(config.stateDir);
 	mkdirSync(dir, { recursive: true });
@@ -23,10 +12,6 @@ export function buildLogger(config: ServiceConfig): Logger {
 		{ level: config.logLevel },
 		pino.destination({ dest: target, sync: false, mkdir: true }),
 	);
-}
-
-export function buildTestLogger(): Logger {
-	return pino({ level: "silent" });
 }
 
 export interface CapturedLogger {
