@@ -105,7 +105,7 @@ export function evaluateAuth(input: AuthInput): AuthDecision {
 }
 
 export interface AuthHookDeps {
-	port: number;
+	port: () => number;
 	daemonToken: () => string;
 	extensionToken: () => string;
 	pairingCodes: () => Set<string>;
@@ -118,7 +118,7 @@ export function makeAuthHook(deps: AuthHookDeps) {
 			url: req.url,
 			method: req.method,
 			headers: req.headers as Record<string, string | undefined>,
-			port: deps.port,
+			port: deps.port(),
 			daemonToken: deps.daemonToken(),
 			extensionToken: deps.extensionToken(),
 			validPairingCodes: deps.pairingCodes(),

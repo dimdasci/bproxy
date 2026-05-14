@@ -71,25 +71,12 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 	};
 }
 
-export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer> {
-	const app = Fastify({ logger: false });
-	const deps = createDeps(opts);
-
-	await app.register(websocket);
-	app.addHook(
-		"onRequest",
-		makeAuthHook({
-			port: opts.port,
-			daemonToken: () => opts.daemonToken,
-			extensionToken: () => opts.extensionToken,
-			pairingCodes: () => deps.pairing.active(),
-			readBodyPairingCode: (req) => {
-				const body = req.body as { code?: string } | undefined;
-				return body?.code;
-			},
-		}),
-	);
-
+async function registerRoutes(
+	app: ReturnType<typeof Fastify>,
+	opts: BuildServerOptions,
+	deps: ObjectGraph,
+	getPort: () => number,
+): Promise<void> {
 	await app.register(
 		commandRoute({
 			dispatch: deps.dispatch,
@@ -99,7 +86,9 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 				clients: deps.clients,
 				sessions: deps.sessions,
 				startedAt: deps.startedAt,
-				port: opts.port,
+				get port() {
+					return getPort();
+				},
 				traces: deps.traces,
 			},
 		}),
@@ -119,6 +108,34 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 			newClientId: deps.newClientId,
 		}),
 	);
+}
+
+export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer> {
+	const app = Fastify({ logger: false });
+	const deps = createDeps(opts);
+
+	let resolvedPort = opts.port;
+	app.addHook("onListen", async () => {
+		const addr = app.server.address();
+		if (addr && typeof addr === "object") resolvedPort = addr.port;
+	});
+
+	await app.register(websocket);
+	app.addHook(
+		"preValidation",
+		makeAuthHook({
+			port: () => resolvedPort,
+			daemonToken: () => opts.daemonToken,
+			extensionToken: () => opts.extensionToken,
+			pairingCodes: () => deps.pairing.active(),
+			readBodyPairingCode: (req) => {
+				const body = req.body as { code?: string } | undefined;
+				return body?.code;
+			},
+		}),
+	);
+
+	await registerRoutes(app, opts, deps, () => resolvedPort);
 
 	return {
 		app,
