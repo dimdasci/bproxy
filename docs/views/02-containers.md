@@ -47,6 +47,6 @@ flowchart LR
 
 ## See also
 
-- Inside the Daemon: _coming in a later view._ Component-level breakdown will live at `docs/views/auto/daemon-components.svg` once Phase 2+ generates it.
-- Inside the Extension: _coming in a later view._ Same shape.
+- Inside the Daemon: _Component view, coming in Phase 2._
+- Inside the Extension: _Component view, coming in Phase 3._
 - Trust boundaries and where each process runs: _Deployment view, coming in a later phase._

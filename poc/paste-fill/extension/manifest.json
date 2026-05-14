@@ -1,8 +1,8 @@
 {
-  "manifest_version": 3,
-  "name": "bproxy PoC: paste fill tester",
-  "version": "0.0.5",
-  "action": { "default_popup": "popup.html" },
-  "permissions": ["activeTab", "scripting", "tabs"],
-  "host_permissions": ["https://www.linkedin.com/*", "https://*.linkedin.com/*"]
+	"manifest_version": 3,
+	"name": "bproxy PoC: paste fill tester",
+	"version": "0.0.5",
+	"action": { "default_popup": "popup.html" },
+	"permissions": ["activeTab", "scripting", "tabs"],
+	"host_permissions": ["https://www.linkedin.com/*", "https://*.linkedin.com/*"]
 }

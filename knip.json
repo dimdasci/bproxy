@@ -1,0 +1,21 @@
+{
+	"workspaces": {
+		"shared": {
+			"project": ["src/**/*.ts"]
+		},
+		"service": {
+			"project": ["src/**/*.ts"]
+		},
+		"extension": {
+			"project": ["src/**/*.ts"]
+		},
+		"cli": {
+			"project": ["src/**/*.ts"]
+		},
+		"views": {
+			"project": ["src/**/*.ts", "scripts/**/*.ts"]
+		}
+	},
+	"ignore": ["poc/**"],
+	"ignoreExportsUsedInFile": true
+}

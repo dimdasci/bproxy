@@ -18,7 +18,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
 | 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
 | 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
-| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.7 closes_ |
+| 1 | Shared types | The domain model | ✅ Done | [phases/01-shared-types.md](./phases/01-shared-types.md) |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
 | 4 | CLI | One-shot agent interface | Not started | _plan written when Phase 3 closes_ |
@@ -58,7 +58,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
 
-### Phase 1 — Shared types (and workspace scaffold)
+### Phase 1 — Shared types (and workspace scaffold) ✅ Done
 
 **Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per [docs/solution/shared.md](../solution/shared.md) and [docs/quality-gates.md](../quality-gates.md).
 
@@ -74,6 +74,8 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Done when:** all routes (`POST /`, `POST /pair/claim`, `GET /ws`) implemented with the four-layer auth gate; pacing engine enforces per-session delays; pending map handles timeout, replay-on-reconnect, dedupe; lifecycle scripts (start, stop, status) work; daemon log is structured with the request `id` per [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint).
 
+**Views integration:** `service` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/service-components.svg`; Container diagram in `02-containers.md` gets a `click Daemon` directive linking to the generated SVG.
+
 ### Phase 3 — Extension
 
 **Purpose:** browser-side execution. Per [docs/solution/extension.md](../solution/extension.md).
@@ -82,6 +84,8 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Done when:** background SW maintains WS connection across SW restart with replay; content script injection is programmatic per-tab; all action handlers from the [actions table](../architecture.md#actions) execute correctly; ring buffer queryable via `debug.log`; design-constraint assertions hold (no `MutationObserver` in bundle, `fill` dispatches `insertFromPaste`, no MAIN-world script registered by default).
 
+**Views integration:** `extension` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/extension-components.svg`; Container diagram in `02-containers.md` gets a `click Ext` directive linking to the generated SVG.
+
 ### Phase 4 — CLI
 
 **Purpose:** one-shot agent interface. Per [docs/solution/cli.md](../solution/cli.md).
@@ -89,6 +93,8 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 **Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands.
 
 **Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens.
+
+**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG.
 
 ### Phase 5 — Integration & hardening
 

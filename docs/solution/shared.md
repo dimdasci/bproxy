@@ -239,11 +239,15 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
     fill: { min: 500, max: 2000 },
   },
   fast: {
-    navigate: { min: 0, max: 0 },
-    scroll: { min: 0, max: 0 },
-    fill: { min: 0, max: 0 },
+    navigate: { min: 300, max: 800 },
+    scroll: { min: 500, max: 1500 },
+    fill: { min: 100, max: 400 },
   },
 };
+
+// "fast" models a power user who knows where they're going — short delays
+// with real variance, not zero. Instant zero-delay timing is itself a bot
+// signal; pacing must always produce jittered, non-zero intervals.
 
 // Per-session PacingConfig overrides are deferred. When introduced, `session.bind`
 // params will accept `pacing?: PacingMode | PacingConfig` and the resolver will
