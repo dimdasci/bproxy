@@ -16,7 +16,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
 	const port = Number.parseInt(env["BPROXY_PORT"] ?? "", 10);
 	const level = env["BPROXY_LOG_LEVEL"] ?? "info";
 	return {
-		port: Number.isFinite(port) && port > 0 ? port : DEFAULT_PORT,
+		port: Number.isFinite(port) && port >= 0 ? port : DEFAULT_PORT,
 		host: DEFAULT_HOST,
 		stateDir: env["BPROXY_HOME"] ?? resolve(homedir(), ".bproxy"),
 		logLevel: VALID_LEVELS.has(level) ? (level as ServiceConfig["logLevel"]) : "info",
