@@ -17,7 +17,7 @@ export interface SessionRegistry {
 export function createSessionRegistry(): SessionRegistry {
 	const sessions = new Map<string, InternalSession>();
 
-	function getOrCreate(name: string): SessionInfo {
+	function getOrCreate(name: string): InternalSession {
 		let s = sessions.get(name);
 		if (!s) {
 			s = { name, tabId: null, pacing: "human", paused: false, lastActionAt: {} };
@@ -29,7 +29,7 @@ export function createSessionRegistry(): SessionRegistry {
 	return {
 		getOrCreate,
 		bind(name, tabId, pacing) {
-			const s = sessions.get(name) ?? (getOrCreate(name) as InternalSession);
+			const s = getOrCreate(name);
 			s.tabId = tabId;
 			if (pacing) s.pacing = pacing;
 		},
@@ -38,7 +38,7 @@ export function createSessionRegistry(): SessionRegistry {
 			if (s) s.tabId = null;
 		},
 		pause(name, reason) {
-			const s = sessions.get(name) ?? (getOrCreate(name) as InternalSession);
+			const s = getOrCreate(name);
 			s.paused = true;
 			s.pauseReason = reason;
 		},
@@ -52,8 +52,6 @@ export function createSessionRegistry(): SessionRegistry {
 		list() {
 			return [...sessions.values()];
 		},
-		internal(name) {
-			return sessions.get(name) ?? (getOrCreate(name) as InternalSession);
-		},
+		internal: getOrCreate,
 	};
 }
