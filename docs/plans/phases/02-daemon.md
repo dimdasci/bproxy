@@ -2,7 +2,7 @@
 title: Phase 2 — Daemon
 ---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Ship `@bproxy/service` — the localhost proxy daemon that bridges CLI (HTTP) and extension (WebSocket). After this phase, a mock WS client can connect to the daemon and complete a round-trip against every action defined in `@bproxy/shared`, with auth, pacing, pending-map, and structured logging behaving as specified.
 
@@ -106,7 +106,7 @@ docs/
 
 **Purpose:** Get the workspace to a state where `pnpm --filter @bproxy/service test` and `... build` both work against trivial inputs. Establish the test runner and bundler before any logic is written.
 
-- [ ] **Step 1: Replace `service/package.json`**
+- [x] **Step 1: Replace `service/package.json`**
 
 ```json
 {
@@ -146,7 +146,7 @@ docs/
 }
 ```
 
-- [ ] **Step 2: Write `service/tsup.config.ts`**
+- [x] **Step 2: Write `service/tsup.config.ts`**
 
 ```typescript
 import { defineConfig } from "tsup";
@@ -164,7 +164,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Write `service/vitest.config.ts`**
+- [x] **Step 3: Write `service/vitest.config.ts`**
 
 ```typescript
 import { defineConfig } from "vitest/config";
@@ -179,7 +179,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 4: Replace `service/src/index.ts`** (stub a CLI dispatcher; real logic lands in Task 8)
+- [x] **Step 4: Replace `service/src/index.ts`** (stub a CLI dispatcher; real logic lands in Task 8)
 
 ```typescript
 async function main(): Promise<void> {
@@ -195,7 +195,7 @@ async function main(): Promise<void> {
 void main();
 ```
 
-- [ ] **Step 5: Write minimal `service/README.md`**
+- [x] **Step 5: Write minimal `service/README.md`**
 
 ```markdown
 # @bproxy/service
@@ -221,9 +221,9 @@ pnpm --filter @bproxy/service build
 - `BPROXY_LOG_LEVEL` — pino level (default: `info`)
 ```
 
-- [ ] **Step 6: Run `pnpm install` at repo root**
+- [x] **Step 6: Run `pnpm install` at repo root**
 
-- [ ] **Step 7: Verify the workspace is healthy**
+- [x] **Step 7: Verify the workspace is healthy**
 
 ```bash
 pnpm --filter @bproxy/service typecheck
@@ -233,7 +233,7 @@ pnpm --filter @bproxy/service test
 
 Expected: typecheck passes, build emits `service/dist/index.mjs`, test exits 0 (no tests yet — that's fine; vitest `run` returns 0 on no-tests).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add service/ pnpm-lock.yaml
@@ -248,7 +248,7 @@ git commit -m "feat(service): bootstrap @bproxy/service package (Phase 2 Task 1)
 
 **Purpose:** Centralise port/state-dir/env resolution in one module; centralise pino instance creation in another. Every later module imports one or the other. Defining lifecycle-event names as a TypeScript discriminated union here prevents typos in log lines downstream.
 
-- [ ] **Step 1: Write `service/src/config.ts`**
+- [x] **Step 1: Write `service/src/config.ts`**
 
 ```typescript
 import { homedir } from "node:os";
@@ -285,7 +285,7 @@ export function logDir(stateDir: string): string {
 }
 ```
 
-- [ ] **Step 2: Write `service/src/logger.ts`**
+- [x] **Step 2: Write `service/src/logger.ts`**
 
 ```typescript
 import { mkdirSync } from "node:fs";
@@ -352,7 +352,7 @@ export function buildCapturedLogger(): CapturedLogger {
 }
 ```
 
-- [ ] **Step 3: Write `service/src/__tests__/logger.test.ts`** (failing first)
+- [x] **Step 3: Write `service/src/__tests__/logger.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -384,9 +384,9 @@ describe("loadConfig", () => {
 });
 ```
 
-- [ ] **Step 4: Run `pnpm --filter @bproxy/service test`** — all 4 assertions pass.
+- [x] **Step 4: Run `pnpm --filter @bproxy/service test`** — all 4 assertions pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/config.ts service/src/logger.ts service/src/__tests__/logger.test.ts
@@ -401,7 +401,7 @@ git commit -m "feat(service): config and logger foundation (Phase 2 Task 2)"
 
 **Purpose:** In-memory registry of session state (name, bound tab, pacing mode, paused flag). Used by pacing, dispatch, and routes. No persistence — sessions reset on daemon restart, per `service.md` (sessions created implicitly on first command).
 
-- [ ] **Step 1: Write `service/src/__tests__/sessions.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/sessions.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -448,9 +448,9 @@ describe("session registry", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests — verify they fail** (`createSessionRegistry not defined`).
+- [x] **Step 2: Run the tests — verify they fail** (`createSessionRegistry not defined`).
 
-- [ ] **Step 3: Write `service/src/sessions.ts`**
+- [x] **Step 3: Write `service/src/sessions.ts`**
 
 ```typescript
 import type { PacingMode, SessionInfo } from "@bproxy/shared";
@@ -514,9 +514,9 @@ export function createSessionRegistry(): SessionRegistry {
 }
 ```
 
-- [ ] **Step 4: Run the tests** — all 5 pass.
+- [x] **Step 4: Run the tests** — all 5 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/sessions.ts service/src/__tests__/sessions.test.ts
@@ -531,7 +531,7 @@ git commit -m "feat(service): session registry (Phase 2 Task 3)"
 
 **Purpose:** Per-session jittered delay enforcement. Daemon-side; agent cannot bypass. Uses an injected `now()` and `sleep()` so tests are deterministic. Pacing applies to `navigate`, `scroll`, `fill`, `fill-form`; other actions pass through with no wait.
 
-- [ ] **Step 1: Write `service/src/__tests__/pacing.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/pacing.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it, vi } from "vitest";
@@ -645,9 +645,9 @@ describe("pacing engine", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/pacing.ts`**
+- [x] **Step 3: Write `service/src/pacing.ts`**
 
 ```typescript
 import { PACING_PRESETS, type Action } from "@bproxy/shared";
@@ -694,9 +694,9 @@ export function createPacing(deps: PacingDeps): PacingEngine {
 }
 ```
 
-- [ ] **Step 4: Run tests — all pass.**
+- [x] **Step 4: Run tests — all pass.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/pacing.ts service/src/__tests__/pacing.test.ts
@@ -711,7 +711,7 @@ git commit -m "feat(service): pacing engine with deterministic clock injection (
 
 **Purpose:** Bounded map keyed by request `id`. Supports: register-with-timeout, resolve-by-id, dedupe (same `id` returns existing promise), replay-for-client (re-send on WS reconnect), bounded size (`OVERLOADED` on 100+).
 
-- [ ] **Step 1: Write `service/src/__tests__/pending.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/pending.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it, vi } from "vitest";
@@ -832,9 +832,9 @@ describe("pending map", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/pending.ts`**
+- [x] **Step 3: Write `service/src/pending.ts`**
 
 ```typescript
 import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
@@ -940,9 +940,9 @@ export function createPending(opts: PendingOptions): PendingMap {
 }
 ```
 
-- [ ] **Step 4: Run tests — all pass.**
+- [x] **Step 4: Run tests — all pass.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/pending.ts service/src/__tests__/pending.test.ts
@@ -957,7 +957,7 @@ git commit -m "feat(service): bounded pending map with timeout, dedupe, replay (
 
 **Purpose:** Track connected WS clients and route a command to the right one for a session's pinned tab. Per-tab serialization: commands targeting the same `tabId` queue and execute one at a time (prevents content-script races, per `service.md` § Dispatch).
 
-- [ ] **Step 1: Write `service/src/__tests__/dispatch.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/dispatch.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it, vi } from "vitest";
@@ -1081,9 +1081,9 @@ describe("dispatch", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/clients.ts`**
+- [x] **Step 3: Write `service/src/clients.ts`**
 
 ```typescript
 import type { BproxyRequest } from "@bproxy/shared";
@@ -1123,7 +1123,7 @@ export function createClients(): ClientsRegistry {
 }
 ```
 
-- [ ] **Step 4: Write `service/src/dispatch.ts`**
+- [x] **Step 4: Write `service/src/dispatch.ts`**
 
 ```typescript
 import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
@@ -1195,9 +1195,9 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 }
 ```
 
-- [ ] **Step 5: Run tests — all pass.**
+- [x] **Step 5: Run tests — all pass.**
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add service/src/clients.ts service/src/dispatch.ts service/src/__tests__/dispatch.test.ts
@@ -1212,7 +1212,7 @@ git commit -m "feat(service): WS client registry and per-tab serialized dispatch
 
 **Purpose:** Validate `BproxyRequest` JSON at the HTTP boundary. Phase 1 deferred runtime validation; the daemon is the first consumer. Schemas mirror the shape in `shared/src/protocol.ts` and `shared/src/actions.ts`. A test asserts every `Action` literal has a corresponding `params` validator.
 
-- [ ] **Step 1: Write `service/src/__tests__/schemas.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/schemas.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -1269,9 +1269,9 @@ describe("request schemas", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/schemas.ts`**
+- [x] **Step 3: Write `service/src/schemas.ts`**
 
 Define one Zod schema per `Action` mirroring the `ActionParams[action]` shape from `shared/src/actions.ts`. Use `z.object({}).passthrough()` for empty-params actions, and `z.object({ ... }).strict()` for parameterised ones. Export:
 - `ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny>`
@@ -1395,9 +1395,9 @@ export function parseRequest(input: unknown): ParseResult {
 }
 ```
 
-- [ ] **Step 4: Run tests — all pass.**
+- [x] **Step 4: Run tests — all pass.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/schemas.ts service/src/__tests__/schemas.test.ts
@@ -1412,7 +1412,7 @@ git commit -m "feat(service): Zod schemas for runtime request validation (Phase 
 
 **Purpose:** Single `onRequest` hook that enforces four layers (Host, Origin, Sec-Fetch-Site, route-specific secret) before any route runs. The hook is the design-asserted invariant: a route handler must never be reached on an auth-failing request.
 
-- [ ] **Step 1: Write `service/src/__tests__/auth.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/auth.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -1517,9 +1517,9 @@ describe("evaluateAuth — four-layer gate", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/auth.ts`**
+- [x] **Step 3: Write `service/src/auth.ts`**
 
 ```typescript
 import { timingSafeEqual } from "node:crypto";
@@ -1640,9 +1640,9 @@ export function makeAuthHook(deps: AuthHookDeps) {
 }
 ```
 
-- [ ] **Step 4: Run tests — all 9 pass.**
+- [x] **Step 4: Run tests — all 9 pass.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/auth.ts service/src/__tests__/auth.test.ts
@@ -1657,7 +1657,7 @@ git commit -m "feat(service): four-layer onRequest auth gate (Phase 2 Task 8)"
 
 **Purpose:** Owns the pairing-code lifecycle: generation (`ABCD-EFGH`), TTL (5 min), single-use consumption, rate-limit counter, constant-time compare. The popup-side handler in `routes/pair.ts` is a thin adapter over this module.
 
-- [ ] **Step 1: Write `service/src/__tests__/pairing.test.ts`** (failing first)
+- [x] **Step 1: Write `service/src/__tests__/pairing.test.ts`** (failing first)
 
 ```typescript
 import { describe, expect, it } from "vitest";
@@ -1710,9 +1710,9 @@ describe("pairing store", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify failures.**
+- [x] **Step 2: Run — verify failures.**
 
-- [ ] **Step 3: Write `service/src/pairing.ts`**
+- [x] **Step 3: Write `service/src/pairing.ts`**
 
 ```typescript
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -1817,9 +1817,9 @@ export function createPairingStore(deps: PairingDeps): PairingStore {
 }
 ```
 
-- [ ] **Step 4: Run tests — all pass.**
+- [x] **Step 4: Run tests — all pass.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add service/src/pairing.ts service/src/__tests__/pairing.test.ts
@@ -1834,7 +1834,7 @@ git commit -m "feat(service): pairing-code store with TTL and single-use claim (
 
 **Purpose:** Thin route handlers wired to dispatch, pairing store, and clients. Daemon-local `debug.last` and `debug.status` short-circuit dispatch (per `service.md` § HTTP Route).
 
-- [ ] **Step 1: Write `service/src/debug-actions.ts`**
+- [x] **Step 1: Write `service/src/debug-actions.ts`**
 
 ```typescript
 import type { BproxyRequest, BproxyResponse, DaemonRequestTrace } from "@bproxy/shared";
@@ -1893,7 +1893,7 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 }
 ```
 
-- [ ] **Step 2: Write `service/src/routes/command.ts`**
+- [x] **Step 2: Write `service/src/routes/command.ts`**
 
 ```typescript
 import type { FastifyInstance } from "fastify";
@@ -1936,7 +1936,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 }
 ```
 
-- [ ] **Step 3: Write `service/src/routes/pair.ts`**
+- [x] **Step 3: Write `service/src/routes/pair.ts`**
 
 ```typescript
 import type { FastifyInstance } from "fastify";
@@ -1975,7 +1975,7 @@ export function pairRoute(deps: PairRouteDeps) {
 }
 ```
 
-- [ ] **Step 4: Write `service/src/routes/ws.ts`**
+- [x] **Step 4: Write `service/src/routes/ws.ts`**
 
 ```typescript
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -2033,7 +2033,7 @@ export function wsRoute(deps: WsRouteDeps) {
 }
 ```
 
-- [ ] **Step 5: Write `service/src/__tests__/debug-actions.test.ts`**
+- [x] **Step 5: Write `service/src/__tests__/debug-actions.test.ts`**
 
 Guards the daemon-local routing decision. `debug.log` must be forwarded to the extension (not handled locally) — a one-line guard prevents future regressions.
 
@@ -2059,9 +2059,9 @@ describe("isDaemonLocal", () => {
 });
 ```
 
-- [ ] **Step 6: Run tests — debug-actions unit test passes; routes are integration-tested in Task 12.**
+- [x] **Step 6: Run tests — debug-actions unit test passes; routes are integration-tested in Task 12.**
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add service/src/routes service/src/debug-actions.ts service/src/__tests__/debug-actions.test.ts
@@ -2076,7 +2076,7 @@ git commit -m "feat(service): HTTP and WS route handlers (Phase 2 Task 10)"
 
 **Purpose:** Compose every module into a single `buildServer({...})` function that returns a Fastify instance with auth hook, routes, and the shared object graph wired. Used by both the `start` lifecycle subcommand (Task 13) and the integration test (Task 12).
 
-- [ ] **Step 1: Write `service/src/server.ts`**
+- [x] **Step 1: Write `service/src/server.ts`**
 
 ```typescript
 import Fastify, { type FastifyInstance } from "fastify";
@@ -2160,13 +2160,13 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 }
 ```
 
-- [ ] **Step 2: Verify it typechecks**
+- [x] **Step 2: Verify it typechecks**
 
 ```bash
 pnpm --filter @bproxy/service typecheck
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add service/src/server.ts
@@ -2181,7 +2181,7 @@ git commit -m "feat(service): buildServer composes the daemon object graph (Phas
 
 **Purpose:** The integration test required by `service.md` § Testing. Start a Fastify instance bound to an ephemeral port, connect a real `ws` client, send a `POST /` command, verify it lands on the WS client, respond, verify the HTTP response. This is also where the design-asserted invariant "auth hook runs before any route handler" is proven: a request with no bearer never reaches the handler.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 ```typescript
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2422,7 +2422,7 @@ describe("round-trip — observability (ADR-009)", () => {
 
 > **Note on the auth test:** the body is a valid `BproxyRequest`; the positive control sends the same body with a correct bearer and asserts 200. Together these prove the 401 response is caused by auth, not by schema validation, body parsing, or any other early rejection — which is the only way to assert "auth runs *before* any handler" without reading source.
 
-- [ ] **Step 2: Run the integration test**
+- [x] **Step 2: Run the integration test**
 
 ```bash
 pnpm --filter @bproxy/service test
@@ -2430,7 +2430,7 @@ pnpm --filter @bproxy/service test
 
 Expected: all test cases pass. The first proves the auth-before-handler invariant (negative + positive control); the happy-path group proves end-to-end dispatch, daemon-local routing, and pairing; the reconnect-and-replay test proves end-to-end replay survives a client drop; the observability group proves ADR-009 lifecycle events are emitted with documented fields.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add service/src/__tests__/round-trip.test.ts
@@ -2445,7 +2445,7 @@ git commit -m "test(service): end-to-end round-trip, replay, and observability i
 
 **Purpose:** PID file, lockfile, daemon token generation (`~/.bproxy/token`, mode 0600 with owner check), pairing-code printing, detached child fork, signal handlers, and the three CLI subcommands.
 
-- [ ] **Step 1: Write `service/src/lifecycle.ts`**
+- [x] **Step 1: Write `service/src/lifecycle.ts`**
 
 Implement, in this order. Every function takes the resolved `ServiceConfig` from `config.ts` (not just `stateDir`) so test code can stub paths and ports cleanly:
 
@@ -2461,7 +2461,7 @@ Implement, in this order. Every function takes the resolved `ServiceConfig` from
 
 Export `writeToken` so the security test in Step 4 can call it directly.
 
-- [ ] **Step 2: Replace `service/src/index.ts`**
+- [x] **Step 2: Replace `service/src/index.ts`**
 
 ```typescript
 import { loadConfig } from "./config";
@@ -2497,7 +2497,7 @@ async function main(): Promise<number> {
 main().then((code) => process.exit(code));
 ```
 
-- [ ] **Step 3: Verify manually**
+- [x] **Step 3: Verify manually**
 
 ```bash
 pnpm --filter @bproxy/service build
@@ -2509,7 +2509,7 @@ BPROXY_HOME=… node service/dist/index.mjs stop
 
 Use the **same** `BPROXY_HOME` across the three calls (export it first). Expected: `status` reports `{"running":true,"pid":…,"port":9615}` between `start` and `stop`.
 
-- [ ] **Step 4: Add a lifecycle smoke test** (`service/src/__tests__/lifecycle.test.ts`)
+- [x] **Step 4: Add a lifecycle smoke test** (`service/src/__tests__/lifecycle.test.ts`)
 
 A short test that:
 1. spawns `node service/dist/index.mjs daemonize` (foreground) in a subprocess with a fresh `BPROXY_HOME`,
@@ -2608,14 +2608,14 @@ describe("token-file security (auth-gate invariant from service.md § Auth Gate)
 
 > **The `writeToken` security test is the design-asserted invariant for the auth gate** (per `service.md` § Auth Gate "Security invariant: daemon token secrecy is enforced by OS file ownership and mode"). The test plants a 0644 token file and asserts `writeToken` fails closed. Ownership check (uid mismatch) is harder to test portably; the mode check is the load-bearing assertion.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 pnpm --filter @bproxy/service build
 pnpm --filter @bproxy/service test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add service/src/lifecycle.ts service/src/index.ts service/src/__tests__/lifecycle.test.ts
@@ -2630,7 +2630,7 @@ git commit -m "feat(service): start/stop/status lifecycle + token gen (Phase 2 T
 
 **Purpose:** Surface the generated service component graph from the Container view. `service` is already in `KNOWN_WORKSPACES` in `views/scripts/regen.ts`, so `pnpm views:regen` will pick it up automatically once `service/src/` has source files. This task adds the Mermaid `click` directive.
 
-- [ ] **Step 1: Run `pnpm views:regen` and verify the SVG is generated**
+- [x] **Step 1: Run `pnpm views:regen` and verify the SVG is generated**
 
 ```bash
 pnpm views:regen
@@ -2639,7 +2639,7 @@ ls docs/views/auto/service-components.svg
 
 If `dot` (Graphviz) is missing, the script will write `.dot` instead and warn — install it (`brew install graphviz`) and re-run.
 
-- [ ] **Step 2: Edit `docs/views/02-containers.md`** — add the click directive at the end of the Mermaid block, before the closing fence:
+- [x] **Step 2: Edit `docs/views/02-containers.md`** — add the click directive at the end of the Mermaid block, before the closing fence:
 
 ```mermaid
   Popup -- "POST /pair/claim" --> Daemon
@@ -2657,13 +2657,13 @@ Update the "See also" section: replace `_Component view, coming in Phase 2._` wi
 - Trust boundaries and where each process runs: _Deployment view, coming in a later phase._
 ```
 
-- [ ] **Step 3: Verify the site builds**
+- [x] **Step 3: Verify the site builds**
 
 ```bash
 pnpm docs:build
 ```
 
-- [ ] **Step 4: Verify `views:audit` reports `02-containers` as affected by a service-source change**
+- [x] **Step 4: Verify `views:audit` reports `02-containers` as affected by a service-source change**
 
 ```bash
 # Make a no-op edit to a service file
@@ -2673,7 +2673,7 @@ pnpm views:audit HEAD
 
 Expected: `02-containers` appears in the affected list (its frontmatter `sources` glob includes `service/src/**`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/views/02-containers.md docs/views/auto/service-components.svg views/public/views/auto/service-components.svg
@@ -2686,13 +2686,13 @@ git commit -m "docs(views): link Container Daemon node to service component grap
 
 **Purpose:** Walk the four-criterion DoD from the roadmap. Update phase status.
 
-- [ ] **Functional** — every interface consumed by later layers is implemented.
+- [x] **Functional** — every interface consumed by later layers is implemented.
   - `POST /` accepts every `Action` in the union (verified by `parseRequest` test + integration round-trip).
   - `POST /pair/claim` issues an extension token on a valid one-time code.
   - `GET /ws` accepts the WS subprotocol auth and supports replay-on-reconnect.
   - `service start | stop | status` work.
 
-- [ ] **Design-asserted** — at least one test or static check per design constraint.
+- [x] **Design-asserted** — at least one test or static check per design constraint.
   - **Auth hook runs before any route handler** — `round-trip.test.ts` § "auth runs before any route handler" (valid `BproxyRequest` body, missing/wrong bearer → 401 + `pending.register` never called; positive control with correct bearer → 200, proving the 401 is auth-caused, not parser-caused).
   - **Daemon token file is fail-closed on insecure mode** — `lifecycle.test.ts` § "refuses to start with INSECURE_TOKEN_FILE when an existing token is world-readable" (security invariant from `service.md` § Auth Gate).
   - **Pacing engine waits the configured interval** — `pacing.test.ts` § "waits the configured delay on a paced action (pinned jitter)" + range-based jitter test for non-coupled regression coverage.
@@ -2704,9 +2704,9 @@ git commit -m "docs(views): link Container Daemon node to service component grap
   - **Observability lifecycle events from service.md § Observability are emitted with documented fields** — `round-trip.test.ts` § "emits received → pacing_wait? → response with the request id" + "emits ws_connect and ws_disconnect" (honours ADR-009 as a first-class constraint).
   - **Action schema completeness** — `schemas.ts` `_AssertCovers` (compile-time check that every `Action` from `@bproxy/shared` is listed in `ACTIONS`) + `schemas.test.ts` § "provides a params validator for every Action".
 
-- [ ] **Documented** — `service/README.md` committed; `docs/solution/service.md` matches reality (no doc edits needed unless deviations occurred — flag any to the user). `docs/views/02-containers.md` updated with click directive.
+- [x] **Documented** — `service/README.md` committed; `docs/solution/service.md` matches reality (no doc edits needed unless deviations occurred — flag any to the user). `docs/views/02-containers.md` updated with click directive.
 
-- [ ] **Static gates pass** — clean checkout:
+- [x] **Static gates pass** — clean checkout:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -2716,12 +2716,12 @@ pnpm test
 
 All gates green.
 
-- [ ] **Views integration**
+- [x] **Views integration**
   - `pnpm views:regen` produces `docs/views/auto/service-components.svg`.
   - `pnpm views:audit HEAD` reports `02-containers` when service source files change.
   - `pnpm docs:build` passes.
 
-- [ ] **No stray TODO/FIXME/XXX**
+- [x] **No stray TODO/FIXME/XXX**
 
 ```bash
 grep -rnE "TODO|FIXME|XXX" service/src 2>/dev/null
@@ -2729,13 +2729,87 @@ grep -rnE "TODO|FIXME|XXX" service/src 2>/dev/null
 
 Expected: empty.
 
-- [ ] **Update `docs/plans/roadmap.md`** — mark Phase 2 as ✅ Done; set Phase 3 (Extension) to "Not started — _plan written when Phase 2 closes_".
+- [x] **Update `docs/plans/roadmap.md`** — mark Phase 2 as ✅ Done; set Phase 3 (Extension) to "Not started — _plan written when Phase 2 closes_".
 
-- [ ] **Commit and PR**
+- [x] **Commit and PR**
 
 ```bash
 git add docs/plans/roadmap.md
 git commit -m "docs: mark Phase 2 (Daemon) as done"
+```
+
+---
+
+## Task 16: Identified test-coverage gaps (post-DoD hardening)
+
+**Purpose:** Record known gaps where tests currently pass but spec-level behavior can still be wrong, and add explicit steps to close those gaps with failing-first tests before implementation changes.
+
+> **Execution rule:** For each subtask below, write the test first, run it to observe failure, then implement the minimum change to satisfy the test and the service spec.
+
+### Gap A — Action contract coverage is incomplete
+
+Current tests cover selected actions (`debug.status`, `text`) but do not prove route-level behavior for all action families (`session.*`, `tab.*`, forwarding vs daemon-local, tab-binding requirements).
+
+- [ ] **Step A1: Add a table-driven contract test file** `service/src/__tests__/action-contract.test.ts`.
+- [ ] **Step A2: Encode expected behavior per action family**:
+  - daemon-local: `debug.last`, `debug.status`
+  - forwarded: `debug.log`, browser actions
+  - session lifecycle: `session.bind`, `session.unbind`, `session.resume`, `session.list`
+  - tab lifecycle: `tab.list`, `tab.pin`, `tab.unpin`, `tab.open`, `tab.close`
+- [ ] **Step A3: Assert preconditions and outcomes** per row:
+  - needs WS client?
+  - needs bound tab?
+  - expected success/error code.
+- [ ] **Step A4: Ensure at least one test proves `session.bind` works from an unbound session** (catches chicken-and-egg regressions in dispatch).
+
+### Gap B — Missing end-to-end workflow tests
+
+Unit tests validate components in isolation, but they do not prove realistic state transitions.
+
+- [ ] **Step B1: Add workflow tests in** `service/src/__tests__/workflows.test.ts`.
+- [ ] **Step B2: Add flow: unbound session → `session.bind` → normal forwarded action**; assert full success path.
+- [ ] **Step B3: Add flow: pause/human-required state → `session.resume` → next command continues**.
+- [ ] **Step B4: Add flow: tab reassignment updates routing target** (if session is rebound, next forwarded command goes to new tab context).
+
+### Gap C — Auth ordering is not proven at server-hook level
+
+Current checks validate auth decisions, but not enough against accidental Fastify hook-stage drift.
+
+- [ ] **Step C1: Add integration assertions to** `service/src/__tests__/round-trip.test.ts` (or new `auth-ordering.test.ts`) that fail if auth is moved too late in request lifecycle.
+- [ ] **Step C2: Add negative tests with valid request payload + missing/invalid auth** and assert handler-side effects do not occur.
+- [ ] **Step C3: Add positive control with identical payload + valid auth** to prove rejection reason is auth-only.
+- [ ] **Step C4: Keep this test coupled to documented requirement in `service.md` (auth gate before route logic).**
+
+### Gap D — Observability contract is only partially asserted
+
+Tests currently assert a subset of lifecycle events; spec documents a broader event contract.
+
+- [ ] **Step D1: Add an observability contract test file** `service/src/__tests__/observability-contract.test.ts` (or extend round-trip tests).
+- [ ] **Step D2: For forwarded happy path, assert sequence and fields:** `received` → `pacing_wait?` → `forwarded` → `response`.
+- [ ] **Step D3: For deadline expiry, assert `timeout` event with request `id` and elapsed fields.**
+- [ ] **Step D4: For reconnect replay, assert `replay` event with request `id` and `ws_client`.**
+- [ ] **Step D5: For pacing-mode change, assert `pacing_config` event with `session` and `mode`.**
+
+### Gap E — Lifecycle contract tests are smoke-only
+
+Current lifecycle tests confirm boot/shutdown basics but not full command contract behavior.
+
+- [ ] **Step E1: Add contract tests in** `service/src/__tests__/lifecycle-contract.test.ts`.
+- [ ] **Step E2: Assert `start` fails cleanly when daemon already running** (no duplicate daemon spawn).
+- [ ] **Step E3: Assert `start -> status -> stop -> status` with same `BPROXY_HOME` gives expected state transitions.
+- [ ] **Step E4: Assert lock/token/port file semantics around shutdown are consistent with spec (best-effort cleanup + running-state truth).
+
+### Close-out criteria for Task 16
+
+- [ ] New tests fail before fixes and pass after fixes.
+- [ ] `pnpm --filter @bproxy/service test` passes with the new suites.
+- [ ] `pnpm check` remains green.
+- [ ] If behavior changed, update `docs/solution/service.md` and `docs/plans/phases/02-daemon.md` accordingly.
+- [ ] Commit with explicit scope, e.g.:
+
+```bash
+git add service/src/__tests__/ docs/solution/service.md docs/plans/phases/02-daemon.md
+git commit -m "test(service): close phase-2 coverage gaps (action contract, workflows, auth ordering, observability, lifecycle)"
 ```
 
 ---
