@@ -1,4 +1,4 @@
-import { type Action, type PacingConfig, PACING_PRESETS } from "@bproxy/shared";
+import { type Action, PACING_PRESETS, type PacingConfig } from "@bproxy/shared";
 import type { SessionRegistry } from "./sessions";
 
 function pacingKey(action: Action): keyof PacingConfig | null {
