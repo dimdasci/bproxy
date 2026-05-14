@@ -2,7 +2,7 @@
 node_modules/
 
 # Build outputs
-dist/
+**/dist/
 .output/
 .wxt/
 *.tsbuildinfo
@@ -30,6 +30,14 @@ playwright/.cache/
 
 # Claude Code
 .claude/
+.superpowers/
 
 # Temporary files
 tmp/
+
+# Monorepo workspace artifacts
+**/.astro/
+**/.cache/
+
+# pnpm local store (when store-dir is inside the repo)
+.pnpm-store/

@@ -1,4 +1,6 @@
-# bproxy — Quality Gates
+---
+title: Quality Gates
+---
 
 > **Status:** Active. Owns the static-analysis policy enforced in CI.
 > **Decision:** [ADR-012: Static analysis stack](./decisions.md#adr-012-static-analysis-stack).

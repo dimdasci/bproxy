@@ -1,4 +1,6 @@
-# Use cases
+---
+title: Scenarios
+---
 
 These scenarios drive the design choices captured in [`journal/2026-04-30-default-instrumentation-strategy.md`](./journal/2026-04-30-default-instrumentation-strategy.md). Each shows how the agent runs end-to-end and what bproxy primitives it needs. New scenarios should be added here as they surface.
 

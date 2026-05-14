@@ -1,4 +1,6 @@
-# Solution: Browser Extension
+---
+title: Browser Extension
+---
 
 Implementation spec for the Chrome Manifest V3 extension. Built with [WXT](https://wxt.dev).
 

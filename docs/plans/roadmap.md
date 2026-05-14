@@ -1,4 +1,6 @@
-# bproxy — Implementation Roadmap
+---
+title: Implementation Roadmap
+---
 
 > **Status:** Active. Owns the day-to-day shape of how bproxy gets built.
 > **Companion docs:** [`docs/architecture.md`](../architecture.md) (system shape), [`docs/decisions.md`](../decisions.md) (ADRs), [`docs/solution/`](../solution/) (per-component specs), [`docs/scenarios.md`](../scenarios.md) (driving use cases).
@@ -15,7 +17,8 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 |---|---|---|---|---|
 | 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
 | 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
-| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.5 closes_ |
+| 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
+| 1 | Shared types | The domain model | Not started | _plan written when Phase 0.7 closes_ |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
 | 4 | CLI | One-shot agent interface | Not started | _plan written when Phase 3 closes_ |
@@ -45,11 +48,21 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/architecture.md`, `docs/decisions.md`, or `docs/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
 
+### Phase 0.7 — Architecture viewer (v1)
+
+**Purpose:** stand up the architecture views site so the rest of the build has a visual onboarding and presentation surface from day one, and so the sync helpers are wired before any production code lands. Per [docs/solution/views.md](../solution/views.md).
+
+**Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
+
+**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on `viewSchema` violations or site-build regressions.
+
+**Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
+
 ### Phase 1 — Shared types (and workspace scaffold)
 
 **Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per [docs/solution/shared.md](../solution/shared.md) and [docs/quality-gates.md](../quality-gates.md).
 
-**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types.
+**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types. **Phase 1 explicitly includes wiring the dependency-cruiser execution backend used by `views:regen` (Phase 0.7 ships only the planner/CLI contract).**
 
 **Done when:** `pnpm check` passes from a clean checkout; every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; tests assert that the discriminated union is exhaustive.
 
