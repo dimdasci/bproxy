@@ -22,7 +22,7 @@
 		"views:regen": "pnpm --filter views regen"
 	},
 	"engines": {
-		"node": ">=22.12"
+		"node": ">=24"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
