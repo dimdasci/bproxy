@@ -38,6 +38,7 @@ tmp/
 # Monorepo workspace artifacts
 **/.astro/
 **/.cache/
+views/public/views/auto/
 
 # pnpm local store (when store-dir is inside the repo)
 .pnpm-store/

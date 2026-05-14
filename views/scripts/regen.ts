@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -114,6 +114,15 @@ function runDependencyCruiser(task: RegenTask): void {
 	}
 }
 
+function copyToPublic(task: RegenTask): void {
+	const src = resolve(repoRoot, task.output);
+	if (!existsSync(src)) return;
+	const publicDir = resolve(repoRoot, "views/public/views/auto");
+	mkdirSync(publicDir, { recursive: true });
+	const dest = join(publicDir, `${task.workspace}-components.svg`);
+	copyFileSync(src, dest);
+}
+
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
 	const workspaces = discoverWorkspaces();
@@ -131,6 +140,7 @@ if (isMain) {
 	for (const task of plan.tasks) {
 		process.stdout.write(`  · ${task.workspace} → ${task.output}\n`);
 		runDependencyCruiser(task);
+		copyToPublic(task);
 	}
 	process.stdout.write("Done. Commit any SVGs that changed.\n");
 }
