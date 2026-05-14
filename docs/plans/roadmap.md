@@ -17,7 +17,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 |---|---|---|---|---|
 | 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
 | 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
-| 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | Not started | _plan written when Phase 0.5 closes_ |
+| 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
 | 1 | Shared types | The domain model | Not started | _plan written when Phase 0.7 closes_ |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
