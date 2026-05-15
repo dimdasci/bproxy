@@ -58,6 +58,19 @@ describe("pending map", () => {
 		vi.useRealTimers();
 	});
 
+	it("emits onTimeout with elapsed ms when deadline expires", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(BASE);
+		const onTimeout = vi.fn();
+		const pending = createPending({ maxSize: 10, now: () => Date.now(), onTimeout });
+		const p = pending.register(req("a", BASE + 100), vi.fn());
+		vi.advanceTimersByTime(150);
+		await p;
+		expect(onTimeout).toHaveBeenCalledOnce();
+		expect(onTimeout).toHaveBeenCalledWith({ id: "a", elapsedMs: 100 });
+		vi.useRealTimers();
+	});
+
 	it("resolves immediately with TIMEOUT when the deadline is already in the past", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(BASE);
@@ -105,6 +118,15 @@ describe("pending map", () => {
 		pending.replayForClient(send, ["a"]);
 		expect(send).toHaveBeenCalledOnce();
 		expect((send.mock.calls[0]![0]! as BproxyRequest).id).toBe("a");
+	});
+
+	it("emits onReplay with request id and ws client", () => {
+		const onReplay = vi.fn();
+		const pending = createPending({ maxSize: 10, now: () => BASE, onReplay });
+		void pending.register(req("a"), vi.fn());
+		const send = vi.fn();
+		pending.replayForClient(send, undefined, "client-1");
+		expect(onReplay).toHaveBeenCalledWith({ id: "a", wsClient: "client-1" });
 	});
 
 	it("snapshot lists pending ids", () => {

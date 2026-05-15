@@ -23,7 +23,7 @@ export function wsRoute(deps: WsRouteDeps) {
 			const handle = { id, send: sendFn };
 			deps.clients.add(handle);
 
-			deps.pending.replayForClient(sendFn);
+			deps.pending.replayForClient(sendFn, undefined, id);
 
 			const heartbeat = setInterval(() => {
 				try {
@@ -42,10 +42,14 @@ export function wsRoute(deps: WsRouteDeps) {
 				}
 			});
 
-			socket.on("close", () => {
+			socket.on("close", (_code?: number, reason?: Buffer) => {
 				clearInterval(heartbeat);
 				deps.clients.remove(id);
-				deps.logger.info({ event: "ws_disconnect", ws_client: id });
+				deps.logger.info({
+					event: "ws_disconnect",
+					ws_client: id,
+					reason: reason ? reason.toString() : undefined,
+				});
 			});
 		});
 	};

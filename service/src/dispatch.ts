@@ -7,6 +7,7 @@ export interface DispatchDeps {
 	clients: ClientsRegistry;
 	pending: PendingMap;
 	sessions: SessionRegistry;
+	onForwarded?: (info: { id: string; wsClient: string; tab: number }) => void;
 }
 
 export interface DispatchEngine {
@@ -95,7 +96,13 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			return withTabLock(session.tabId, () => deps.pending.register(cmd, client.send));
+			const tabId = session.tabId;
+			return withTabLock(tabId, () =>
+				deps.pending.register(cmd, (wireCmd) => {
+					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: tabId });
+					client.send(wireCmd);
+				}),
+			);
 		},
 	};
 }

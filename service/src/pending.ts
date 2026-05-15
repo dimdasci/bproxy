@@ -7,17 +7,20 @@ interface PendingEntry {
 	promise: Promise<BproxyResponse>;
 	resolve: (r: BproxyResponse) => void;
 	timer: NodeJS.Timeout;
+	createdAt: number;
 }
 
 export interface PendingOptions {
 	maxSize: number;
 	now?: () => number;
+	onTimeout?: (info: { id: string; elapsedMs: number }) => void;
+	onReplay?: (info: { id: string; wsClient: string }) => void;
 }
 
 export interface PendingMap {
 	register(cmd: BproxyRequest, send: SendFn): Promise<BproxyResponse>;
 	resolveById(id: string, response: BproxyResponse): void;
-	replayForClient(send: SendFn, ids?: readonly string[]): void;
+	replayForClient(send: SendFn, ids?: readonly string[], wsClient?: string): void;
 	delete(id: string): void;
 	size(): number;
 }
@@ -48,19 +51,22 @@ function makeEntry(
 	cmd: BproxyRequest,
 	entries: Map<string, PendingEntry>,
 	now: () => number,
+	onTimeout?: (info: { id: string; elapsedMs: number }) => void,
 ): PendingEntry {
 	let resolveOuter!: (r: BproxyResponse) => void;
 	const promise = new Promise<BproxyResponse>((resolve) => {
 		resolveOuter = resolve;
 	});
-	const wait = Math.max(0, cmd.deadline - now());
+	const createdAt = now();
+	const wait = Math.max(0, cmd.deadline - createdAt);
 	const timer = setTimeout(() => {
 		const e = entries.get(cmd.id);
 		if (!e) return;
 		entries.delete(cmd.id);
+		onTimeout?.({ id: cmd.id, elapsedMs: Math.max(0, now() - e.createdAt) });
 		e.resolve(timeoutResponse(cmd.id));
 	}, wait);
-	return { cmd, promise, resolve: resolveOuter, timer };
+	return { cmd, promise, resolve: resolveOuter, timer, createdAt };
 }
 
 export function createPending(opts: PendingOptions): PendingMap {
@@ -74,7 +80,7 @@ export function createPending(opts: PendingOptions): PendingMap {
 			if (entries.size >= opts.maxSize) {
 				return Promise.resolve(overloadedResponse(cmd.id));
 			}
-			const entry = makeEntry(cmd, entries, now);
+			const entry = makeEntry(cmd, entries, now, opts.onTimeout);
 			entries.set(cmd.id, entry);
 			send(cmd);
 			return entry.promise;
@@ -88,11 +94,12 @@ export function createPending(opts: PendingOptions): PendingMap {
 			e.resolve(response);
 		},
 
-		replayForClient(send, ids) {
+		replayForClient(send, ids, wsClient) {
 			const filter = ids ? new Set(ids) : null;
 			for (const [id, entry] of entries) {
 				if (filter && !filter.has(id)) continue;
 				send({ ...entry.cmd });
+				if (wsClient) opts.onReplay?.({ id, wsClient });
 			}
 		},
 

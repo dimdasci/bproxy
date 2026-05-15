@@ -47,8 +47,24 @@ interface ObjectGraph {
 function createDeps(opts: BuildServerOptions): ObjectGraph {
 	const sessions = opts.sessions ?? createSessionRegistry();
 	const clients = createClients();
-	const pending = createPending({ maxSize: 100, now: () => Date.now() });
-	const dispatch = createDispatch({ clients, pending, sessions });
+	const pending = createPending({
+		maxSize: 100,
+		now: () => Date.now(),
+		onTimeout: ({ id, elapsedMs }) => {
+			opts.logger.warn({ id, event: "timeout", elapsed_ms: elapsedMs });
+		},
+		onReplay: ({ id, wsClient }) => {
+			opts.logger.info({ id, event: "replay", ws_client: wsClient });
+		},
+	});
+	const dispatch = createDispatch({
+		clients,
+		pending,
+		sessions,
+		onForwarded: ({ id, wsClient, tab }) => {
+			opts.logger.info({ id, event: "forwarded", ws_client: wsClient, tab });
+		},
+	});
 	const pacing = createPacing({
 		sessions,
 		now: () => Date.now(),

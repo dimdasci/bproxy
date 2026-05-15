@@ -56,11 +56,13 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const onForwarded = vi.fn();
+		const dispatch = createDispatch({ clients, pending, sessions, onForwarded });
 
 		const p = dispatch.send(req("a"));
 		expect(sendMock).toHaveBeenCalledOnce();
 		const forwarded = sendMock.mock.calls[0]![0] as BproxyRequest;
+		expect(onForwarded).toHaveBeenCalledWith({ id: forwarded.id, wsClient: "c1", tab: 42 });
 		pending.resolveById(forwarded.id, ok(forwarded.id));
 		await expect(p).resolves.toMatchObject({ ok: true });
 	});

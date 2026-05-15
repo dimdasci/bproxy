@@ -89,33 +89,31 @@ describe("observability contract — GAP D", () => {
 			const cmd = makeCmd({ id: "obs-seq-test-1", action: "text" });
 			await postCommand(cmd);
 
-			// Check for events with this request ID
 			const events = captured.lines.filter((l) => l["id"] === cmd.id);
 			const eventNames = events.map((l) => l["event"]);
 
 			expect(eventNames).toContain("received");
-			expect(eventNames).toContain("forwarded"); // This might fail - captured as gap
+			expect(eventNames).toContain("forwarded");
 			expect(eventNames).toContain("response");
 
-			// Check order
 			const receivedIndex = eventNames.indexOf("received");
+			const forwardedIndex = eventNames.indexOf("forwarded");
 			const responseIndex = eventNames.indexOf("response");
-			expect(receivedIndex).toBeLessThan(responseIndex);
+			expect(receivedIndex).toBeLessThan(forwardedIndex);
+			expect(forwardedIndex).toBeLessThan(responseIndex);
 
-			// Verify received event fields
-			const received = events.find((l) => l["event"] === "received");
-			expect(received).toMatchObject({
+			const forwarded = events.find((l) => l["event"] === "forwarded");
+			expect(forwarded).toMatchObject({
 				id: cmd.id,
-				action: "text",
-				session: "default",
-				destructive: false,
+				ws_client: expect.any(String),
+				tab: 42,
 			});
 
-			// Verify response event fields
 			const response = events.find((l) => l["event"] === "response");
 			expect(response).toMatchObject({
 				id: cmd.id,
 				ok: true,
+				elapsed_ms: expect.any(Number),
 			});
 
 			ws.close();
@@ -123,19 +121,8 @@ describe("observability contract — GAP D", () => {
 
 		it("emits pacing_wait when pacing delay occurs", async () => {
 			captured.clear();
-			built.sessions.bind("default", 42, "human"); // human has delays
+			built.sessions.bind("default", 42, "human");
 			const ws = await connectClient();
-
-			// Using navigate which has pacing
-			const cmd1 = makeCmd({
-				id: "obs-pacing-1",
-				action: "navigate",
-				params: { url: "https://a.com" },
-			});
-			await postCommand(cmd1);
-
-			// Second navigate should trigger pacing
-			captured.clear();
 
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -150,6 +137,11 @@ describe("observability contract — GAP D", () => {
 				ws.send(JSON.stringify(resp));
 			});
 
+			await postCommand(
+				makeCmd({ id: "obs-pacing-1", action: "navigate", params: { url: "https://a.com" } }),
+			);
+			captured.clear();
+
 			const cmd2 = makeCmd({
 				id: "obs-pacing-2",
 				action: "navigate",
@@ -158,11 +150,8 @@ describe("observability contract — GAP D", () => {
 			await postCommand(cmd2);
 
 			const events = captured.lines.filter((l) => l["id"] === cmd2.id);
-			const eventNames = events.map((l) => l["event"]);
-
-			expect(eventNames).toContain("received");
-			// pacing_wait might not be emitted - this captures the gap
-			// expect(eventNames).toContain("pacing_wait");
+			const pacing = events.find((l) => l["event"] === "pacing_wait");
+			expect(pacing).toMatchObject({ id: cmd2.id, delay_ms: expect.any(Number) });
 
 			ws.close();
 		});
@@ -171,7 +160,7 @@ describe("observability contract — GAP D", () => {
 	describe("error scenarios", () => {
 		it("emits response with error_code when forward fails", async () => {
 			captured.clear();
-			// No session binding - should fail with TAB_NOT_FOUND
+			const ws = await connectClient();
 			const cmd = makeCmd({ id: "obs-err-1", action: "text" });
 			await postCommand(cmd);
 
@@ -180,7 +169,9 @@ describe("observability contract — GAP D", () => {
 			expect(response).toMatchObject({
 				ok: false,
 				error_code: "TAB_NOT_FOUND",
+				elapsed_ms: expect.any(Number),
 			});
+			ws.close();
 		});
 
 		it("emits timeout event when request exceeds deadline", { timeout: 10000 }, async () => {
@@ -205,10 +196,9 @@ describe("observability contract — GAP D", () => {
 			const events = captured.lines.filter((l) => l["id"] === cmd.id);
 			const timeout = events.find((l) => l["event"] === "timeout");
 
-			// timeout event should have id and elapsed fields
 			expect(timeout).toMatchObject({
 				id: cmd.id,
-				// elapsed: expect.any(Number), // This is optional
+				elapsed_ms: expect.any(Number),
 			});
 
 			ws.close();
@@ -226,17 +216,29 @@ describe("observability contract — GAP D", () => {
 			});
 
 			const cmd = makeCmd({ id: "obs-replay-1", action: "text", deadline: Date.now() + 10000 });
-			void postCommand(cmd);
+			const postPromise = postCommand(cmd);
 			await seenByClient1;
 			ws.close();
 
 			await waitUntil(() => built.clients.size() === 0);
 
-			// Connect new client - replay should happen
 			captured.clear();
 			const auth = Buffer.from(extensionToken).toString("base64url");
 			const ws2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
 				headers: { Origin: "chrome-extension://test" },
+			});
+
+			ws2.on("message", (raw: unknown) => {
+				const req = JSON.parse(String(raw)) as BproxyRequest;
+				const resp: BproxyResponse = {
+					protocol_version: 1,
+					id: req.id,
+					ok: true,
+					data: { text: "ok" },
+					page: { url: "https://x", title: "X", state: "ready", busy: false },
+					replay: false,
+				};
+				ws2.send(JSON.stringify(resp));
 			});
 
 			await new Promise<void>((resolve, reject) => {
@@ -244,15 +246,11 @@ describe("observability contract — GAP D", () => {
 				ws2.once("error", reject);
 			});
 
-			// Check for replay event
-			// This might fail - replay event emission is a gap
-			// const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			// const replayEvents = events.filter((l) => l["event"] === "replay");
-			// expect(replayEvents.length).toBeGreaterThan(0);
+			await postPromise;
+			await waitUntil(() => captured.lines.some((l) => l["id"] === cmd.id && l["event"] === "replay"));
 
-			// If replay event exists, check for ws_client field
-			// const replay = replayEvents[0];
-			// expect(replay).toHaveProperty("ws_client");
+			const replay = captured.lines.find((l) => l["id"] === cmd.id && l["event"] === "replay");
+			expect(replay).toMatchObject({ id: cmd.id, ws_client: expect.any(String) });
 
 			ws2.close();
 		});
@@ -269,15 +267,11 @@ describe("observability contract — GAP D", () => {
 			});
 			await postCommand(cmd);
 
-			// Check for pacing_config event (currently commented as gap)
-			// const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			// This might fail - pacing_config event is not implemented
-			// const configEvent = events.find((l) => l["event"] === "pacing_config");
-			// expect(configEvent).toMatchObject({
-			//     id: cmd.id,
-			//     session: "default",
-			//     mode: "fast",
-			// });
+			const configEvent = captured.lines.find((l) => l["event"] === "pacing_config");
+			expect(configEvent).toMatchObject({
+				session: "default",
+				mode: "fast",
+			});
 		});
 	});
 

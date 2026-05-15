@@ -85,6 +85,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 				});
 			}
 			const cmd = parsed.data;
+			const receivedAt = Date.now();
 			deps.logger.info({
 				id: cmd.id,
 				action: cmd.action,
@@ -106,6 +107,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 				id: cmd.id,
 				event: "response",
 				ok: response.ok,
+				elapsed_ms: Math.max(0, Date.now() - receivedAt),
 				error_code: !response.ok ? response.error.code : undefined,
 			});
 			return response;
