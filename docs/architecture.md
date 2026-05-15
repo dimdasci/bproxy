@@ -31,6 +31,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
 - **Session authority lives in the daemon** — `tabId`, `pacing`, `paused`, and `pauseReason` are daemon-owned in-memory state; extension executes forwarded browser actions but does not own session lifecycle.
+- **Auth is transport-boundary first-fail** — unauthenticated requests are rejected at request ingress (before body parsing/validation and before any route logic).
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
 - **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
 - **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).

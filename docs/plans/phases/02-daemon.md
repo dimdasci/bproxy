@@ -2777,8 +2777,9 @@ Current checks validate auth decisions, but not enough against accidental Fastif
 
 - [ ] **Step C1: Add integration assertions to** `service/src/__tests__/round-trip.test.ts` (or new `auth-ordering.test.ts`) that fail if auth is moved too late in request lifecycle.
 - [ ] **Step C2: Add negative tests with valid request payload + missing/invalid auth** and assert handler-side effects do not occur.
-- [ ] **Step C3: Add positive control with identical payload + valid auth** to prove rejection reason is auth-only.
-- [ ] **Step C4: Keep this test coupled to documented requirement in `service.md` (auth gate before route logic).**
+- [ ] **Step C3: Add malformed JSON + invalid auth case** and assert status is `401` (not `400`) to prove auth runs before body parsing.
+- [ ] **Step C4: Add positive control with identical payload + valid auth** to prove rejection reason is auth-only.
+- [ ] **Step C5: Keep this test coupled to documented requirement in `service.md` (auth gate at `onRequest`, before parse/validation/route logic).**
 
 ### Gap D — Observability contract is only partially asserted
 

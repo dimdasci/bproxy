@@ -44,6 +44,8 @@ const app = Fastify({ logger: true });
 await app.register(websocket);
 
 // Auth gate runs for both HTTP and WS upgrade
+// MUST stay on `onRequest` (not `preValidation`) so unauthenticated
+// requests are rejected before body parsing/validation.
 app.addHook('onRequest', authHook);
 
 // Routes
@@ -76,6 +78,8 @@ Token model:
 **Security invariant:** daemon token secrecy is enforced by OS file ownership and mode. CLI must fail closed if token owner/mode is unsafe.
 
 Failure at any layer → 401, connection closed.
+
+**Ordering contract (normative):** auth is evaluated at `onRequest`, before body parsing, schema validation, and route logic. If auth fails, daemon returns `401` even when the payload body is malformed or schema-invalid.
 
 ## HTTP Route: `POST /`
 
@@ -114,6 +118,8 @@ app.post('/', {
 ```
 
 The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires.
+
+**Status precedence (normative):** for `POST /`, auth failure (`401`) takes precedence over request-body parse/schema failures (`400`).
 
 ## Action Routing and Session Contract
 
