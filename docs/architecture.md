@@ -44,7 +44,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 ### Proxy Daemon
 
-A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Supports multiple WS clients (one per Chrome profile).
+A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind` changes `tabId`, the next forwarded command uses the new tab target. Supports multiple WS clients (one per Chrome profile).
 
 Implementation: [solution/service.md](./solution/service.md)
 
@@ -77,11 +77,14 @@ The extension has no manual token-entry UI. Pairing is explicit and popup-driven
 1. `bproxy service start` starts daemon and creates:
    - daemon bearer token in `~/.bproxy/token` (CLI → daemon HTTP auth)
    - one-time pairing code (short TTL, single-use)
+   - loads existing extension WS token from `~/.bproxy/extension-token` when present
 2. CLI prints pairing code in machine-readable output (`{pairingCode, expiresAt}`)
 3. User opens extension popup, enters pairing code
 4. Popup calls `POST /pair/claim` with the code, receives bootstrap payload
 5. Popup stores `{extensionToken, wsUrl, protocol}` in `chrome.storage.local`
 6. Popup notifies background SW; SW reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+7. The claimed token is active immediately for WS auth; daemon accepts only the latest claimed extension token (single-active-token policy).
+8. Daemon persists active extension token to `~/.bproxy/extension-token` (0600), so restart is transparent for a single-user setup (extension reconnects without re-pairing).
 
 Security properties:
 - Pairing code is one-time and expires quickly (TTL 5 minutes).

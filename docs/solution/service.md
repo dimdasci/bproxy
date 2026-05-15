@@ -134,7 +134,7 @@ This state is in-memory only and resets on daemon restart.
 ### `session.*` semantics
 
 - `session.list` — returns daemon's current in-memory session snapshot.
-- `session.bind` — must work even when session is currently unbound; sets `tabId`; optional `pacing` updates mode.
+- `session.bind` — must work even when session is currently unbound; sets `tabId`; optional `pacing` updates mode. Rebinding is immediate: the very next forwarded command for that session uses the new `tabId`.
 - `session.unbind` — clears `tabId`; idempotent.
 - `session.resume` — clears paused state/reason; idempotent.
 
@@ -148,7 +148,7 @@ This state is in-memory only and resets on daemon restart.
 
 ### Pause/resume contract
 
-`require-human` pauses the session (`paused=true`). While paused, forwarded actions should return `HUMAN_REQUIRED`. `session.resume` is the only action that clears the paused state/reason.
+`require-human` pauses the session (`paused=true`). While paused, all forwarded actions (`debug.log`, browser actions, `tab.*`) return `HUMAN_REQUIRED`; daemon-local actions (`session.*`, `debug.last`, `debug.status`) remain available. `session.resume` is the only action that clears the paused state/reason.
 
 ## Pairing Bootstrap Route: `POST /pair/claim`
 
@@ -197,11 +197,16 @@ Failure codes:
 - `PAIRING_CODE_CONSUMED`
 - `PAIRING_RATE_LIMITED`
 
+Token activation contract:
+- The `extensionToken` returned by successful `POST /pair/claim` becomes WS-auth valid immediately.
+- Token lifecycle policy is **single-active-token**: daemon accepts only the latest claimed token and invalidates previously accepted extension tokens.
+- Active extension token is persisted at `~/.bproxy/extension-token` (mode `0600`, owner-checked) so daemon restart is transparent: extension can reconnect with the same token without re-pairing.
+
 ## WebSocket Route: `GET /ws`
 
 **File:** `src/routes/ws.ts`
 
-Extension connects here. Multiple clients supported (one per Chrome profile).
+Extension connects here. Multiple clients supported (one per Chrome profile), as long as they authenticate with the currently active extension token.
 
 ```typescript
 app.get('/ws', { websocket: true }, (socket, request) => {
@@ -338,12 +343,15 @@ Sessions are created implicitly on first command with `--session <name>`. Bound 
 1. Check lockfile `~/.bproxy/bproxy.pid` — if process alive, exit with "already running".
 2. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
    - If token file exists with wrong owner or mode, refuse start (fail closed) unless an explicit repair flag is provided.
-3. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
-4. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
-5. Parent writes PID to lockfile, exits 0.
-6. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
+3. Load active extension token from `~/.bproxy/extension-token` (owner + mode `0600` required).
+   - If present, WS auth is immediately available after restart (no re-pair required).
+   - If absent, daemon still starts and waits for a pairing claim.
+4. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
+5. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
+6. Parent writes PID to lockfile, exits 0.
+7. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
 
-At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code—no CLI involvement. See [extension.md](../solution/extension.md) § Pairing.
+At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code when first pairing or when rotating/recovering extension auth. See [extension.md](../solution/extension.md) § Pairing.
 
 ### Shutdown (`bproxy service stop`)
 
@@ -363,6 +371,7 @@ Day-rotated to `~/.bproxy/logs/YYYY-MM-DD.log`. Fastify's built-in pino logger, 
 ├── bproxy.pid          # PID of running daemon
 ├── port                # port number (for CLI to find)
 ├── token               # daemon bearer token for CLI HTTP auth (mode 0600)
+├── extension-token     # active extension WS auth token (mode 0600)
 └── logs/
     └── 2026-05-08.log
 ```
