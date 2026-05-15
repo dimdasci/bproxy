@@ -10,6 +10,7 @@ export interface PairRouteDeps {
 	pairing: PairingStore;
 	logger: Logger;
 	wsUrl: () => string;
+	activateExtensionToken: (token: string) => void;
 }
 
 export function pairRoute(deps: PairRouteDeps) {
@@ -31,6 +32,7 @@ export function pairRoute(deps: PairRouteDeps) {
 				deps.logger.warn({ event: "pair_claim_failed", code: r.code });
 				return reply.code(401).send({ ok: false, error: { code: r.code } });
 			}
+			deps.activateExtensionToken(r.bootstrap.extensionToken);
 			deps.logger.info({ event: "pair_claim_ok" });
 			return { ok: true, data: r.bootstrap };
 		});

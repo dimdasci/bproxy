@@ -21,6 +21,7 @@ export interface BuildServerOptions {
 	pairing?: PairingStore;
 	sessions?: SessionRegistry;
 	traces?: () => readonly DaemonRequestTrace[];
+	onExtensionTokenChanged?: (token: string) => void;
 }
 
 export interface BuiltServer {
@@ -76,6 +77,7 @@ async function registerRoutes(
 	opts: BuildServerOptions,
 	deps: ObjectGraph,
 	getPort: () => number,
+	activateExtensionToken: (token: string) => void,
 ): Promise<void> {
 	await app.register(
 		commandRoute({
@@ -99,6 +101,7 @@ async function registerRoutes(
 			pairing: deps.pairing,
 			logger: opts.logger,
 			wsUrl: () => `ws://127.0.0.1:${getPort()}/ws`,
+			activateExtensionToken,
 		}),
 	);
 	await app.register(
@@ -115,6 +118,7 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 	const app = Fastify({ logger: false });
 	const deps = createDeps(opts);
 
+	let activeExtensionToken = opts.extensionToken;
 	let resolvedPort = opts.port;
 	app.addHook("onListen", async () => {
 		const addr = app.server.address();
@@ -127,7 +131,7 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		makeAuthHook({
 			port: () => resolvedPort,
 			daemonToken: () => opts.daemonToken,
-			extensionToken: () => opts.extensionToken,
+			extensionToken: () => activeExtensionToken,
 			pairingCodes: () => deps.pairing.active(),
 			readBodyPairingCode: (req) => {
 				const body = req.body as { code?: string } | undefined;
@@ -136,7 +140,16 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		}),
 	);
 
-	await registerRoutes(app, opts, deps, () => resolvedPort);
+	await registerRoutes(
+		app,
+		opts,
+		deps,
+		() => resolvedPort,
+		(token) => {
+			activeExtensionToken = token;
+			opts.onExtensionTokenChanged?.(token);
+		},
+	);
 
 	return {
 		app,

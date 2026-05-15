@@ -78,6 +78,9 @@ function checkPairAuth(input: AuthInput): AuthDecision {
 }
 
 function checkWsAuth(input: AuthInput): AuthDecision {
+	if (!input.extensionToken) {
+		return { ok: false, reason: "ws auth not configured" };
+	}
 	const token = parseWsAuth(input.headers["sec-websocket-protocol"]);
 	if (!token || !constantTimeEquals(token, input.extensionToken)) {
 		return { ok: false, reason: "bad ws auth" };

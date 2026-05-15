@@ -31,24 +31,40 @@ export function isAlive(pid: number): boolean {
 	}
 }
 
+function assertOwnerMode600(path: string, errCode: "INSECURE_TOKEN_FILE" | "INSECURE_EXTENSION_TOKEN_FILE"): void {
+	const st = statSync(path);
+	if ((st.mode & 0o777) !== 0o600) {
+		throw new Error(`${errCode}: mode is ${(st.mode & 0o777).toString(8)}, expected 600`);
+	}
+	const uid = process.getuid?.();
+	if (uid !== undefined && st.uid !== uid) {
+		throw new Error(`${errCode}: owned by uid ${st.uid}, expected ${uid}`);
+	}
+}
+
 export function writeToken(config: ServiceConfig): string {
 	ensureStateDir(config);
 	const path = stateFile(config.stateDir, "token");
-	if (existsSync(path)) {
-		const st = statSync(path);
-		if ((st.mode & 0o777) !== 0o600) {
-			throw new Error(
-				`INSECURE_TOKEN_FILE: mode is ${(st.mode & 0o777).toString(8)}, expected 600`,
-			);
-		}
-		const uid = process.getuid?.();
-		if (uid !== undefined && st.uid !== uid) {
-			throw new Error(`INSECURE_TOKEN_FILE: owned by uid ${st.uid}, expected ${uid}`);
-		}
-	}
+	if (existsSync(path)) assertOwnerMode600(path, "INSECURE_TOKEN_FILE");
 	const token = randomBytes(32).toString("hex");
 	writeFileSync(path, token, { mode: 0o600 });
 	return token;
+}
+
+export function readExtensionToken(config: ServiceConfig): string | null {
+	ensureStateDir(config);
+	const path = stateFile(config.stateDir, "extension-token");
+	if (!existsSync(path)) return null;
+	assertOwnerMode600(path, "INSECURE_EXTENSION_TOKEN_FILE");
+	const token = readFileSync(path, "utf8").trim();
+	return token.length > 0 ? token : null;
+}
+
+export function writeExtensionToken(config: ServiceConfig, token: string): void {
+	ensureStateDir(config);
+	const path = stateFile(config.stateDir, "extension-token");
+	if (existsSync(path)) assertOwnerMode600(path, "INSECURE_EXTENSION_TOKEN_FILE");
+	writeFileSync(path, token, { mode: 0o600 });
 }
 
 export function clearToken(config: ServiceConfig): void {
@@ -72,7 +88,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 	ensureStateDir(config);
 	const logger = buildLogger(config);
 	const daemonToken = writeToken(config);
-	const extensionToken = randomBytes(32).toString("base64url");
+	const extensionToken = readExtensionToken(config) ?? "";
 	const pairing = createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const issued = pairing.issue();
 	const built = await buildServer({
@@ -82,6 +98,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 		logger,
 		pairing,
 		sessions: createSessionRegistry(),
+		onExtensionTokenChanged: (token) => writeExtensionToken(config, token),
 	});
 	const addr = await built.app.listen({ host: config.host, port: config.port });
 	const boundPort = Number.parseInt(addr.split(":").pop() ?? String(config.port), 10);

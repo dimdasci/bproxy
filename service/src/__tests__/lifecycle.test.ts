@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
-import { writeToken } from "../lifecycle";
+import { readExtensionToken, writeExtensionToken, writeToken } from "../lifecycle";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, "../../dist/index.mjs");
@@ -93,5 +93,49 @@ describe("token-file security (auth-gate invariant)", () => {
 		expect(() =>
 			writeToken({ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" }),
 		).toThrow(/INSECURE_TOKEN_FILE/);
+	});
+
+	it("writes extension-token with mode 0600", () => {
+		writeExtensionToken(
+			{ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" },
+			"ext-token",
+		);
+		const st = statSync(join(home, "extension-token"));
+		expect(st.mode & 0o777).toBe(0o600);
+	});
+
+	it("refuses INSECURE_EXTENSION_TOKEN_FILE when existing extension-token is world-readable", () => {
+		const tokenPath = join(home, "extension-token");
+		writeFileSync(tokenPath, "deadbeef", { mode: 0o644 });
+		chmodSync(tokenPath, 0o644);
+		expect(() =>
+			writeExtensionToken(
+				{ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" },
+				"ext-token",
+			),
+		).toThrow(/INSECURE_EXTENSION_TOKEN_FILE/);
+	});
+
+	it("reads persisted extension-token when mode/owner are secure", () => {
+		writeExtensionToken(
+			{ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" },
+			"persisted-ext-token",
+		);
+		const token = readExtensionToken({
+			stateDir: home,
+			host: "127.0.0.1",
+			port: 9615,
+			logLevel: "info",
+		});
+		expect(token).toBe("persisted-ext-token");
+	});
+
+	it("refuses reading insecure extension-token file", () => {
+		const tokenPath = join(home, "extension-token");
+		writeFileSync(tokenPath, "persisted-ext-token", { mode: 0o644 });
+		chmodSync(tokenPath, 0o644);
+		expect(() =>
+			readExtensionToken({ stateDir: home, host: "127.0.0.1", port: 9615, logLevel: "info" }),
+		).toThrow(/INSECURE_EXTENSION_TOKEN_FILE/);
 	});
 });
