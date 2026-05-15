@@ -2797,8 +2797,12 @@ Current lifecycle tests confirm boot/shutdown basics but not full command contra
 
 - [ ] **Step E1: Add contract tests in** `service/src/__tests__/lifecycle-contract.test.ts`.
 - [ ] **Step E2: Assert `start` fails cleanly when daemon already running** (no duplicate daemon spawn).
-- [ ] **Step E3: Assert `start -> status -> stop -> status` with same `BPROXY_HOME` gives expected state transitions.
-- [ ] **Step E4: Assert lock/token/port file semantics around shutdown are consistent with spec (best-effort cleanup + running-state truth).
+  - second `start` in same `BPROXY_HOME` exits non-zero and reports "already running" (or equivalent locked-state message).
+- [ ] **Step E3: Assert `start -> status -> stop -> status` with same `BPROXY_HOME` gives expected state transitions.**
+  - readiness boundary: once daemon is listening and `port` is written, `status` must report `running: true` with live `pid` and valid `port`.
+- [ ] **Step E4: Assert lock/token/port file semantics around shutdown are consistent with spec (best-effort cleanup + running-state truth).**
+  - stale lock handling: dead PID in lockfile must be treated as recoverable on next `start`.
+  - `status` truth is liveness-based: if PID is not alive, report `running: false` even if stale files remain.
 
 ### Close-out criteria for Task 16
 

@@ -253,26 +253,29 @@ export default defineCommand({
     'enable-debugger-mode': { type: 'boolean', description: 'Allow chrome.debugger attachment', default: false },
   },
   async run({ args }) {
-    // 1. Check if already running (read PID file, check process)
-    // 2. Spawn service/dist/index.mjs as detached child
-    //    Pass config via env vars: BPROXY_PORT, BPROXY_ALLOW_EVAL, BPROXY_ENABLE_DEBUGGER
-    // 3. Daemon startup generates token and writes ~/.bproxy/token (mode 0600)
-    // 4. Write PID to ~/.bproxy/bproxy.pid
-    // 5. Wait for port file to appear (daemon is listening)
+    // 1. Resolve BPROXY_HOME (state directory scope)
+    // 2. If lockfile PID is alive: fail cleanly (non-zero, already running)
+    // 3. If lockfile PID is dead: treat as stale lock and recover
+    // 4. Spawn service/dist/index.mjs as detached child
+    // 5. Wait until daemon readiness boundary (pid alive + valid port file)
     // 6. Output { ok: true, data: { pid, port, pairingCode, pairingExpiresAt } }
-    //    pairingCode is one-time, short TTL (5 min), single-use
-    //    Copy displayed for user to paste into extension popup—no CLI call to /pair/claim
   },
 });
 ```
 
+Expected behavior:
+- Same `BPROXY_HOME`: exactly one daemon instance. Second `start` returns non-zero with a clear "already running" style message.
+- Different `BPROXY_HOME`: independent daemon lifecycles.
+
 ### `bproxy service stop`
 
-Read PID → send SIGTERM → wait for exit → clean up lockfile.
+Read PID → if alive send SIGTERM → best-effort cleanup of lock/port/token files.
+If daemon is already gone, return success with `running: false` semantics on next `status`.
 
 ### `bproxy service status`
 
-Read PID → check if alive → read port → report.
+Read PID → check process liveness → read port.
+`running: true` only when PID exists and process is alive. If PID is missing/invalid/dead, report `running: false` (even when stale files remain).
 
 ## Pairing workflow
 

@@ -348,25 +348,33 @@ Sessions are created implicitly on first command with `--session <name>`. Bound 
 
 ### Startup (`bproxy service start`)
 
-1. Check lockfile `~/.bproxy/bproxy.pid` — if process alive, exit with "already running".
-2. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
-   - If token file exists with wrong owner or mode, refuse start (fail closed) unless an explicit repair flag is provided.
-3. Load active extension token from `~/.bproxy/extension-token` (owner + mode `0600` required).
+Lifecycle is scoped to the selected state directory (`BPROXY_HOME`, default `~/.bproxy`). Exactly one daemon instance is allowed per state directory.
+
+1. Read lockfile `~/.bproxy/bproxy.pid`.
+2. If PID exists and process is alive, fail cleanly with non-zero exit (already running).
+3. If PID exists but process is dead, treat as stale lock, remove stale state, continue.
+4. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
+   - If token file exists with wrong owner or mode, refuse start (fail closed).
+5. Load active extension token from `~/.bproxy/extension-token` (owner + mode `0600` required).
    - If present, WS auth is immediately available after restart (no re-pair required).
    - If absent, daemon still starts and waits for a pairing claim.
-4. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
-5. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
-6. Parent writes PID to lockfile, exits 0.
-7. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
+6. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
+7. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
+8. Parent writes child PID to lockfile and exits 0.
+9. Child builds Fastify server, listens, then writes `~/.bproxy/port`.
+
+**Readiness boundary:** startup is considered ready when the daemon process is alive and `~/.bproxy/port` contains a valid bound port. `status` must report `running: true` at this point.
 
 At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code when first pairing or when rotating/recovering extension auth. See [extension.md](../solution/extension.md) § Pairing.
 
 ### Shutdown (`bproxy service stop`)
 
 1. Read PID from lockfile.
-2. Send `SIGTERM`.
+2. If PID is alive, send `SIGTERM`.
 3. Daemon catches `SIGTERM` → `fastify.close()` → drains connections → exits.
-4. CLI removes lockfile.
+4. Remove lockfile and transient files (`port`, daemon token) best-effort.
+
+**Status truth model:** `status` returns `running: false` when lockfile is missing, PID is invalid, or PID is not alive (even if stale files remain).
 
 ### Logs
 
