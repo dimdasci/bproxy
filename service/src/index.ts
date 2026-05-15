@@ -6,7 +6,7 @@ async function main(): Promise<number> {
 	const config = loadConfig();
 	switch (cmd) {
 		case "start": {
-			startDetached(config);
+			await startDetached(config);
 			return 0;
 		}
 		case "daemonize": {
@@ -14,7 +14,7 @@ async function main(): Promise<number> {
 			return 0;
 		}
 		case "stop": {
-			stop(config);
+			await stop(config);
 			return 0;
 		}
 		case "status": {
@@ -28,4 +28,10 @@ async function main(): Promise<number> {
 	}
 }
 
-void main().then((code) => process.exit(code));
+void main()
+	.then((code) => process.exit(code))
+	.catch((error: unknown) => {
+		const message = error instanceof Error ? error.message : String(error);
+		process.stderr.write(`${message}\n`);
+		process.exit(1);
+	});

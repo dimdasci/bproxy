@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,6 +129,37 @@ describe("lifecycle contract - GAP E", () => {
 
 			expect(output.code).not.toBe(0);
 			expect(output.stdout + output.stderr).toMatch(/already running|locked|in use/i);
+
+			const stopChild = spawn(process.execPath, [BIN, "stop"], {
+				env: { ...process.env, BPROXY_HOME: home },
+				stdio: "ignore",
+			});
+			await new Promise((resolve) => stopChild.once("exit", resolve));
+		});
+
+		it("recovers from stale pid/port files and starts cleanly", { timeout: 20000 }, async () => {
+			writeFileSync(join(home, "bproxy.pid"), "999999");
+			writeFileSync(join(home, "port"), "12345");
+
+			const startChild = spawn(process.execPath, [BIN, "start"], {
+				env: { ...process.env, BPROXY_HOME: home, BPROXY_PORT: "0" },
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			const code = await new Promise<number | null>((resolve) =>
+				startChild.once("exit", (c) => resolve(c)),
+			);
+			expect(code).toBe(0);
+
+			const out = spawnSync(process.execPath, [BIN, "status"], {
+				env: { ...process.env, BPROXY_HOME: home },
+				encoding: "utf8",
+			});
+			expect(out.status).toBe(0);
+			const parsed = JSON.parse(out.stdout) as { running: boolean; pid?: number; port?: number };
+			expect(parsed.running).toBe(true);
+			expect(parsed.pid).toBeGreaterThan(0);
+			expect(parsed.port).toBeGreaterThan(0);
+			expect(parsed.port).not.toBe(12345);
 
 			const stopChild = spawn(process.execPath, [BIN, "stop"], {
 				env: { ...process.env, BPROXY_HOME: home },
