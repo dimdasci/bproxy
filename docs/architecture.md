@@ -30,6 +30,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + scroll.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
+- **Session authority lives in the daemon** — `tabId`, `pacing`, `paused`, and `pauseReason` are daemon-owned in-memory state; extension executes forwarded browser actions but does not own session lifecycle.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
 - **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
 - **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
@@ -51,7 +52,7 @@ Implementation: [solution/service.md](./solution/service.md)
 
 Chrome Manifest V3 extension. Three runtime layers:
 
-- **Background service worker** — WebSocket client to the daemon, request routing, tab/session management, frame table, keepalive, popup message handler.
+- **Background service worker** — WebSocket client to the daemon, request routing, tab/runtime context management, frame table, keepalive, popup message handler.
 - **Content script** (ISOLATED world, injected programmatically on first command per tab) — DOM reads, `direct`/`paste` writes, scroll, stability polling.
 - **Popup** — pairing code entry, token storage. No options page.
 
@@ -152,7 +153,9 @@ Errors use a single RFC 9457-aligned envelope:
 | `wait`       | Strategies: `selector` / `url` / `navigation`. DOM polling.                          |
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
 | `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
-| `tab` / `session` | Lifecycle and configuration verbs.                                              |
+| `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
+
+Routing details and contract: [solution/service.md#action-routing-and-session-contract](./solution/service.md#action-routing-and-session-contract).
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon log view (last N request lifecycles).                                     |
 | `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |

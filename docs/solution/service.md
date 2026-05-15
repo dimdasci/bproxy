@@ -115,6 +115,41 @@ app.post('/', {
 
 The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires.
 
+## Action Routing and Session Contract
+
+### Session authority
+
+Daemon is the source of truth for session state (`tabId`, `pacing`, `paused`, `pauseReason`).
+This state is in-memory only and resets on daemon restart.
+
+### Routing matrix
+
+| Action family | Handled by daemon | Forwarded to extension |
+|---|---:|---:|
+| `debug.last`, `debug.status` | ✅ | ❌ |
+| `session.list`, `session.bind`, `session.unbind`, `session.resume` | ✅ | ❌ |
+| `debug.log` | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `fill`, `tab.*`, ...) | ❌ | ✅ |
+
+### `session.*` semantics
+
+- `session.list` — returns daemon's current in-memory session snapshot.
+- `session.bind` — must work even when session is currently unbound; sets `tabId`; optional `pacing` updates mode.
+- `session.unbind` — clears `tabId`; idempotent.
+- `session.resume` — clears paused state/reason; idempotent.
+
+### Preconditions and error precedence
+
+- `session.*` actions do **not** require WS connection and do **not** require a bound tab.
+- Forwarded actions require a connected WS client and a bound tab.
+- Error precedence for forwarded actions is:
+  1. `NO_EXTENSION` when no WS client is connected.
+  2. `TAB_NOT_FOUND` when WS exists but session has no bound tab (or pinned tab is gone).
+
+### Pause/resume contract
+
+`require-human` pauses the session (`paused=true`). While paused, forwarded actions should return `HUMAN_REQUIRED`. `session.resume` is the only action that clears the paused state/reason.
+
 ## Pairing Bootstrap Route: `POST /pair/claim`
 
 **File:** `src/routes/pair.ts`
