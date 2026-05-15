@@ -82,6 +82,7 @@ async function registerRoutes(
 			dispatch: deps.dispatch,
 			pacing: deps.pacing,
 			logger: opts.logger,
+			sessions: deps.sessions,
 			debug: {
 				clients: deps.clients,
 				sessions: deps.sessions,

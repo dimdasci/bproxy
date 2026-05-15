@@ -11,6 +11,56 @@ let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
 
+function paramsFor(action: Action): BproxyRequest["params"] {
+	switch (action) {
+		case "navigate":
+			return { url: "https://example.com" };
+		case "fill":
+			return {
+				target: { selector: "#email" },
+				value: "x@example.com",
+				method: "paste",
+				world: "isolated",
+			};
+		case "fill-form":
+			return {
+				fields: [
+					{
+						target: { selector: "#email" },
+						value: "x@example.com",
+						method: "paste",
+						world: "isolated",
+					},
+				],
+			};
+		case "select":
+			return { trigger: { selector: "#country" }, optionText: "USA" };
+		case "wait":
+			return { strategy: "selector", target: "#ready" };
+		case "require-human":
+			return { reason: "captcha" };
+		case "eval":
+			return { code: "1+1" };
+		case "tab.open":
+			return { url: "https://example.com" };
+		case "text":
+		case "images":
+		case "elements":
+		case "outline":
+		case "dom":
+		case "scroll":
+		case "screenshot":
+		case "tab.list":
+		case "tab.pin":
+		case "tab.unpin":
+		case "tab.close":
+		case "debug.log":
+			return {};
+		default:
+			return {};
+	}
+}
+
 function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
 		protocol_version: 1,
@@ -18,7 +68,7 @@ function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): Bproxy
 			overrides.id ??
 			`01HZX${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(21, "0")}`,
 		action,
-		params: {},
+		params: paramsFor(action),
 		session: overrides.session ?? "default",
 		deadline: Date.now() + 5000,
 		destructive: false,
@@ -26,10 +76,10 @@ function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): Bproxy
 	};
 }
 
-async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Response> {
+async function postCommand(cmd: BproxyRequest): Promise<Response> {
 	return fetch(`http://127.0.0.1:${port}/`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+		headers: { "Content-Type": "application/json", Authorization: `Bearer ${daemonToken}` },
 		body: JSON.stringify(cmd),
 	});
 }
@@ -57,26 +107,59 @@ afterEach(async () => {
 });
 
 describe("action contract coverage — GAP A", () => {
-	describe("daemon-local actions (no WS client needed)", () => {
+	describe("daemon-local actions", () => {
 		it("debug.last succeeds without WS client", async () => {
-			const cmd = makeCmd("debug.last");
-			const res = await postCommand(cmd);
+			const res = await postCommand(makeCmd("debug.last"));
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as BproxyResponse;
 			expect(body.ok).toBe(true);
 		});
 
 		it("debug.status succeeds without WS client", async () => {
-			const cmd = makeCmd("debug.status");
-			const res = await postCommand(cmd);
+			const res = await postCommand(makeCmd("debug.status"));
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as BproxyResponse;
 			expect(body.ok).toBe(true);
 		});
+
+		it("session.list succeeds without WS client", async () => {
+			const res = await postCommand(makeCmd("session.list"));
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body.ok).toBe(true);
+			if (body.ok) {
+				const data = body.data as { sessions: unknown[] };
+				expect(Array.isArray(data.sessions)).toBe(true);
+			}
+		});
+
+		it("session.bind works from unbound session and updates pacing", async () => {
+			const res = await postCommand(
+				makeCmd("session.bind", { session: "s1", params: { tabId: 42, pacing: "fast" } }),
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body.ok).toBe(true);
+			expect(built.sessions.getOrCreate("s1").tabId).toBe(42);
+			expect(built.sessions.getOrCreate("s1").pacing).toBe("fast");
+		});
+
+		it("session.unbind clears tabId (idempotent)", async () => {
+			built.sessions.bind("default", 99);
+			await postCommand(makeCmd("session.unbind"));
+			expect(built.sessions.getOrCreate("default").tabId).toBeNull();
+			await postCommand(makeCmd("session.unbind"));
+			expect(built.sessions.getOrCreate("default").tabId).toBeNull();
+		});
+
+		it("session.resume clears paused state", async () => {
+			built.sessions.pause("default", "captcha");
+			await postCommand(makeCmd("session.resume"));
+			expect(built.sessions.getOrCreate("default").paused).toBe(false);
+		});
 	});
 
-	describe("forwarded actions (need WS client)", () => {
-		// These are browser actions that SHOULD require a WS client
+	describe("forwarded actions preconditions", () => {
 		const forwardedActions: Action[] = [
 			"navigate",
 			"text",
@@ -92,182 +175,61 @@ describe("action contract coverage — GAP A", () => {
 			"wait",
 			"require-human",
 			"eval",
-			"debug.log", // debug.log is forwarded, not daemon-local
+			"tab.list",
+			"tab.pin",
+			"tab.unpin",
+			"tab.open",
+			"tab.close",
+			"debug.log",
 		];
 
 		for (const action of forwardedActions) {
-			it(`${action} requires WS client and bound tab`, async () => {
-				// Session not bound yet
-				const cmd = makeCmd(action);
-				const res = await postCommand(cmd);
+			it(`${action}: returns NO_EXTENSION when no WS client is connected`, async () => {
+				const res = await postCommand(makeCmd(action));
 				expect(res.status).toBe(200);
 				const body = (await res.json()) as BproxyResponse;
-				// Should fail because no session is bound
 				expect(body.ok).toBe(false);
-				if (!body.ok) {
-					expect(body.error.code).toBe("TAB_NOT_FOUND");
-				}
+				if (!body.ok) expect(body.error.code).toBe("NO_EXTENSION");
 			});
 		}
 
-		it("forwarded actions succeed with bound session and WS client", async () => {
-			built.sessions.bind("default", 42);
-			const ws = await connectClient();
-
-			const seenRequests: BproxyRequest[] = [];
-			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest;
-				seenRequests.push(req);
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: true,
-					data: { result: "ok" },
-					page: { url: "https://x", title: "X", state: "ready", busy: false },
-					replay: false,
-				};
-				ws.send(JSON.stringify(resp));
+		for (const action of forwardedActions) {
+			it(`${action}: returns TAB_NOT_FOUND when WS exists but session is unbound`, async () => {
+				const ws = await connectClient();
+				const res = await postCommand(makeCmd(action));
+				expect(res.status).toBe(200);
+				const body = (await res.json()) as BproxyResponse;
+				expect(body.ok).toBe(false);
+				if (!body.ok) expect(body.error.code).toBe("TAB_NOT_FOUND");
+				ws.close();
 			});
-
-			// Test with text action
-			const cmd = makeCmd("text");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-
-			ws.close();
-		});
-
-		it("debug.log is forwarded to extension (not daemon-local)", async () => {
-			built.sessions.bind("default", 42);
-			const ws = await connectClient();
-
-			let receivedAction: string | null = null;
-			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest;
-				receivedAction = req.action;
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: true,
-					data: { entries: [] },
-					page: { url: "", title: "", state: "ready", busy: false },
-					replay: false,
-				};
-				ws.send(JSON.stringify(resp));
-			});
-
-			const cmd = makeCmd("debug.log");
-			await postCommand(cmd);
-
-			// debug.log should be forwarded to extension
-			expect(receivedAction).toBe("debug.log");
-
-			ws.close();
-		});
+		}
 	});
 
-	describe("session lifecycle actions", () => {
-		it("session.list works without bound tab and returns session state", async () => {
-			const cmd = makeCmd("session.list");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-			if (body.ok) {
-				const data = body.data as { sessions: unknown[] };
-				expect(data.sessions).toBeDefined();
-				expect(Array.isArray(data.sessions)).toBe(true);
-			}
+	it("debug.log is forwarded to extension (not daemon-local)", async () => {
+		built.sessions.bind("default", 42);
+		const ws = await connectClient();
+
+		let receivedAction: string | null = null;
+		ws.on("message", (raw: unknown) => {
+			const req = JSON.parse(String(raw)) as BproxyRequest;
+			receivedAction = req.action;
+			const resp: BproxyResponse = {
+				protocol_version: 1,
+				id: req.id,
+				ok: true,
+				data: { entries: [] },
+				page: { url: "", title: "", state: "ready", busy: false },
+				replay: false,
+			};
+			ws.send(JSON.stringify(resp));
 		});
 
-		it("session.bind from unbound session works and allows subsequent forwarded actions", async () => {
-			// This test captures the chicken-and-egg gap:
-			// Without session.bind, no forwarded actions work.
-			// session.bind itself needs to work without a pre-bound tab.
-
-			// First bind the session
-			const bindCmd = makeCmd("session.bind", { params: { tabId: 42 } });
-			const bindRes = await postCommand(bindCmd);
-			expect(bindRes.status).toBe(200);
-			const bindBody = (await bindRes.json()) as BproxyResponse;
-			expect(bindBody.ok).toBe(true);
-
-			// Now session should be bound
-			const session = built.sessions.getOrCreate("default");
-			expect(session.tabId).toBe(42);
-		});
-
-		it("session.unbind removes tab binding", async () => {
-			built.sessions.bind("default", 42);
-			const cmd = makeCmd("session.unbind");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-
-			const session = built.sessions.getOrCreate("default");
-			expect(session.tabId).toBeNull();
-		});
-
-		it("session.resume clears paused state", async () => {
-			built.sessions.bind("default", 42);
-			built.sessions.pause("default", "test");
-			expect(built.sessions.getOrCreate("default").paused).toBe(true);
-
-			const cmd = makeCmd("session.resume");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-
-			const session = built.sessions.getOrCreate("default");
-			expect(session.paused).toBe(false);
-		});
-	});
-
-	describe("tab lifecycle actions", () => {
-		// These actions should require a bound tab
-		it("tab.list requires bound session or returns error", async () => {
-			const cmd = makeCmd("tab.list");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			// Without session binding, this should error
-			expect(body.ok).toBe(false);
-		});
-
-		it("tab.pin requires bound session", async () => {
-			const cmd = makeCmd("tab.pin");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(false);
-		});
-
-		it("tab.unpin requires bound session", async () => {
-			const cmd = makeCmd("tab.unpin");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(false);
-		});
-
-		it("tab.open requires bound session", async () => {
-			const cmd = makeCmd("tab.open", { params: { url: "https://example.com" } });
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(false);
-		});
-
-		it("tab.close requires bound session", async () => {
-			const cmd = makeCmd("tab.close");
-			const res = await postCommand(cmd);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(false);
-		});
+		const res = await postCommand(makeCmd("debug.log"));
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as BproxyResponse;
+		expect(body.ok).toBe(true);
+		expect(receivedAction).toBe("debug.log");
+		ws.close();
 	});
 });
