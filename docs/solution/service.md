@@ -79,7 +79,9 @@ Token model:
 
 Failure at any layer → 401, connection closed.
 
-**Ordering contract (normative):** auth is evaluated at `onRequest`, before body parsing, schema validation, and route logic. If auth fails, daemon returns `401` even when the payload body is malformed or schema-invalid.
+**Ordering contract (normative):** for header-auth routes (`POST /`, `GET /ws`), auth is evaluated at `onRequest`, before body parsing, schema validation, and route logic. If auth fails, daemon returns `401` even when the payload body is malformed or schema-invalid.
+
+`POST /pair/claim` is body-auth for pairing code, so Host/Origin/Sec-Fetch-Site checks run at `onRequest`, while code validation runs after body parse.
 
 ## HTTP Route: `POST /`
 

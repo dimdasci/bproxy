@@ -107,25 +107,41 @@ export function evaluateAuth(input: AuthInput): AuthDecision {
 	return checkWsAuth(input);
 }
 
-export interface AuthHookDeps {
+function evaluateAuthHeadersOnly(input: Omit<AuthInput, "validPairingCodes" | "bodyPairingCode">): AuthDecision {
+	const route = routeFor(input.url, input.method);
+	if (!route) return { ok: false, reason: "unknown route" };
+
+	if (!checkHost(input.headers["host"], input.port)) {
+		return { ok: false, reason: "bad host" };
+	}
+	if (!checkOrigin(input.headers["origin"], route)) {
+		return { ok: false, reason: "bad origin" };
+	}
+	if (!checkFetchSite(input.headers["sec-fetch-site"])) {
+		return { ok: false, reason: "bad sec-fetch-site" };
+	}
+
+	if (route === "command") return checkCommandAuth({ ...input, validPairingCodes: new Set() });
+	if (route === "ws") return checkWsAuth({ ...input, validPairingCodes: new Set() });
+	// /pair/claim pairing code is body-based and validated later once body is parsed.
+	return { ok: true };
+}
+
+export interface HeaderAuthHookDeps {
 	port: () => number;
 	daemonToken: () => string;
 	extensionToken: () => string;
-	pairingCodes: () => Set<string>;
-	readBodyPairingCode: (req: FastifyRequest) => string | undefined;
 }
 
-export function makeAuthHook(deps: AuthHookDeps) {
+export function makeHeaderAuthHook(deps: HeaderAuthHookDeps) {
 	return async function authHook(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-		const decision = evaluateAuth({
+		const decision = evaluateAuthHeadersOnly({
 			url: req.url,
 			method: req.method,
 			headers: req.headers as Record<string, string | undefined>,
 			port: deps.port(),
 			daemonToken: deps.daemonToken(),
 			extensionToken: deps.extensionToken(),
-			validPairingCodes: deps.pairingCodes(),
-			bodyPairingCode: deps.readBodyPairingCode(req),
 		});
 		if (!decision.ok) {
 			return reply

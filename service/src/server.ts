@@ -2,7 +2,7 @@ import type { DaemonRequestTrace } from "@bproxy/shared";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
-import { makeAuthHook } from "./auth";
+import { makeHeaderAuthHook } from "./auth";
 import { createClients } from "./clients";
 import { createDispatch } from "./dispatch";
 import { createPacing } from "./pacing";
@@ -127,16 +127,11 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 
 	await app.register(websocket);
 	app.addHook(
-		"preValidation",
-		makeAuthHook({
+		"onRequest",
+		makeHeaderAuthHook({
 			port: () => resolvedPort,
 			daemonToken: () => opts.daemonToken,
 			extensionToken: () => activeExtensionToken,
-			pairingCodes: () => deps.pairing.active(),
-			readBodyPairingCode: (req) => {
-				const body = req.body as { code?: string } | undefined;
-				return body?.code;
-			},
 		}),
 	);
 
