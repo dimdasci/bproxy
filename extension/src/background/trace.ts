@@ -30,9 +30,8 @@ export function createTrace(opts: TraceOptions): Trace {
 		async append(input) {
 			const stamped: TraceEntry = { ...input, extensionVersion: extensionVersion() };
 			const current = await store.getValue();
-			const next = current.concat(stamped);
 			// Bound from the head: oldest entries fall off first.
-			const trimmed = next.length > maxSize ? next.slice(next.length - maxSize) : next;
+			const trimmed = [...current, stamped].slice(-maxSize);
 			await store.setValue(trimmed);
 		},
 

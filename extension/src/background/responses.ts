@@ -15,6 +15,8 @@ export interface SuccessInput<A extends Action> {
 	replay?: boolean;
 }
 
+// `A` defaults to `Action` because error envelopes carry no `data`; call
+// sites that don't know the action narrowing can use `ErrorInput` directly.
 export interface ErrorInput<A extends Action = Action> {
 	request: BproxyForwardedRequest<A>;
 	error: BproxyError;

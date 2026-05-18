@@ -38,8 +38,8 @@ export function createDedupe(opts: DedupeOptions): Dedupe {
 			if (!entry) return undefined;
 			if (!isFresh(entry, now())) {
 				// Lazy expiry: drop the stale entry as we observe it.
-				const { [id]: _drop, ...rest } = table;
-				void _drop;
+				const rest = { ...table };
+				delete rest[id];
 				await store.setValue(rest);
 				return undefined;
 			}
@@ -65,9 +65,10 @@ export function createDedupe(opts: DedupeOptions): Dedupe {
 	};
 }
 
-// Size-bounded eviction: oldest `ts` first. Periodic alarm-driven purges
-// can be added later; for Task 3 lazy purge on read plus this size guard
-// covers the documented policy.
+// Size-bounded eviction: oldest `ts` first. The full sort is O(n log n)
+// per overflowing `set`, fine while callers keep `maxSize` in the O(10^3)
+// range. Periodic alarm-driven purges can be added later; for Task 3
+// lazy purge on read plus this size guard covers the documented policy.
 function evictIfNeeded(
 	table: Record<string, DedupeEntry>,
 	maxSize: number,
