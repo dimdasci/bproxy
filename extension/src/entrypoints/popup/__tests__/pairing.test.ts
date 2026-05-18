@@ -41,15 +41,11 @@ function makeDeps(overrides: Partial<PairingDeps> = {}): PairingDeps & {
 	const storage = createFakeStorageItem<PairingBootstrap | null>("local:bootstrap", null);
 	const sendMessage = vi.fn(async () => undefined);
 	return {
-		fetch: makeFetch(200, happyBody()) as unknown as typeof globalThis.fetch,
+		fetch: makeFetch(200, happyBody()),
 		storage,
 		sendMessage,
 		now: () => 5000,
 		...overrides,
-		// keep storage/sendMessage references after spread so callers can
-		// observe them even when overriding fetch/now.
-		...(overrides.storage ? { storage: overrides.storage } : {}),
-		...(overrides.sendMessage ? { sendMessage: overrides.sendMessage } : {}),
 	} as PairingDeps & {
 		storage: ReturnType<typeof createFakeStorageItem<PairingBootstrap | null>>;
 		sendMessage: ReturnType<typeof vi.fn>;
@@ -87,7 +83,7 @@ describe("runPairing", () => {
 			fetch: makeFetch(401, {
 				ok: false,
 				error: { code: "PAIRING_CODE_INVALID" },
-			}) as unknown as typeof globalThis.fetch,
+			}),
 		});
 
 		const res = await runPairing({ code: "BAD" }, deps);
@@ -99,10 +95,7 @@ describe("runPairing", () => {
 
 	it("non-loopback wsUrl is rejected with INVALID_WS_URL", async () => {
 		const deps = makeDeps({
-			fetch: makeFetch(
-				200,
-				happyBody({ wsUrl: "ws://example.com:9615/ws" }),
-			) as unknown as typeof globalThis.fetch,
+			fetch: makeFetch(200, happyBody({ wsUrl: "ws://example.com:9615/ws" })),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -114,10 +107,7 @@ describe("runPairing", () => {
 
 	it("wss scheme is rejected with INVALID_WS_URL", async () => {
 		const deps = makeDeps({
-			fetch: makeFetch(
-				200,
-				happyBody({ wsUrl: "wss://127.0.0.1:9615/ws" }),
-			) as unknown as typeof globalThis.fetch,
+			fetch: makeFetch(200, happyBody({ wsUrl: "wss://127.0.0.1:9615/ws" })),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -132,7 +122,7 @@ describe("runPairing", () => {
 			fetch: makeFetch(200, {
 				ok: true,
 				data: { ...happyBody().data, protocolVersion: 2 },
-			}) as unknown as typeof globalThis.fetch,
+			}),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -144,7 +134,7 @@ describe("runPairing", () => {
 
 	it("expiresAt in the past is rejected with BOOTSTRAP_EXPIRED", async () => {
 		const deps = makeDeps({
-			fetch: makeFetch(200, happyBody({ expiresAt: 4000 })) as unknown as typeof globalThis.fetch,
+			fetch: makeFetch(200, happyBody({ expiresAt: 4000 })),
 			now: () => 5000,
 		});
 
@@ -159,7 +149,7 @@ describe("runPairing", () => {
 		const data: Partial<PairingBootstrap> = { ...happyBody().data };
 		delete data.nonce;
 		const deps = makeDeps({
-			fetch: makeFetch(200, { ok: true, data }) as unknown as typeof globalThis.fetch,
+			fetch: makeFetch(200, { ok: true, data }),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -171,7 +161,7 @@ describe("runPairing", () => {
 
 	it("HTTP 500 with malformed JSON is rejected with PAIR_TRANSPORT_ERROR", async () => {
 		const deps = makeDeps({
-			fetch: makeFetch(500, null, { throwOnJson: true }) as unknown as typeof globalThis.fetch,
+			fetch: makeFetch(500, null, { throwOnJson: true }),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -185,7 +175,7 @@ describe("runPairing", () => {
 		const deps = makeDeps({
 			fetch: vi.fn(async () => {
 				throw new TypeError("Failed to fetch");
-			}) as unknown as typeof globalThis.fetch,
+			}),
 		});
 
 		const res = await runPairing({ code: "X" }, deps);
@@ -215,7 +205,7 @@ describe("runPairing", () => {
 			fetch: makeFetch(400, {
 				ok: false,
 				error: { code: "PAIRING_CODE_INVALID", message: "code required" },
-			}) as unknown as typeof globalThis.fetch,
+			}),
 		});
 
 		const res = await runPairing({ code: "" }, deps);

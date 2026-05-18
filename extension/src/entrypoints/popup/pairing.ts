@@ -3,8 +3,8 @@ import type { StorageItem } from "../../background/storage-item";
 
 // Endpoint defaulted in spec to loopback:9615. Kept as a module constant so
 // the popup UI and tests can refer to a single source of truth. If the
-// daemon port ever becomes configurable for extension bootstrap, this is
-// the seam to widen — see Task 4 plan note.
+// daemon port ever becomes configurable for extension bootstrap, widen here
+// (PairingDeps.url already lets callers override).
 export const PAIR_CLAIM_URL = "http://127.0.0.1:9615/pair/claim";
 
 export type PairingErrorCode =
@@ -21,8 +21,20 @@ export type PairingErrorCode =
 
 export type PairingResult = { ok: true } | { ok: false; code: PairingErrorCode; message?: string };
 
+export interface ResponseLike {
+	ok: boolean;
+	status: number;
+	json(): Promise<unknown>;
+}
+
+// Test-shaped fetch seam: structural subset of the platform `fetch` so the
+// real `globalThis.fetch.bind(globalThis)` is structurally assignable
+// without a cast, and tests can supply a tiny fake that only needs `ok`,
+// `status`, and `json()`.
+export type PairingFetch = (url: string, init: RequestInit) => Promise<ResponseLike>;
+
 export interface PairingDeps {
-	fetch: typeof globalThis.fetch;
+	fetch: PairingFetch;
 	storage: StorageItem<PairingBootstrap | null>;
 	sendMessage: (msg: { type: "pair.complete" }) => Promise<unknown>;
 	now: () => number;
@@ -31,12 +43,6 @@ export interface PairingDeps {
 
 export interface PairingRequest {
 	code: string;
-}
-
-interface ResponseLike {
-	ok: boolean;
-	status: number;
-	json(): Promise<unknown>;
 }
 
 type ValidateOk = { ok: true; value: PairingBootstrap };
@@ -68,11 +74,11 @@ export async function runPairing(req: PairingRequest, deps: PairingDeps): Promis
 	let res: ResponseLike;
 	let body: unknown;
 	try {
-		res = (await deps.fetch(url, {
+		res = await deps.fetch(url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ code: req.code }),
-		})) as unknown as ResponseLike;
+		});
 		body = await res.json();
 	} catch {
 		return { ok: false, code: "PAIR_TRANSPORT_ERROR" };
@@ -141,7 +147,9 @@ function validateShape(d: Record<string, unknown>): ValidateOk | ValidateErr {
 	}
 	const wsUrl = d["wsUrl"];
 	if (typeof wsUrl !== "string") {
-		return { ok: false, code: "INVALID_WS_URL", message: "wsUrl missing" };
+		// Type-shape failure ("wsUrl absent or not a string") is `INVALID_PAYLOAD_SHAPE`;
+		// `INVALID_WS_URL` is reserved for semantic failures (non-loopback, non-`ws:`).
+		return { ok: false, code: "INVALID_PAYLOAD_SHAPE", message: "wsUrl missing" };
 	}
 	const protocolVersion = d["protocolVersion"];
 	if (protocolVersion !== 1) {

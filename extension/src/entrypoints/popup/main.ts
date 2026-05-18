@@ -1,5 +1,5 @@
 import { bootstrapItem } from "../../background/storage";
-import { type PairingResult, runPairing } from "./pairing";
+import { type PairingErrorCode, type PairingResult, runPairing } from "./pairing";
 
 // Thin DOM wiring for the pairing popup. All real flow logic lives in
 // `pairing.ts` (testable without jsdom). This file is responsible only for:
@@ -11,7 +11,7 @@ import { type PairingResult, runPairing } from "./pairing";
 //
 // The popup never speaks to the page DOM and never injects MAIN-world code.
 
-const STATUS_FRIENDLY: Record<string, string> = {
+const STATUS_FRIENDLY: Record<PairingErrorCode, string> = {
 	PAIRING_CODE_INVALID: "Code not recognized. Re-issue a code in the daemon and try again.",
 	PAIRING_CODE_EXPIRED: "Code expired. Re-issue a code in the daemon and try again.",
 	PAIRING_CODE_CONSUMED: "Code was already claimed. Issue a fresh code in the daemon.",
@@ -41,7 +41,7 @@ function renderResult(result: PairingResult): void {
 		setStatus("success", "Paired. You can close this popup.");
 		return;
 	}
-	const friendly = STATUS_FRIENDLY[result.code] ?? "Pairing failed.";
+	const friendly = STATUS_FRIENDLY[result.code];
 	const detail = result.message ? ` (${result.message})` : "";
 	setStatus("error", `${friendly} [${result.code}]${detail}`);
 }
