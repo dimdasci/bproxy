@@ -1,6 +1,8 @@
 import { createDedupe, type Dedupe } from "../background/dedupe";
 import { createDispatcher, type Dispatcher, type ExecutedAction } from "../background/dispatcher";
-import { bootstrapItem, dedupeItem, traceItem } from "../background/storage";
+import { createContentInjector } from "../background/injection";
+import { bootstrapItem, dedupeItem, injectedTabsItem, traceItem } from "../background/storage";
+import { createTabRuntime, type TabRuntime } from "../background/tabs";
 import { createTrace } from "../background/trace";
 import {
 	type BadgeState,
@@ -19,10 +21,10 @@ import {
 //   - `chrome.runtime.onMessage` for the popup `pair.complete` signal,
 //   - `chrome.action` badge for connection-state visibility.
 //
-// Task 6 wires dispatcher / dedupe / trace storage into the WS client.
-// The concrete browser-API and content-script handlers still land in later
-// tasks, so this entrypoint currently installs explicit "not implemented"
-// stubs rather than silently dropping requests.
+// Task 6 wired dispatcher / dedupe / trace storage into the WS client.
+// Task 7 adds tab resolution, programmatic content-script injection, and
+// background↔content RPC for DOM actions. Browser-API actions still land
+// in later tasks and remain explicit stubs for now.
 
 const BADGE_COLOR: Record<BadgeState, string> = {
 	disconnected: "#00000000",
@@ -46,12 +48,13 @@ function setBadge(state: BadgeState): void {
 const TRACE_MAX_SIZE = 500;
 const DEDUPE_MAX_SIZE = 1000;
 const DEDUPE_TTL_MS = 10 * 60 * 1000;
+const CONTENT_RPC_TIMEOUT_MS = 5000;
 
 function notImplemented(action: string): Promise<ExecutedAction> {
 	return Promise.reject(new Error(`No extension handler is registered yet for action ${action}`));
 }
 
-function makeDispatcher(client: WsClient): Dispatcher {
+function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 	const trace = createTrace({
 		store: traceItem,
 		maxSize: TRACE_MAX_SIZE,
@@ -72,7 +75,7 @@ function makeDispatcher(client: WsClient): Dispatcher {
 			client.send(JSON.stringify(response));
 		},
 		handleBrowserAction: (request) => notImplemented(request.action),
-		handleDomAction: (request) => notImplemented(request.action),
+		handleDomAction: (request) => tabs.handleDomAction(request),
 	});
 }
 
@@ -105,12 +108,35 @@ function makeDeps(onMessage: (data: unknown) => void): WsClientDeps {
 export default defineBackground(() => {
 	let client!: WsClient;
 	let dispatcher!: Dispatcher;
+	const tabs = createTabRuntime({
+		tabs: {
+			get: (tabId) => chrome.tabs.get(tabId),
+			sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
+			onRemoved: chrome.tabs.onRemoved,
+		},
+		webNavigation: {
+			onCommitted: chrome.webNavigation.onCommitted,
+			onCompleted: chrome.webNavigation.onCompleted,
+			onHistoryStateUpdated: chrome.webNavigation.onHistoryStateUpdated,
+		},
+		injector: createContentInjector({
+			store: injectedTabsItem,
+			scripting: {
+				executeScript: (details) => chrome.scripting.executeScript(details),
+			},
+		}),
+		now: () => Date.now(),
+		setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
+		clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
+		rpcTimeoutMs: CONTENT_RPC_TIMEOUT_MS,
+	});
+	tabs.start();
 	client = createWsClient(
 		makeDeps((data) => {
 			void dispatcher.handleMessage(data);
 		}),
 	);
-	dispatcher = makeDispatcher(client);
+	dispatcher = makeDispatcher(client, tabs);
 	client.start().catch(() => {
 		// `start()` swallows expected branches (skip/reject) via badge state.
 		// An unexpected throw lands here; surface it as the error badge so

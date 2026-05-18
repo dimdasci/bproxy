@@ -8,21 +8,23 @@ title: Phase 3 — Hand-off note for the next session
 
 ## Where we are
 
-- **Branch:** `plan/03-extension` (off `main`, 21 commits ahead).
-- **Tasks complete (6 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`).
-- **Tasks remaining (11):** 7 → 17, in plan order.
+- **Branch:** `plan/03-extension` (off `main`, 22 commits ahead after Task 6 commit; Task 7 changes may still be uncommitted depending on where you resume).
+- **Tasks complete (7 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection).
+- **Tasks remaining (10):** 8 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 7 — Tab resolution, frame table, and programmatic injection.** Read its section in [`03-extension.md`](./03-extension.md#task-7-tab-resolution-frame-table-and-programmatic-injection). Task 6 already wires the WS client to a dispatcher with explicit browser/content handler seams; Task 7 should replace the current "not implemented" DOM path with real tab resolution, injection, and background↔content RPC.
+**Next: Task 8 — Content script RPC and page-state foundation.** Read its section in [`03-extension.md`](./03-extension.md#task-8-content-script-rpc-and-page-state-foundation). Task 7 already replaced the background DOM stub with real tab resolution, injected-tab bookkeeping, a frame table, and background↔content RPC; Task 8 should formalize the content-side contract/handlers beyond the current minimal bridge.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
-- `extension/src/background/storage.ts` — `bootstrapItem` carries `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`; `dedupeItem` and `traceItem` are already wired in the SW.
+- `extension/src/background/storage.ts` — `bootstrapItem` carries `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`; `dedupeItem`, `traceItem`, and `injectedTabsItem` are already wired in the SW.
 - `BproxyForwardedRequest` from `@bproxy/shared` — wire shape with `target.tabId`.
-- `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, traces every accepted request, and expects real browser/DOM handlers to be plugged into its DI seams.
+- `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, and traces every accepted request.
+- `extension/src/background/{injection,tabs}.ts` — Task 7 resolves daemon-targeted tabs, tracks injected tabs in session storage, observes navigation/frame events, injects `content-scripts/content.js` on first use, and routes DOM actions through timeout-bounded RPC.
+- `extension/src/content/rpc.ts` and `extension/src/entrypoints/content.ts` — Task 7 introduced the shared request/response envelope plus a minimal `text` bridge/page snapshot so the injection path is executable; Task 8 should expand this into the real content host.
 - `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket.
 
 ## Workflow rule that survives the context clear
@@ -63,22 +65,21 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 7** needs the `BproxyForwardedRequest.target.tabId` to know which tab to target. The shared type already exists.
-- **Task 7** should replace the current background-entrypoint `notImplemented(...)` stubs with real browser/content routing modules, starting with tab resolution, injected-tab bookkeeping, and content RPC.
-- **Task 8** will define the runtime content-script message contract consumed by Task 7's RPC layer.
+- **Task 8** should replace Task 7's intentionally tiny content bridge with a proper `content/rpc.ts` host contract, normalized DOM error handling, and consistent page-state snapshots.
+- **Task 8** can build on Task 7's existing RPC envelope rather than inventing a new background→content transport.
 - **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
 
 ## Decisions worth remembering across the clear
 
 - **Bootstrap is one atomic record**, not multiple `chrome.storage.local` keys. Use `bootstrapItem.setValue(...)` / `bootstrapItem.getValue()` — never `chrome.storage.local.set({ token, ... })`.
-- **Pairing module convention:** all side-effects DI'd via a typed `*Deps` interface, no global `chrome.*` / `Date.now()` / `fetch` calls. Tests inject in-memory fakes. Repeat this pattern for the WS client, dispatcher, and content RPC.
+- **Pairing/module convention:** all side-effects DI'd via a typed `*Deps` interface where practical, no hidden global `Date.now()` / `fetch` dependencies in core logic. Tests inject in-memory fakes. Task 7 followed this for `injection.ts` / `tabs.ts`; Task 8 should keep content helpers similarly factored.
 - **Popup is a directory entrypoint** (`popup/index.html` + `popup/main.ts`) because WXT 0.20 rejects same-basename siblings. The plan's text still says flat `popup.html`/`popup.ts` — the directory form is canonical.
 - **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 7 (common scope drift)
+## Things NOT to do in Task 8 (common scope drift)
 
-- Don't add DOM action logic beyond the minimum RPC/injection substrate; read/write handlers start in Tasks 8–14.
+- Don't add discovery/write behaviour beyond the content-host and page-state foundation; rich read/write handlers still start in Tasks 9–14.
 - Don't add MAIN-world helpers (Task 13).
 - Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make content RPC convenient.

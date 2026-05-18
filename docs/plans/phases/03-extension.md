@@ -241,16 +241,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 7: Tab resolution, frame table, and programmatic injection
 
+**Status:** ✅ Complete — local workspace. Added `tabs.ts`, `injection.ts`, and `content/rpc.ts`; wired tab resolution/injection/content RPC into the background entrypoint; and covered first injection, no reinjection, cleanup, navigation invalidation, timeout, and missing-tab paths in `extension/src/background/__tests__/{injection,tabs}.test.ts`.
+
 **Files:** `extension/src/background/tabs.ts`, `extension/src/background/injection.ts`, `extension/src/entrypoints/background.ts`, tests.
 
 **Purpose:** Make the daemon-owned target tab executable inside Chrome.
 
-- [ ] Resolve the target tab from forwarded metadata; return `TAB_NOT_FOUND` when Chrome no longer has it.
-- [ ] Maintain an injected-tab set in `chrome.storage.session`; clear entries when tabs close or navigation invalidates the content script.
-- [ ] Inject the runtime content script on first command per tab using `chrome.scripting.executeScript`; never rely on declarative manifest content scripts.
-- [ ] Track frame/navigation events needed for SPA readiness and future frame targeting; keep this table observational only.
-- [ ] Implement background↔content RPC with request id correlation and per-request timeout.
-- [ ] Test first-use injection, no reinjection on second command, tab-close cleanup, and content-RPC timeout.
+- [x] Resolve the target tab from forwarded metadata; return `TAB_NOT_FOUND` when Chrome no longer has it.
+- [x] Maintain an injected-tab set in `chrome.storage.session`; clear entries when tabs close or navigation invalidates the content script.
+- [x] Inject the runtime content script on first command per tab using `chrome.scripting.executeScript`; never rely on declarative manifest content scripts.
+- [x] Track frame/navigation events needed for SPA readiness and future frame targeting; keep this table observational only.
+- [x] Implement background↔content RPC with request id correlation and per-request timeout.
+- [x] Test first-use injection, no reinjection on second command, tab-close cleanup, and content-RPC timeout.
 
 **Done when:** a forwarded `text` request can target the daemon-specified tab after exactly one programmatic injection.
 
