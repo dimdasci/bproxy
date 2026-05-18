@@ -20,6 +20,7 @@ export type {
 } from "./errors";
 export type {
 	BproxyErrorResponse,
+	BproxyForwardedRequest,
 	BproxyRequest,
 	BproxyResponse,
 	BproxySuccessResponse,

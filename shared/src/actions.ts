@@ -82,6 +82,9 @@ export interface TraceEntry {
 	result: "ok" | "error";
 	errorCode?: string;
 	replay: boolean;
+	/** Extension build version. Used to detect stale-build entries served
+	 *  from a ring buffer after the extension was reloaded. */
+	extensionVersion: string;
 }
 
 export interface DaemonRequestTrace {
