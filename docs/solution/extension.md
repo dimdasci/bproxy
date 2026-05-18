@@ -543,6 +543,8 @@ Lazy-attached only when `--trusted` or `--debugger` flags used. Yellow banner ac
 Ring buffer in `chrome.storage.session` with version stamps to eliminate stale-build confusion.
 
 ```typescript
+// Defined in @bproxy/shared (see shared.md). The extension fills the ring
+// buffer; the daemon serves it back to the CLI via `debug.log`.
 interface TraceEntry {
   id: string;
   action: string;
@@ -552,9 +554,13 @@ interface TraceEntry {
   result: 'ok' | 'error';
   errorCode?: string;
   replay: boolean;
-  extensionVersion: string;  // NEW: for stale-build detection
+  extensionVersion: string;  // stale-build detection
 }
 ```
+
+### Inbound wire shape
+
+The extension parses **forwarded** requests (`BproxyForwardedRequest` from `@bproxy/shared`), not raw `BproxyRequest`. The daemon-owned `target.tabId` tells the background SW which tab to route to without re-resolving session state. Responses echo the bare `BproxyResponse` (no target).
 
 ---
 

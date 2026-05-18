@@ -150,13 +150,19 @@ This state is in-memory only and resets on daemon restart.
 
 - `session.*` actions do **not** require WS connection and do **not** require a bound tab.
 - Forwarded actions require a connected WS client and a bound tab.
-- Error precedence for forwarded actions is:
+- Error precedence for forwarded actions (normative, evaluated in this order):
   1. `NO_EXTENSION` when no WS client is connected.
-  2. `TAB_NOT_FOUND` when WS exists but session has no bound tab (or pinned tab is gone).
+  2. `HUMAN_REQUIRED` when the session is `paused` — daemon refuses the action without forwarding. Refusal carries the recorded `pauseReason`.
+  3. `TAB_NOT_FOUND` when WS exists but session has no bound tab (or pinned tab is gone).
+  4. Otherwise, the request is wrapped as a `BproxyForwardedRequest` (CLI envelope + `target.tabId` resolved from session state) and sent to the extension.
+
+### Forwarded request shape
+
+Daemon→extension messages carry a daemon-owned `target.tabId`. The CLI HTTP input is the bare `BproxyRequest` (no target); the daemon wraps it as `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }` at the dispatch site. `session.*`, `debug.last`, and `debug.status` are handled daemon-locally and never carry `target`. Rebinding (`session.bind` with a new `tabId`) is immediate: the very next forwarded request picks up the new tab.
 
 ### Pause/resume contract
 
-`require-human` pauses the session (`paused=true`). While paused, all forwarded actions (`debug.log`, browser actions, `tab.*`) return `HUMAN_REQUIRED`; daemon-local actions (`session.*`, `debug.last`, `debug.status`) remain available. `session.resume` is the only action that clears the paused state/reason.
+When the extension returns a `HUMAN_REQUIRED` error envelope to a forwarded action, the daemon mutates session state to `paused = true` and records the extension-supplied `error.message` as `pauseReason`. While paused, every forwarded action (`debug.log`, browser actions, `tab.*`) is refused with `HUMAN_REQUIRED` by the daemon-side gate above and never reaches the WS; daemon-local actions (`session.*`, `debug.last`, `debug.status`) remain available. `session.resume` clears the paused state and reason. `session.unbind` from `paused` also clears both the tab binding and the pause flag.
 
 ## Pairing Bootstrap Route: `POST /pair/claim`
 

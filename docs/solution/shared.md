@@ -36,6 +36,15 @@ export interface BproxyRequest<A extends Action = Action> {
   destructive: boolean;
 }
 
+// Daemon → extension wire shape. The CLI's HTTP input is `BproxyRequest`;
+// the daemon owns the mapping session → tabId and wraps the request with
+// `target.tabId` at the dispatch site. Only forwarded actions (browser,
+// tab.*, debug.log) use this shape — daemon-local actions (session.*,
+// debug.last, debug.status) never carry a target.
+export type BproxyForwardedRequest<A extends Action = Action> = BproxyRequest<A> & {
+  target: { tabId: number };
+};
+
 export interface BproxySuccessResponse<A extends Action = Action> {
   protocol_version: 1;
   id: string;
@@ -301,6 +310,9 @@ export interface Heading {
   text: string;
 }
 
+// Extension-side ring buffer entry. Carries `extensionVersion` so the CLI
+// can detect stale-build entries served after the extension was reloaded.
+// Distinct from `DaemonRequestTrace` (daemon-side `debug.last` shape).
 export interface TraceEntry {
   id: string;
   action: string;
@@ -310,6 +322,7 @@ export interface TraceEntry {
   result: 'ok' | 'error';
   errorCode?: string;
   replay: boolean;
+  extensionVersion: string;
 }
 
 export interface DaemonRequestTrace {
