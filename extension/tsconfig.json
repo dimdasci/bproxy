@@ -1,8 +1,10 @@
 {
-	"extends": "../tsconfig.base.json",
+	"extends": ["../tsconfig.base.json", "./.wxt/tsconfig.json"],
 	"compilerOptions": {
-		"rootDir": "src",
-		"outDir": "dist"
+		"rootDir": ".",
+		"outDir": "dist",
+		"types": ["chrome"],
+		"noPropertyAccessFromIndexSignature": false
 	},
-	"include": ["src"]
+	"include": ["src", ".wxt/**/*"]
 }

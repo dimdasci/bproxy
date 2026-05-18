@@ -4,9 +4,18 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"dev": "wxt",
+		"build": "wxt build",
+		"build:firefox": "wxt build -b firefox",
+		"postinstall": "wxt prepare",
+		"typecheck": "wxt prepare && tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"devDependencies": {
-		"typescript": "^5.8.3"
+		"@types/chrome": "^0.0.287",
+		"typescript": "^5.8.3",
+		"vitest": "^2.1.8",
+		"wxt": "^0.20.26"
 	}
 }
