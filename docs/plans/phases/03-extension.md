@@ -1,0 +1,444 @@
+---
+title: Phase 3 — Extension
+---
+
+> **For implementers:** this is a work-decomposition plan, not a code transcript. Keep tasks small, test from the boundary inward, and update the views/docs when the implementation settles.
+
+**Goal:** Ship `@bproxy/extension` — a loadable Chrome MV3 extension built with WXT that pairs with the Phase 2 daemon, maintains an authenticated WebSocket connection, executes browser-side action primitives, and exposes extension-side traces through `debug.log`.
+
+**Strategy:** Close the daemon↔extension contract gaps first, then build the extension in three layers: background service worker transport, content-script DOM primitives, and browser API actions. Design assertions are as important as happy-path behaviour: read mode must stay quiet, writes must use the selected method exactly, MAIN-world execution must be one-shot, and the bundle must not introduce MutationObserver or default web-accessible resources.
+
+**Spec:** [`docs/solution/extension.md`](../../solution/extension.md).
+**Roadmap entry:** [Phase 3 in roadmap.md](../roadmap.md#phase-3--extension).
+**Current system context:** [`docs/views/02-containers.md`](../../views/02-containers.md), [`docs/views/04-session-state.md`](../../views/04-session-state.md), [`docs/views/06-threat-model.md`](../../views/06-threat-model.md).
+
+**Decisions that constrain this phase:**
+
+- [ADR-001](../../decisions.md#adr-001-default-instrumentation-strategy--read-mode) — programmatic injection only; no default MAIN-world presence.
+- [ADR-002](../../decisions.md#adr-002-extension-framework--wxt) — WXT.
+- [ADR-006](../../decisions.md#adr-006-dom-polling-over-mutationobserver) — jittered, visibility-aware DOM polling; no MutationObserver.
+- [ADR-007](../../decisions.md#adr-007-three-method-write-contract) — `direct` / `paste` / `runtime-api`, no `auto`.
+- [ADR-009](../../decisions.md#adr-009-observability-as-a-first-class-design-constraint) — request `id` is the correlation key.
+- [ADR-011](../../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing) — popup-driven pairing.
+- [ADR-013](../../decisions.md#adr-013-main-world-runtime-api-writes), [ADR-015](../../decisions.md#adr-015-main-world-hygiene-contract), [ADR-016](../../decisions.md#adr-016-web_accessible_resources-default-deny) — MAIN-world and exposure hygiene.
+- [ADR-014](../../decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting), [ADR-017](../../decisions.md#adr-017-sensoractuator-boundary), [ADR-018](../../decisions.md#adr-018-agent-guidance-ownership) — route-based targeting and no extension-side strategy.
+
+---
+
+## Locked outcomes for this phase
+
+1. **`extension/.output/chrome-mv3/` is loadable in Chrome.** The manifest has the required permissions and action popup, but no declarative `content_scripts` and no default `web_accessible_resources`.
+2. **Popup pairing works against the real daemon route.** The popup claims a pairing code through `POST /pair/claim`, validates the bootstrap payload, stores `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`, and notifies the background service worker.
+3. **Background service worker maintains daemon WebSocket.** It reconnects after close/SW restart, authenticates with `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(token)}`, sends app-level pings, handles daemon replay without re-executing deduped destructive requests, and exposes connection state via action badge text/color.
+4. **Programmatic content-script injection is per tab.** The content script is injected only on first command for a tab; reads and `direct`/`paste` writes run in ISOLATED world.
+5. **All forwarded actions from the shared `Action` union are handled by the extension:** `navigate`, reads (`text`, `images`, `elements`, `outline`, `dom`), `scroll`, `screenshot`, `fill`, `fill-form`, `select`, `wait`, `require-human`, `eval`, `tab.*`, and `debug.log`. `session.*`, `debug.last`, and `debug.status` remain daemon-local and must not have extension handlers.
+6. **The extension remains a sensor+actuator.** It returns honest capability/result data and errors; it does not select fill methods, retry with another method, classify sites, or cache strategy between calls.
+7. **Extension ring buffer is queryable.** `debug.log` returns recent trace entries filtered by `id` and/or `limit`, including request id, action, target tab, elapsed time, result/error, replay flag, and extension build/version stamp.
+8. **Design-asserted tests/checks exist:**
+   - production bundle contains no `MutationObserver` reference;
+   - manifest contains no declarative `content_scripts` and no `web_accessible_resources` by default;
+   - `paste` fill dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` and does not synthesize key events;
+   - `runtime-api` and `eval` use `chrome.scripting.executeScript` with `world: "MAIN"` only on demand;
+   - MAIN-world injected functions catch/normalize errors and contain no identifying literals;
+   - duplicate request ids return cached responses rather than executing twice.
+9. **Docs and views are updated.** `extension/README.md`, any necessary `docs/solution/*.md` contract updates, and the views integration task below are committed. `pnpm views:regen` produces an updated `docs/views/auto/extension-components.svg`, and the Container/Threat views link/describes the shipped extension surface.
+10. **Static gates pass from a clean checkout:** `pnpm check`, `pnpm test`, and `pnpm docs:build`.
+
+---
+
+## Contract seams to close before browser work
+
+Phase 2 intentionally proved the daemon using a mock WS client. Building the real extension exposes two wire-contract seams that must be resolved at the start of Phase 3:
+
+1. **Target tab metadata is not currently on the WS request.** The daemon owns `session → tabId`, but the forwarded `BproxyRequest` contains only `session`. A real extension cannot know which tab to navigate, inject, or capture from that alone. Phase 3 must add an explicit daemon→extension forwarded-request shape, preferably in `@bproxy/shared` (for example `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }`), and update service dispatch/pending tests accordingly. The CLI-facing HTTP request should remain `BproxyRequest`.
+2. **`HUMAN_REQUIRED` needs daemon pause integration — both halves are currently missing.**
+   - **Trigger half:** nothing in `service/src/routes/command.ts` or `service/src/dispatch.ts` calls `sessions.pause()` when a forwarded response is `ok:false && error.code === "HUMAN_REQUIRED"`. `SessionRegistry.pause()` exists (`service/src/sessions.ts:40-44`) but is never invoked.
+   - **Gate half:** `dispatch.send` only refuses forwarded actions when `session.tabId === null` (`service/src/dispatch.ts:90-97`). It does not read `session.paused`, so even today a manually paused session is not actually refused. This contradicts `docs/views/04-session-state.md:29,39` and `docs/solution/service.md:159`. The `workflows.test.ts` pause/resume workflow explicitly comments this as a known gap.
+   - Both halves must land in Task 1; tests must assert the gate (forwarded action count does not increase while paused) in addition to the state mutation.
+3. **Trace entry shape must match docs.** `docs/solution/extension.md` adds `extensionVersion` to ring-buffer entries, while the current shared `TraceEntry` type does not. Align shared types and daemon schemas before implementing `debug.log`.
+
+These are not feature creep; they are required for the extension to implement the architecture as written.
+
+---
+
+## File structure introduced/modified this phase
+
+```
+extension/
+├── package.json                    # MODIFIED — WXT, build/test scripts, deps
+├── tsconfig.json                   # MODIFIED — WXT/browser types
+├── wxt.config.ts                   # NEW — manifest, srcDir, permissions, no WAR/content_scripts
+├── vitest.config.ts                # NEW — unit test config
+├── README.md                       # NEW
+└── src/
+    ├── entrypoints/
+    │   ├── background.ts           # NEW — MV3 service worker entry
+    │   ├── content.ts              # NEW — runtime ISOLATED content script
+    │   ├── popup.html              # NEW
+    │   └── popup.ts                # NEW
+    ├── background/
+    │   ├── ws-client.ts            # NEW — daemon connection/reconnect/subprotocol auth
+    │   ├── dispatcher.ts           # NEW — request routing + dedupe + traces
+    │   ├── storage.ts              # NEW — typed local/session storage wrappers
+    │   ├── tabs.ts                 # NEW — tab resolution, frame table, tab.* actions
+    │   ├── injection.ts            # NEW — programmatic content-script injection
+    │   ├── browser-actions.ts      # NEW — navigate/screenshot/require-human/eval glue
+    │   ├── main-world.ts           # NEW — one-shot runtime-api/eval execution helpers
+    │   └── trace.ts                # NEW — ring buffer
+    ├── content/
+    │   ├── rpc.ts                  # NEW — background↔content message contract
+    │   ├── page-state.ts           # NEW — url/title/state/busy snapshot
+    │   ├── targeting.ts            # NEW — ElementTarget/ElementRoute resolver
+    │   ├── discovery.ts            # NEW — shadow-aware element discovery
+    │   ├── polling.ts              # NEW — jittered DOM stability polling
+    │   ├── events.ts               # NEW — native setter + paste-event helpers
+    │   └── actions/
+    │       ├── reads.ts            # NEW — text/images/elements/outline/dom
+    │       ├── scroll-wait.ts      # NEW — scroll + wait
+    │       ├── fill.ts             # NEW — direct/paste/fill-form
+    │       └── select.ts           # NEW
+    └── test/
+        ├── fakes/                  # NEW — fakeBrowser/WebSocket/chrome helpers
+        └── fixtures/               # NEW — DOM fixtures for content tests
+shared/src/protocol.ts              # MODIFIED if forwarded-request metadata is added
+shared/src/actions.ts               # MODIFIED if TraceEntry is aligned
+service/src/dispatch.ts             # MODIFIED to attach target tab metadata
+service/src/pending.ts              # MODIFIED if pending stores forwarded requests
+service/src/routes/command.ts        # MODIFIED if HUMAN_REQUIRED pause is missing
+docs/solution/*.md                  # MODIFIED for resolved contract seams
+docs/views/*.md                     # MODIFIED in views task
+docs/views/auto/extension-components.svg
+```
+
+WXT should be configured with `srcDir: "src"` so entrypoints live under `extension/src/**` and are visible to dependency-cruiser. If WXT constraints force root-level `entrypoints/`, update `views/scripts/regen.ts`, `.dependency-cruiser.cjs`, and `docs/solution/extension.md` in the same task so the architecture tooling scans the real source tree.
+
+---
+
+## Task 1: Contract alignment with Phase 2 daemon
+
+**Files:** `shared/src/protocol.ts`, `shared/src/actions.ts`, `service/src/dispatch.ts`, `service/src/pending.ts`, `service/src/routes/command.ts`, `service/src/schemas.ts`, related tests, `docs/solution/shared.md`, `docs/solution/service.md`, `docs/solution/extension.md`.
+
+**Purpose:** Make the daemon→extension wire contract executable by a real extension before any browser code depends on ambiguous state.
+
+- [ ] Add an explicit forwarded-request type in `@bproxy/shared` (e.g. `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }`) carrying daemon-owned target tab metadata. Keep the CLI HTTP input type (`BproxyRequest`) unchanged. The extension-side parser/schema for inbound forwarded requests must consume this shared type, not duplicate it.
+- [ ] Update `service/src/dispatch.ts` so every forwarded browser/tab/`debug.log` action sent over WS wraps the request with the current `tabId` from daemon session state. The `tabId` is already resolved at the existing tab-lock site; reuse it.
+- [ ] Keep `session.*`, `debug.last`, and `debug.status` daemon-local (no forwarded envelope, no `target.tabId`).
+- [ ] Add service tests proving that rebinding a session changes the `target.tabId` on the very next forwarded request.
+- [ ] **HUMAN_REQUIRED — trigger:** after a forwarded response is `ok:false && error.code === "HUMAN_REQUIRED"`, call `sessions.pause(cmd.session, error.message)` before returning the response to the CLI.
+- [ ] **HUMAN_REQUIRED — gate:** in `dispatch.send`, refuse forwarded actions on paused sessions with a `HUMAN_REQUIRED` error envelope **before** the `tabId === null` check, so the precedence is paused → unbound → forward.
+- [ ] Document that precedence in `docs/solution/service.md` (currently silent at the "Error precedence for forwarded actions" bullet around line 153).
+- [ ] Fix `SessionRegistry.unbind` in `service/src/sessions.ts` to clear `paused`/`pauseReason` so behavior matches `docs/views/04-session-state.md:39` ("`session.unbind` is allowed from `paused` too — it both clears the tab and drops the pause flag"). Alternative: amend the view if the intent is the opposite — but pick one in this task.
+- [ ] Update the existing pause/resume workflow test in `service/src/__tests__/workflows.test.ts` to remove the "gap" comment and assert that the extension `commandCount` does **not** increase while the session is paused, then resumes correctly after `session.resume`.
+- [ ] Align `TraceEntry` in `shared/src/actions.ts` with the extension trace requirements (add `extensionVersion: string`), and update schemas/tests. Confirm `DaemonRequestTrace` is left untouched (it is the `debug.last` shape, not the extension ring buffer).
+- [ ] Reconcile all affected solution docs (`docs/solution/shared.md`, `docs/solution/service.md`, `docs/solution/extension.md`) so Phase 4 CLI does not inherit stale assumptions.
+
+**Done when:**
+- a mock WS client receives forwarded requests with `target.tabId` matching the daemon's current `session.tabId`;
+- a forwarded `HUMAN_REQUIRED` response mutates daemon session state to `paused = true` with the reason captured;
+- subsequent forwarded actions on the paused session return `HUMAN_REQUIRED` from the daemon **without** being sent to the WS client (asserted by `commandCount` not increasing);
+- `session.resume` clears the pause and the next forwarded action goes through;
+- `session.unbind` from `paused` clears both the tab binding and the pause flag.
+
+---
+
+## Task 2: Bootstrap WXT extension package
+
+**Files:** `extension/package.json`, `extension/wxt.config.ts`, `extension/tsconfig.json`, `extension/vitest.config.ts`, `extension/src/entrypoints/*`, `extension/README.md`.
+
+**Purpose:** Replace the stub package with a buildable MV3 extension shell.
+
+- [ ] Add WXT, Vitest, WXT/browser test helpers, and browser typings.
+- [ ] Configure manifest permissions: `tabs`, `scripting`, `webNavigation`, `alarms`, `storage`; include `debugger` only if the optional screenshot escalation is implemented behind its flag.
+- [ ] Set `host_permissions: ["<all_urls>"]`, action popup, and no default `content_scripts`/`web_accessible_resources`.
+- [ ] Create empty-but-loadable background, runtime content script, and popup entrypoints.
+- [ ] Wire scripts: `dev`, `build`, `typecheck`, `test`, and any `test:browser`/smoke command chosen for local Chrome verification.
+- [ ] Write a short README explaining purpose, public entrypoints, local development, and how to load `.output/chrome-mv3/`.
+
+**Done when:** `pnpm --filter @bproxy/extension build` emits `.output/chrome-mv3/`, Chrome accepts the unpacked extension, and `pnpm check` still sees extension sources through dependency-cruiser/knip.
+
+---
+
+## Task 3: Storage, trace, and response helpers
+
+**Files:** `extension/src/background/storage.ts`, `extension/src/background/trace.ts`, shared test fakes.
+
+**Purpose:** Establish the typed local/session storage and response envelope helpers used by every later task.
+
+- [ ] Define storage keys for pairing bootstrap, dedupe table, injected tabs, optional domain/config flags, and trace ring buffer.
+- [ ] Implement bounded trace append/query with `id` filter and `limit`; include extension build/version stamp.
+- [ ] Implement response/error builders that preserve request id/protocol version and always include page state for successful responses.
+- [ ] Define dedupe entry shape `{ response, ts }` and TTL/size eviction policy.
+- [ ] Unit-test ring-buffer bounds, filter semantics, and stale dedupe eviction.
+
+**Done when:** `debug.log` can later be implemented by reading this trace store with no action-specific knowledge.
+
+---
+
+## Task 4: Popup pairing flow
+
+**Files:** `extension/src/entrypoints/popup.html`, `extension/src/entrypoints/popup.ts`, `extension/src/background/storage.ts`, popup tests.
+
+**Purpose:** Let the user bootstrap extension auth without a manual token-entry options page.
+
+- [ ] Build a minimal form accepting the one-time pairing code.
+- [ ] POST `{ code }` to `http://127.0.0.1:9615/pair/claim` initially; if the daemon port is later made configurable for extension bootstrap, document and implement that path together.
+- [ ] Validate payload shape, loopback `wsUrl`, `protocolVersion === 1`, future `expiresAt`, and nonce presence.
+- [ ] Store the bootstrap payload in `chrome.storage.local` and send `pair.complete` to the background worker.
+- [ ] Show clear success/failure state in the popup; no interactive prompts outside the popup.
+- [ ] Test validation failures without a real daemon by mocking `fetch` and storage.
+
+**Done when:** the popup can pair against a running Phase 2 daemon and the background worker receives a reconnect trigger.
+
+---
+
+## Task 5: Background WebSocket client and badge state
+
+**Files:** `extension/src/background/ws-client.ts`, `extension/src/entrypoints/background.ts`, storage tests.
+
+**Purpose:** Maintain the daemon connection across normal closes and MV3 service-worker restarts.
+
+- [ ] On SW startup, read stored bootstrap payload; connect only when token and loopback WS URL are valid.
+- [ ] Authenticate with subprotocols `bproxy.v1` and `auth.{base64url(extensionToken)}`.
+- [ ] Implement exponential backoff with cap and reset-on-open.
+- [ ] Register `chrome.alarms` keepalive and app-level ping/pong or send-level heartbeat compatible with daemon behaviour.
+- [ ] React to `pair.complete` by re-reading storage and reconnecting immediately.
+- [ ] Update badge state for disconnected/connecting/connected/error in a compact, non-noisy way.
+- [ ] Unit-test URL/token validation, subprotocol construction, reconnect schedule, and pair-complete reconnect.
+
+**Done when:** killing/restarting the daemon or forcing a SW restart results in reconnect without re-pairing when `extension-token` is still valid on the daemon side.
+
+---
+
+## Task 6: Background dispatcher, dedupe, and `debug.log`
+
+**Files:** `extension/src/background/dispatcher.ts`, `extension/src/background/trace.ts`, `extension/src/entrypoints/background.ts`, dispatcher tests.
+
+**Purpose:** Convert daemon WS messages into exactly-once extension executions and responses.
+
+- [ ] Parse forwarded requests, reject malformed messages with normalized protocol errors where possible.
+- [ ] Check dedupe before dispatch; duplicates return cached responses and mark `replay: true` without re-running destructive actions.
+- [ ] Route `debug.log` directly to the trace ring buffer.
+- [ ] Route browser API actions to background modules and DOM actions to the content script.
+- [ ] Append one trace entry per request with elapsed time and final result.
+- [ ] Send a response for every accepted request, even when action execution throws.
+- [ ] Unit-test duplicate destructive requests, duplicate read requests, handler throw normalization, and `debug.log` filtering.
+
+**Done when:** daemon replay-on-reconnect can safely resend an in-flight request and the extension replies from cache if it already executed that request.
+
+---
+
+## Task 7: Tab resolution, frame table, and programmatic injection
+
+**Files:** `extension/src/background/tabs.ts`, `extension/src/background/injection.ts`, `extension/src/entrypoints/background.ts`, tests.
+
+**Purpose:** Make the daemon-owned target tab executable inside Chrome.
+
+- [ ] Resolve the target tab from forwarded metadata; return `TAB_NOT_FOUND` when Chrome no longer has it.
+- [ ] Maintain an injected-tab set in `chrome.storage.session`; clear entries when tabs close or navigation invalidates the content script.
+- [ ] Inject the runtime content script on first command per tab using `chrome.scripting.executeScript`; never rely on declarative manifest content scripts.
+- [ ] Track frame/navigation events needed for SPA readiness and future frame targeting; keep this table observational only.
+- [ ] Implement background↔content RPC with request id correlation and per-request timeout.
+- [ ] Test first-use injection, no reinjection on second command, tab-close cleanup, and content-RPC timeout.
+
+**Done when:** a forwarded `text` request can target the daemon-specified tab after exactly one programmatic injection.
+
+---
+
+## Task 8: Content script RPC and page-state foundation
+
+**Files:** `extension/src/entrypoints/content.ts`, `extension/src/content/rpc.ts`, `extension/src/content/page-state.ts`, content tests.
+
+**Purpose:** Build the ISOLATED-world execution host before adding action logic.
+
+- [ ] Define the content-message contract separately from the daemon wire contract.
+- [ ] Register one message listener in the runtime content script; no page-global listeners or MAIN-world state.
+- [ ] Return page state (`url`, `title`, loading/ready/error, busy) consistently.
+- [ ] Normalize thrown DOM errors into shared error envelopes.
+- [ ] Test unknown action, handler throw, page-state snapshot, and message correlation.
+
+**Done when:** background can call a trivial content handler and receive a typed success/error response plus page state.
+
+---
+
+## Task 9: Targeting and shadow-aware discovery primitives
+
+**Files:** `extension/src/content/targeting.ts`, `extension/src/content/discovery.ts`, fixtures/tests.
+
+**Purpose:** Implement the route-based targeting substrate shared by reads, writes, and select.
+
+- [ ] Resolve `ElementTarget` as exactly one of light-DOM selector or open-shadow-root route.
+- [ ] Treat closed shadow roots as out of scope and return `ELEMENT_NOT_FOUND`/target error, not a fallback guess.
+- [ ] Implement stable selector generation for discovered interactive elements.
+- [ ] Implement progressive, intent-scoped discovery: active element chain, visible dialogs/popovers, viewport hit-test/candidate root, scoped subtree.
+- [ ] Probe runtime editor handles only inside a candidate root; no whole-page recursive scans.
+- [ ] Test nested open shadow roots, missing hosts, closed-shadow behaviour, ambiguous selectors, labels/placeholders/options, and runtime-handle markers.
+
+**Done when:** an `elements` result can be fed back directly as an `ElementTarget` to `fill` or `select`.
+
+---
+
+## Task 10: Read action handlers
+
+**Files:** `extension/src/content/actions/reads.ts`, `extension/src/content/discovery.ts`, tests.
+
+**Purpose:** Ship the read-mode surface that covers most agent workflows without MAIN-world presence.
+
+- [ ] `text`: extract visible-ish `innerText` from selector/route or `body` default.
+- [ ] `images`: return visible images with `src`, `alt`, natural/rendered dimensions scoped by selector when provided.
+- [ ] `elements`: return interactive controls and, with `form: true`, form fields only.
+- [ ] `outline`: return landmarks and heading hierarchy.
+- [ ] `dom`: serialize a simplified subtree with bounded depth and no script/style noise.
+- [ ] Keep all reads in ISOLATED world and avoid persistent observers/listeners.
+- [ ] Test each action against DOM fixtures, including shadow-root targets and bounded output.
+
+**Done when:** the extension can satisfy the daemon action-contract read set without touching MAIN world.
+
+---
+
+## Task 11: DOM polling, wait, and scroll
+
+**Files:** `extension/src/content/polling.ts`, `extension/src/content/actions/scroll-wait.ts`, tests.
+
+**Purpose:** Implement page-settle behaviour in the low-signal way specified by ADR-006.
+
+- [ ] Implement jittered polling with injected random/clock hooks for deterministic tests.
+- [ ] Support stability by element-count/subtree signature, bounded timeout, and stable-count threshold.
+- [ ] Respect visibility: destructive actions bail with `TAB_NOT_VISIBLE` when `document.visibilityState === "hidden"` unless the action is explicitly marked as user-initiated in future protocol metadata.
+- [ ] `scroll`: compute pixel distance from `by`/`direction`, perform `window.scrollBy`, optionally wait until stable, return before/after/scrolled/stable.
+- [ ] `wait`: implement selector, URL, and navigation strategies using polling rather than MutationObserver.
+- [ ] Test jitter range, timeout, hidden-tab bail-out, selector wait, URL wait, and scroll result math.
+
+**Done when:** source and built output remain free of `MutationObserver`, and scroll/wait behave deterministically in tests with injected time.
+
+---
+
+## Task 12: ISOLATED-world writes — `direct`, `paste`, `fill-form`, `select`
+
+**Files:** `extension/src/content/events.ts`, `extension/src/content/actions/fill.ts`, `extension/src/content/actions/select.ts`, tests.
+
+**Purpose:** Execute the explicit write method the agent selected, without extension-side escalation.
+
+- [ ] `direct`: set native DOM state for inputs/textareas/contenteditable; dispatch no input/change/key events.
+- [ ] `paste`: focus, use the native value setter where applicable, dispatch paste-flavoured `beforeinput`, `input`, and `change`; never synthesize keydown/keypress/keyup.
+- [ ] Validate method/world compatibility: `direct` and `paste` require `world: "isolated"`; `runtime-api` is rejected here and handled by the background MAIN-world path.
+- [ ] `fill-form`: process fields in one round-trip, guard hidden/non-actionable fields, verify read-back per field. Do not add extension-level method selection.
+- [ ] `select`: click trigger, poll for menu/listbox/options, click matching option text, verify selection.
+- [ ] Test native setters, event payloads, no-key-event invariant, hidden-field guard, read-back verification, and shadow-route targets.
+
+**Done when:** framework-friendly paste semantics are asserted by tests and direct writes remain event-free.
+
+---
+
+## Task 13: MAIN-world one-shot actions — `runtime-api` and `eval`
+
+**Files:** `extension/src/background/main-world.ts`, `extension/src/background/browser-actions.ts`, tests.
+
+**Purpose:** Provide explicit MAIN-world capability without creating a persistent page fingerprint.
+
+- [ ] `fill` with `method: "runtime-api"` must require `world: "main"` and execute exactly one `chrome.scripting.executeScript` call with `world: "MAIN"`.
+- [ ] The injected runtime-api function resolves only the provided route/handle, calls the editor API, verifies when possible, catches all errors, and returns plain data only.
+- [ ] The injected function body must contain no identifying literals such as extension id, `chrome-extension`, package names, or bproxy branding.
+- [ ] `eval` remains disabled unless the daemon/extension config explicitly enables it. If Phase 2 lacks an eval flag, implement default `EVAL_DISABLED` and document the Phase 4 wiring required to turn it on.
+- [ ] Test executeScript arguments, one-shot/no-listener behaviour, normalized error path, no identifying literals, and disabled eval.
+
+**Done when:** MAIN-world execution is observable in tests only as a single Chrome API call per request and cannot leak raw extension stack/errors into page code.
+
+---
+
+## Task 14: Background browser actions — navigation, screenshot, tabs, human handoff
+
+**Files:** `extension/src/background/browser-actions.ts`, `extension/src/background/tabs.ts`, tests.
+
+**Purpose:** Implement actions that use Chrome extension APIs rather than content-script DOM logic.
+
+- [ ] `navigate`: call `chrome.tabs.update(tabId, { url })`, wait for load/navigation completion, then check interstitial patterns.
+- [ ] `screenshot`: use `chrome.tabs.captureVisibleTab`; implement debugger capture only behind an explicit opt-in flag, otherwise return `DEBUGGER_DISABLED` for debugger requests.
+- [ ] `tab.list`: return Chrome tabs with current session binding/injected status where available from forwarded metadata/local injected set.
+- [ ] `tab.open` / `tab.close`: use Chrome tabs API and return shared results.
+- [ ] `tab.pin` / `tab.unpin`: resolve/echo target tab state without taking ownership of daemon session state. If one-command session pinning is required, update daemon/service docs rather than mutating extension-only state.
+- [ ] `require-human`: return a structured `HUMAN_REQUIRED` error/signal with reason and suggested action; rely on daemon pause integration from Task 1.
+- [ ] Test navigation success/failure, screenshot normal path, debugger-disabled path, tab-not-found paths, and interstitial-to-human-required mapping.
+
+**Done when:** browser-API actions do not require a content script except where explicitly needed for page state.
+
+---
+
+## Task 15: Local integration smoke against daemon + Chrome
+
+**Files:** extension test harness/scripts, optional local fixture page, docs notes.
+
+**Purpose:** Prove the real extension can talk to the real daemon, not just unit fakes.
+
+- [ ] Start the daemon in a temp `BPROXY_HOME` and issue a pairing code.
+- [ ] Load `.output/chrome-mv3/` in a local Chrome profile.
+- [ ] Pair through the popup, verify daemon sees a WS client, and bind a known local tab.
+- [ ] Run a small fixture workflow: `text`, `elements`, `fill` paste, `scroll`, `debug.log` by id.
+- [ ] Restart/close the SW or daemon and verify reconnect/replay behaviour manually or with an automated browser harness if stable.
+- [ ] Document the exact smoke commands in `extension/README.md`.
+
+**Done when:** a developer can reproduce the smoke without external websites or bot-protection surfaces.
+
+---
+
+## Task 16: Design assertions and quality gates
+
+**Files:** extension tests, package scripts, optional scripts under `extension/scripts/`.
+
+**Purpose:** Turn architectural constraints into automated checks.
+
+- [ ] Add a post-build/static test that scans `.output/chrome-mv3/` for forbidden `MutationObserver` references.
+- [ ] Add a manifest test asserting no declarative `content_scripts` and no `web_accessible_resources` unless a future ADR changes that.
+- [ ] Add tests for paste event shape, MAIN-world executeScript shape, and dedupe replay.
+- [ ] Ensure `pnpm --filter @bproxy/extension test`, `build`, and `typecheck` run cleanly.
+- [ ] Run root `pnpm check` and resolve dependency-cruiser/knip issues without weakening architecture rules.
+
+**Done when:** the phase's design constraints fail fast in CI/local checks, not by manual review only.
+
+---
+
+## Task 17: Views and documentation integration
+
+**Files:** `docs/views/02-containers.md`, `docs/views/06-threat-model.md`, `docs/views/auto/extension-components.svg`, `docs/solution/extension.md`, `docs/solution/shared.md`, `docs/solution/service.md`, `extension/README.md`.
+
+**Purpose:** Make the visual architecture describe the implementation that now exists.
+
+- [ ] Run `pnpm views:regen` and commit the updated `docs/views/auto/extension-components.svg`.
+- [ ] Update `docs/views/02-containers.md`:
+  - add a `click Ext "../auto/extension-components.svg"` directive;
+  - replace “Inside the Extension: coming in Phase 3” with a real link;
+  - adjust the caption if target-tab metadata or forwarded-request shape changed.
+- [ ] Update `docs/views/06-threat-model.md` from “extension-side threats out of scope” to a Phase 3 extension surface section covering storage tokens, WS auth, content-script isolation, MAIN-world hygiene, ring-buffer leakage, screenshot/debugger opt-in, and WAR default-deny.
+- [ ] If Task 1 changes request shapes or pause semantics, update relevant view `sources` frontmatter so `views:audit` reports the right views when protocol/service/extension files change.
+- [ ] Update `docs/solution/extension.md` with actual layout/config choices and any deliberate deviations from the original WXT layout.
+- [ ] Update `docs/solution/shared.md` / `docs/solution/service.md` for forwarded-request metadata, TraceEntry shape, and HUMAN_REQUIRED pause handling if changed.
+- [ ] Run `pnpm views:audit`, `pnpm docs:build`, and verify the SVG is served from `views/public/views/auto/`.
+
+**Done when:** the Container view drills into the generated extension component graph and the Threat view no longer describes extension risks as future work.
+
+---
+
+## Final verification checklist
+
+- [ ] `pnpm --filter @bproxy/extension build` emits a loadable `.output/chrome-mv3/`.
+- [ ] Popup pairing works against a real daemon and persists a token usable after SW restart.
+- [ ] WS reconnect and daemon replay are safe due to dedupe.
+- [ ] Every forwarded action has an extension handler or documented gated error (`EVAL_DISABLED`, `DEBUGGER_DISABLED`).
+- [ ] Read actions and `direct`/`paste` writes stay in ISOLATED world.
+- [ ] `runtime-api` writes and gated `eval` use MAIN world one-shot only.
+- [ ] `debug.log` returns extension trace entries by id/limit.
+- [ ] Design-assertion tests cover no MutationObserver, no default WAR/content scripts, paste event shape, MAIN-world hygiene, and dedupe.
+- [ ] `extension/README.md` and affected solution docs are updated.
+- [ ] Views task is complete: regenerated extension SVG, Container click link, Threat view update.
+- [ ] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
+
+---
+
+## Out of scope for Phase 3
+
+- CLI command UX and argument parsing. Phase 4 owns `bproxy` commands.
+- Agent-side fill-method selection guidance beyond keeping `docs/skills/fill-method-selection.md` references accurate. The extension must not implement method selection.
+- Real-site scenario validation against Google/LinkedIn/application forms. Phase 5 owns external scenario hardening.
+- Closed shadow-root support.
+- Network shims or stealth patches.
+- Public docs deployment.
+- Making `chrome.debugger` the default screenshot path; it remains opt-in.
