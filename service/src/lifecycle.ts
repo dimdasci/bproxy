@@ -99,7 +99,11 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boole
 	return !isAlive(pid);
 }
 
-async function waitForDaemonReady(config: ServiceConfig, pid: number, timeoutMs: number): Promise<void> {
+async function waitForDaemonReady(
+	config: ServiceConfig,
+	pid: number,
+	timeoutMs: number,
+): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() <= deadline) {
 		if (!isAlive(pid)) {

@@ -2750,67 +2750,67 @@ git commit -m "docs: mark Phase 2 (Daemon) as done"
 
 Current tests cover selected actions (`debug.status`, `text`) but do not prove route-level behavior for all action families (`session.*`, `tab.*`, forwarding vs daemon-local, tab-binding requirements).
 
-- [ ] **Step A1: Add a table-driven contract test file** `service/src/__tests__/action-contract.test.ts`.
-- [ ] **Step A2: Encode expected behavior per action family**:
+- [x] **Step A1: Add a table-driven contract test file** `service/src/__tests__/action-contract.test.ts`.
+- [x] **Step A2: Encode expected behavior per action family**:
   - daemon-local: `debug.last`, `debug.status`
   - forwarded: `debug.log`, browser actions
   - session lifecycle: `session.bind`, `session.unbind`, `session.resume`, `session.list`
   - tab lifecycle: `tab.list`, `tab.pin`, `tab.unpin`, `tab.open`, `tab.close`
-- [ ] **Step A3: Assert preconditions and outcomes** per row:
+- [x] **Step A3: Assert preconditions and outcomes** per row:
   - needs WS client?
   - needs bound tab?
   - expected success/error code.
-- [ ] **Step A4: Ensure at least one test proves `session.bind` works from an unbound session** (catches chicken-and-egg regressions in dispatch).
+- [x] **Step A4: Ensure at least one test proves `session.bind` works from an unbound session** (catches chicken-and-egg regressions in dispatch).
 
 ### Gap B — Missing end-to-end workflow tests
 
 Unit tests validate components in isolation, but they do not prove realistic state transitions.
 
-- [ ] **Step B1: Add workflow tests in** `service/src/__tests__/workflows.test.ts`.
-- [ ] **Step B2: Add flow: unbound session → `session.bind` → normal forwarded action**; assert full success path.
-- [ ] **Step B3: Add flow: pause/human-required state → `session.resume` → next command continues**.
-- [ ] **Step B4: Add flow: tab reassignment updates routing target** (if session is rebound, next forwarded command goes to new tab context).
+- [x] **Step B1: Add workflow tests in** `service/src/__tests__/workflows.test.ts`.
+- [x] **Step B2: Add flow: unbound session → `session.bind` → normal forwarded action**; assert full success path.
+- [x] **Step B3: Add flow: pause/human-required state → `session.resume` → next command continues**.
+- [x] **Step B4: Add flow: tab reassignment updates routing target** (if session is rebound, next forwarded command goes to new tab context).
 
 ### Gap C — Auth ordering is not proven at server-hook level
 
 Current checks validate auth decisions, but not enough against accidental Fastify hook-stage drift.
 
-- [ ] **Step C1: Add integration assertions to** `service/src/__tests__/round-trip.test.ts` (or new `auth-ordering.test.ts`) that fail if auth is moved too late in request lifecycle.
-- [ ] **Step C2: Add negative tests with valid request payload + missing/invalid auth** and assert handler-side effects do not occur.
-- [ ] **Step C3: Add malformed JSON + invalid auth case** and assert status is `401` (not `400`) to prove auth runs before body parsing.
-- [ ] **Step C4: Add positive control with identical payload + valid auth** to prove rejection reason is auth-only.
-- [ ] **Step C5: Keep this test coupled to documented requirement in `service.md` (auth gate at `onRequest`, before parse/validation/route logic).**
+- [x] **Step C1: Add integration assertions to** `service/src/__tests__/round-trip.test.ts` (or new `auth-ordering.test.ts`) that fail if auth is moved too late in request lifecycle.
+- [x] **Step C2: Add negative tests with valid request payload + missing/invalid auth** and assert handler-side effects do not occur.
+- [x] **Step C3: Add malformed JSON + invalid auth case** and assert status is `401` (not `400`) to prove auth runs before body parsing.
+- [x] **Step C4: Add positive control with identical payload + valid auth** to prove rejection reason is auth-only.
+- [x] **Step C5: Keep this test coupled to documented requirement in `service.md` (auth gate at `onRequest`, before parse/validation/route logic).**
 
 ### Gap D — Observability contract is only partially asserted
 
 Tests currently assert a subset of lifecycle events; spec documents a broader event contract.
 
-- [ ] **Step D1: Add an observability contract test file** `service/src/__tests__/observability-contract.test.ts` (or extend round-trip tests).
-- [ ] **Step D2: For forwarded happy path, assert sequence and fields:** `received` → `pacing_wait?` → `forwarded` → `response`.
-- [ ] **Step D3: For deadline expiry, assert `timeout` event with request `id` and elapsed fields.**
-- [ ] **Step D4: For reconnect replay, assert `replay` event with request `id` and `ws_client`.**
-- [ ] **Step D5: For pacing-mode change, assert `pacing_config` event with `session` and `mode`.**
+- [x] **Step D1: Add an observability contract test file** `service/src/__tests__/observability-contract.test.ts` (or extend round-trip tests).
+- [x] **Step D2: For forwarded happy path, assert sequence and fields:** `received` → `pacing_wait?` → `forwarded` → `response`.
+- [x] **Step D3: For deadline expiry, assert `timeout` event with request `id` and elapsed fields.**
+- [x] **Step D4: For reconnect replay, assert `replay` event with request `id` and `ws_client`.**
+- [x] **Step D5: For pacing-mode change, assert `pacing_config` event with `session` and `mode`.**
 
 ### Gap E — Lifecycle contract tests are smoke-only
 
 Current lifecycle tests confirm boot/shutdown basics but not full command contract behavior.
 
-- [ ] **Step E1: Add contract tests in** `service/src/__tests__/lifecycle-contract.test.ts`.
-- [ ] **Step E2: Assert `start` fails cleanly when daemon already running** (no duplicate daemon spawn).
+- [x] **Step E1: Add contract tests in** `service/src/__tests__/lifecycle-contract.test.ts`.
+- [x] **Step E2: Assert `start` fails cleanly when daemon already running** (no duplicate daemon spawn).
   - second `start` in same `BPROXY_HOME` exits non-zero and reports "already running" (or equivalent locked-state message).
-- [ ] **Step E3: Assert `start -> status -> stop -> status` with same `BPROXY_HOME` gives expected state transitions.**
+- [x] **Step E3: Assert `start -> status -> stop -> status` with same `BPROXY_HOME` gives expected state transitions.**
   - readiness boundary: once daemon is listening and `port` is written, `status` must report `running: true` with live `pid` and valid `port`.
-- [ ] **Step E4: Assert lock/token/port file semantics around shutdown are consistent with spec (best-effort cleanup + running-state truth).**
+- [x] **Step E4: Assert lock/token/port file semantics around shutdown are consistent with spec (best-effort cleanup + running-state truth).**
   - stale lock handling: dead PID in lockfile must be treated as recoverable on next `start`.
   - `status` truth is liveness-based: if PID is not alive, report `running: false` even if stale files remain.
 
 ### Close-out criteria for Task 16
 
-- [ ] New tests fail before fixes and pass after fixes.
-- [ ] `pnpm --filter @bproxy/service test` passes with the new suites.
-- [ ] `pnpm check` remains green.
-- [ ] If behavior changed, update `docs/solution/service.md` and `docs/plans/phases/02-daemon.md` accordingly.
-- [ ] Commit with explicit scope, e.g.:
+- [x] New tests fail before fixes and pass after fixes.
+- [x] `pnpm --filter @bproxy/service test` passes with the new suites.
+- [x] `pnpm check` remains green.
+- [x] If behavior changed, update `docs/solution/service.md` and `docs/plans/phases/02-daemon.md` accordingly.
+- [x] Commit with explicit scope, e.g.:
 
 ```bash
 git add service/src/__tests__/ docs/solution/service.md docs/plans/phases/02-daemon.md

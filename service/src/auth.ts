@@ -107,7 +107,9 @@ export function evaluateAuth(input: AuthInput): AuthDecision {
 	return checkWsAuth(input);
 }
 
-function evaluateAuthHeadersOnly(input: Omit<AuthInput, "validPairingCodes" | "bodyPairingCode">): AuthDecision {
+function evaluateAuthHeadersOnly(
+	input: Omit<AuthInput, "validPairingCodes" | "bodyPairingCode">,
+): AuthDecision {
 	const route = routeFor(input.url, input.method);
 	if (!route) return { ok: false, reason: "unknown route" };
 

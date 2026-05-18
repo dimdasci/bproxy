@@ -11,54 +11,33 @@ let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
 
-function paramsFor(action: Action): BproxyRequest["params"] {
-	switch (action) {
-		case "navigate":
-			return { url: "https://example.com" };
-		case "fill":
-			return {
+const PARAMS_BY_ACTION: Partial<Record<Action, BproxyRequest["params"]>> = {
+	navigate: { url: "https://example.com" },
+	fill: {
+		target: { selector: "#email" },
+		value: "x@example.com",
+		method: "paste",
+		world: "isolated",
+	},
+	"fill-form": {
+		fields: [
+			{
 				target: { selector: "#email" },
 				value: "x@example.com",
 				method: "paste",
 				world: "isolated",
-			};
-		case "fill-form":
-			return {
-				fields: [
-					{
-						target: { selector: "#email" },
-						value: "x@example.com",
-						method: "paste",
-						world: "isolated",
-					},
-				],
-			};
-		case "select":
-			return { trigger: { selector: "#country" }, optionText: "USA" };
-		case "wait":
-			return { strategy: "selector", target: "#ready" };
-		case "require-human":
-			return { reason: "captcha" };
-		case "eval":
-			return { code: "1+1" };
-		case "tab.open":
-			return { url: "https://example.com" };
-		case "text":
-		case "images":
-		case "elements":
-		case "outline":
-		case "dom":
-		case "scroll":
-		case "screenshot":
-		case "tab.list":
-		case "tab.pin":
-		case "tab.unpin":
-		case "tab.close":
-		case "debug.log":
-			return {};
-		default:
-			return {};
-	}
+			},
+		],
+	},
+	select: { trigger: { selector: "#country" }, optionText: "USA" },
+	wait: { strategy: "selector", target: "#ready" },
+	"require-human": { reason: "captcha" },
+	eval: { code: "1+1" },
+	"tab.open": { url: "https://example.com" },
+};
+
+function paramsFor(action: Action): BproxyRequest["params"] {
+	return PARAMS_BY_ACTION[action] ?? {};
 }
 
 function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): BproxyRequest {

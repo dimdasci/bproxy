@@ -1,6 +1,6 @@
+import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import type { Logger } from "pino";
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { type DebugDeps, handleDaemonLocal, isDaemonLocal } from "../debug-actions";
 import type { DispatchEngine } from "../dispatch";
 import type { PacingEngine } from "../pacing";
@@ -20,10 +20,19 @@ function pageOk() {
 }
 
 function isSessionLocal(action: BproxyRequest["action"]): boolean {
-	return action === "session.list" || action === "session.bind" || action === "session.unbind" || action === "session.resume";
+	return (
+		action === "session.list" ||
+		action === "session.bind" ||
+		action === "session.unbind" ||
+		action === "session.resume"
+	);
 }
 
-function handleSessionLocal(cmd: BproxyRequest, sessions: SessionRegistry, logger: Logger): BproxyResponse {
+function handleSessionLocal(
+	cmd: BproxyRequest,
+	sessions: SessionRegistry,
+	logger: Logger,
+): BproxyResponse {
 	if (cmd.action === "session.list") {
 		return {
 			protocol_version: 1,

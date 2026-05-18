@@ -247,7 +247,9 @@ describe("observability contract — GAP D", () => {
 			});
 
 			await postPromise;
-			await waitUntil(() => captured.lines.some((l) => l["id"] === cmd.id && l["event"] === "replay"));
+			await waitUntil(() =>
+				captured.lines.some((l) => l["id"] === cmd.id && l["event"] === "replay"),
+			);
 
 			const replay = captured.lines.find((l) => l["id"] === cmd.id && l["event"] === "replay");
 			expect(replay).toMatchObject({ id: cmd.id, ws_client: expect.any(String) });
