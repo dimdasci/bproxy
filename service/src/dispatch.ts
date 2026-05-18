@@ -98,6 +98,8 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 			// to the WS — daemon-local actions (session.*, debug.last,
 			// debug.status) are unaffected because they never reach dispatch.
 			if (session.paused) {
+				// SessionRegistry.pause() permits an undefined reason; the fallback
+				// keeps the WS error message human-readable in that case.
 				const reason = session.pauseReason ?? "session paused";
 				return errorResponse(cmd.id, {
 					code: "HUMAN_REQUIRED",

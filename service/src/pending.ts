@@ -98,7 +98,7 @@ export function createPending(opts: PendingOptions): PendingMap {
 			const filter = ids ? new Set(ids) : null;
 			for (const [id, entry] of entries) {
 				if (filter && !filter.has(id)) continue;
-				send({ ...entry.cmd });
+				send({ ...entry.cmd, target: { ...entry.cmd.target } });
 				if (wsClient) opts.onReplay?.({ id, wsClient });
 			}
 		},
