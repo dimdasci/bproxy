@@ -260,15 +260,17 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 8: Content script RPC and page-state foundation
 
+**Status:** ✅ Complete — local workspace. Refactored the minimal Task 7 bridge into a reusable content RPC host in `content/rpc.ts`, added `page-state.ts`, kept the runtime content script to one listener, and covered unknown action, thrown handler normalization, page-state snapshots, and id correlation in `extension/src/content/__tests__/*`.
+
 **Files:** `extension/src/entrypoints/content.ts`, `extension/src/content/rpc.ts`, `extension/src/content/page-state.ts`, content tests.
 
 **Purpose:** Build the ISOLATED-world execution host before adding action logic.
 
-- [ ] Define the content-message contract separately from the daemon wire contract.
-- [ ] Register one message listener in the runtime content script; no page-global listeners or MAIN-world state.
-- [ ] Return page state (`url`, `title`, loading/ready/error, busy) consistently.
-- [ ] Normalize thrown DOM errors into shared error envelopes.
-- [ ] Test unknown action, handler throw, page-state snapshot, and message correlation.
+- [x] Define the content-message contract separately from the daemon wire contract.
+- [x] Register one message listener in the runtime content script; no page-global listeners or MAIN-world state.
+- [x] Return page state (`url`, `title`, loading/ready/error, busy) consistently.
+- [x] Normalize thrown DOM errors into shared error envelopes.
+- [x] Test unknown action, handler throw, page-state snapshot, and message correlation.
 
 **Done when:** background can call a trivial content handler and receive a typed success/error response plus page state.
 
