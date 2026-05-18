@@ -16,5 +16,8 @@
 		"typescript": "^5.8.3",
 		"vitest": "^2.1.8",
 		"wxt": "^0.20.26"
+	},
+	"dependencies": {
+		"@bproxy/shared": "workspace:^"
 	}
 }

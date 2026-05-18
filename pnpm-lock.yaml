@@ -40,6 +40,10 @@ importers:
         version: 5.9.3
 
   extension:
+    dependencies:
+      '@bproxy/shared':
+        specifier: workspace:^
+        version: link:../shared
     devDependencies:
       '@types/chrome':
         specifier: ^0.0.287
