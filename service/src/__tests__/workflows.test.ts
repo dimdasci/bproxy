@@ -194,6 +194,59 @@ describe("end-to-end workflows — GAP B", () => {
 			ws.close();
 		});
 
+		it("pauseReason survives concurrent HUMAN_REQUIRED responses", async () => {
+			// Regression for the race fixed in command.ts: two concurrent POSTs
+			// to the same session both observe paused=false at HTTP entry. The
+			// first response carries the extension-authored reason "interstitial"
+			// and the route handler pauses the session. The second response
+			// arrives later and ALSO carries HUMAN_REQUIRED (any wrapped form).
+			// Old logic, using a pre-dispatch snapshot, would overwrite the
+			// original reason. The fix re-reads live state immediately before
+			// mutating, so the original "interstitial" must survive.
+			built.sessions.bind("default", 42);
+			const ws = await connectClient();
+
+			let received = 0;
+			ws.on("message", (raw: unknown) => {
+				const req = JSON.parse(String(raw)) as BproxyRequest;
+				received++;
+				// First request: extension-authored HUMAN_REQUIRED with the
+				// original reason. The route handler will pause the session.
+				// Second request: a different HUMAN_REQUIRED (here, the wrapped
+				// form a daemon-side gate would synthesize) that the old logic
+				// would mistakenly write back into pauseReason.
+				const message =
+					received === 1 ? "interstitial" : "Session 'default' is paused: interstitial";
+				const resp: BproxyResponse = {
+					protocol_version: 1,
+					id: req.id,
+					ok: false,
+					error: { code: "HUMAN_REQUIRED", category: "policy", retry: "never", message },
+				};
+				ws.send(JSON.stringify(resp));
+			});
+
+			// Issue both POSTs without awaiting in between, so both enter
+			// executeCommand before the first dispatch resolves.
+			const a = postCommand(makeCmd({ action: "text" }));
+			const b = postCommand(makeCmd({ action: "text" }));
+			const [resA, resB] = await Promise.all([a, b]);
+			const bodyA = (await resA.json()) as BproxyResponse;
+			const bodyB = (await resB.json()) as BproxyResponse;
+			expect(bodyA.ok).toBe(false);
+			expect(bodyB.ok).toBe(false);
+
+			// The original extension-authored reason must NOT have been
+			// overwritten by the second response's wrapped form.
+			const after = built.sessions.internal("default");
+			expect(after.paused).toBe(true);
+			expect(after.pauseReason).toBe("interstitial");
+			// Sanity: the WS handler did serve both requests.
+			expect(received).toBe(2);
+
+			ws.close();
+		});
+
 		it("forwarded HUMAN_REQUIRED response pauses the session in daemon state", async () => {
 			built.sessions.bind("default", 42);
 			const ws = await connectClient();

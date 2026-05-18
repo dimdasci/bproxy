@@ -144,18 +144,18 @@ describe("dispatch", () => {
 		const p3 = dispatch.send(req("c"));
 		// Only the first should have been forwarded so far.
 		expect(sendMock).toHaveBeenCalledOnce();
-		expect((sendMock.mock.calls[0]![0] as BproxyRequest).id).toBe("a");
+		expect((sendMock.mock.calls[0]![0] as BproxyForwardedRequest).id).toBe("a");
 
 		pending.resolveById("a", ok("a"));
 		await p1;
 		// After 'a' resolves, 'b' (not 'c') is forwarded next — order preserved.
 		expect(sendMock).toHaveBeenCalledTimes(2);
-		expect((sendMock.mock.calls[1]![0] as BproxyRequest).id).toBe("b");
+		expect((sendMock.mock.calls[1]![0] as BproxyForwardedRequest).id).toBe("b");
 
 		pending.resolveById("b", ok("b"));
 		await p2;
 		expect(sendMock).toHaveBeenCalledTimes(3);
-		expect((sendMock.mock.calls[2]![0] as BproxyRequest).id).toBe("c");
+		expect((sendMock.mock.calls[2]![0] as BproxyForwardedRequest).id).toBe("c");
 
 		pending.resolveById("c", ok("c"));
 		await p3;
