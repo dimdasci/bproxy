@@ -116,21 +116,23 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 1: Contract alignment with Phase 2 daemon
 
+**Status:** ✅ Complete — commits `abcb339`, `7a2d621`, `cc2e47d`, `f175c96`, `44c019d`.
+
 **Files:** `shared/src/protocol.ts`, `shared/src/actions.ts`, `service/src/dispatch.ts`, `service/src/pending.ts`, `service/src/routes/command.ts`, `service/src/schemas.ts`, related tests, `docs/solution/shared.md`, `docs/solution/service.md`, `docs/solution/extension.md`.
 
 **Purpose:** Make the daemon→extension wire contract executable by a real extension before any browser code depends on ambiguous state.
 
-- [ ] Add an explicit forwarded-request type in `@bproxy/shared` (e.g. `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }`) carrying daemon-owned target tab metadata. Keep the CLI HTTP input type (`BproxyRequest`) unchanged. The extension-side parser/schema for inbound forwarded requests must consume this shared type, not duplicate it.
-- [ ] Update `service/src/dispatch.ts` so every forwarded browser/tab/`debug.log` action sent over WS wraps the request with the current `tabId` from daemon session state. The `tabId` is already resolved at the existing tab-lock site; reuse it.
-- [ ] Keep `session.*`, `debug.last`, and `debug.status` daemon-local (no forwarded envelope, no `target.tabId`).
-- [ ] Add service tests proving that rebinding a session changes the `target.tabId` on the very next forwarded request.
-- [ ] **HUMAN_REQUIRED — trigger:** after a forwarded response is `ok:false && error.code === "HUMAN_REQUIRED"`, call `sessions.pause(cmd.session, error.message)` before returning the response to the CLI.
-- [ ] **HUMAN_REQUIRED — gate:** in `dispatch.send`, refuse forwarded actions on paused sessions with a `HUMAN_REQUIRED` error envelope **before** the `tabId === null` check, so the precedence is paused → unbound → forward.
-- [ ] Document that precedence in `docs/solution/service.md` (currently silent at the "Error precedence for forwarded actions" bullet around line 153).
-- [ ] Fix `SessionRegistry.unbind` in `service/src/sessions.ts` to clear `paused`/`pauseReason` so behavior matches `docs/views/04-session-state.md:39` ("`session.unbind` is allowed from `paused` too — it both clears the tab and drops the pause flag"). Alternative: amend the view if the intent is the opposite — but pick one in this task.
-- [ ] Update the existing pause/resume workflow test in `service/src/__tests__/workflows.test.ts` to remove the "gap" comment and assert that the extension `commandCount` does **not** increase while the session is paused, then resumes correctly after `session.resume`.
-- [ ] Align `TraceEntry` in `shared/src/actions.ts` with the extension trace requirements (add `extensionVersion: string`), and update schemas/tests. Confirm `DaemonRequestTrace` is left untouched (it is the `debug.last` shape, not the extension ring buffer).
-- [ ] Reconcile all affected solution docs (`docs/solution/shared.md`, `docs/solution/service.md`, `docs/solution/extension.md`) so Phase 4 CLI does not inherit stale assumptions.
+- [x] Add an explicit forwarded-request type in `@bproxy/shared` (e.g. `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }`) carrying daemon-owned target tab metadata. Keep the CLI HTTP input type (`BproxyRequest`) unchanged. The extension-side parser/schema for inbound forwarded requests must consume this shared type, not duplicate it.
+- [x] Update `service/src/dispatch.ts` so every forwarded browser/tab/`debug.log` action sent over WS wraps the request with the current `tabId` from daemon session state. The `tabId` is already resolved at the existing tab-lock site; reuse it.
+- [x] Keep `session.*`, `debug.last`, and `debug.status` daemon-local (no forwarded envelope, no `target.tabId`).
+- [x] Add service tests proving that rebinding a session changes the `target.tabId` on the very next forwarded request.
+- [x] **HUMAN_REQUIRED — trigger:** after a forwarded response is `ok:false && error.code === "HUMAN_REQUIRED"`, call `sessions.pause(cmd.session, error.message)` before returning the response to the CLI.
+- [x] **HUMAN_REQUIRED — gate:** in `dispatch.send`, refuse forwarded actions on paused sessions with a `HUMAN_REQUIRED` error envelope **before** the `tabId === null` check, so the precedence is paused → unbound → forward.
+- [x] Document that precedence in `docs/solution/service.md` (currently silent at the "Error precedence for forwarded actions" bullet around line 153).
+- [x] Fix `SessionRegistry.unbind` in `service/src/sessions.ts` to clear `paused`/`pauseReason` so behavior matches `docs/views/04-session-state.md:39` ("`session.unbind` is allowed from `paused` too — it both clears the tab and drops the pause flag"). Alternative: amend the view if the intent is the opposite — but pick one in this task.
+- [x] Update the existing pause/resume workflow test in `service/src/__tests__/workflows.test.ts` to remove the "gap" comment and assert that the extension `commandCount` does **not** increase while the session is paused, then resumes correctly after `session.resume`.
+- [x] Align `TraceEntry` in `shared/src/actions.ts` with the extension trace requirements (add `extensionVersion: string`), and update schemas/tests. Confirm `DaemonRequestTrace` is left untouched (it is the `debug.last` shape, not the extension ring buffer).
+- [x] Reconcile all affected solution docs (`docs/solution/shared.md`, `docs/solution/service.md`, `docs/solution/extension.md`) so Phase 4 CLI does not inherit stale assumptions.
 
 **Done when:**
 - a mock WS client receives forwarded requests with `target.tabId` matching the daemon's current `session.tabId`;
@@ -143,16 +145,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 2: Bootstrap WXT extension package
 
+**Status:** ✅ Complete — commits `1095960`, `a135935`. Popup uses directory entrypoint (`popup/index.html` + `popup/main.ts`) — WXT 0.20 rejects flat `popup.html` + `popup.ts` due to basename collision. The plan text below still says `popup.html`/`popup.ts`; treat the directory form as canonical.
+
 **Files:** `extension/package.json`, `extension/wxt.config.ts`, `extension/tsconfig.json`, `extension/vitest.config.ts`, `extension/src/entrypoints/*`, `extension/README.md`.
 
 **Purpose:** Replace the stub package with a buildable MV3 extension shell.
 
-- [ ] Add WXT, Vitest, WXT/browser test helpers, and browser typings.
-- [ ] Configure manifest permissions: `tabs`, `scripting`, `webNavigation`, `alarms`, `storage`; include `debugger` only if the optional screenshot escalation is implemented behind its flag.
-- [ ] Set `host_permissions: ["<all_urls>"]`, action popup, and no default `content_scripts`/`web_accessible_resources`.
-- [ ] Create empty-but-loadable background, runtime content script, and popup entrypoints.
-- [ ] Wire scripts: `dev`, `build`, `typecheck`, `test`, and any `test:browser`/smoke command chosen for local Chrome verification.
-- [ ] Write a short README explaining purpose, public entrypoints, local development, and how to load `.output/chrome-mv3/`.
+- [x] Add WXT, Vitest, WXT/browser test helpers, and browser typings.
+- [x] Configure manifest permissions: `tabs`, `scripting`, `webNavigation`, `alarms`, `storage`; include `debugger` only if the optional screenshot escalation is implemented behind its flag.
+- [x] Set `host_permissions: ["<all_urls>"]`, action popup, and no default `content_scripts`/`web_accessible_resources`.
+- [x] Create empty-but-loadable background, runtime content script, and popup entrypoints.
+- [x] Wire scripts: `dev`, `build`, `typecheck`, `test`, and any `test:browser`/smoke command chosen for local Chrome verification.
+- [x] Write a short README explaining purpose, public entrypoints, local development, and how to load `.output/chrome-mv3/`.
 
 **Done when:** `pnpm --filter @bproxy/extension build` emits `.output/chrome-mv3/`, Chrome accepts the unpacked extension, and `pnpm check` still sees extension sources through dependency-cruiser/knip.
 
@@ -160,15 +164,17 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 3: Storage, trace, and response helpers
 
+**Status:** ✅ Complete — commits `4c1b6bd`, `7e1dfcb`, `d61ba8c`, `6e10a47`, `02eb4c7`, `dba4aa0`. Files actually produced: `storage.ts`, `storage-item.ts` (DI seam), `trace.ts`, `dedupe.ts`, `responses.ts` under `extension/src/background/`; in-memory fake at `extension/src/test/fakes/storage.ts`; vitest setup at `extension/src/test/setup-chrome-storage.ts`. Bootstrap is one atomic `local:bootstrap` record (six fields), not multiple keys.
+
 **Files:** `extension/src/background/storage.ts`, `extension/src/background/trace.ts`, shared test fakes.
 
 **Purpose:** Establish the typed local/session storage and response envelope helpers used by every later task.
 
-- [ ] Define storage keys for pairing bootstrap, dedupe table, injected tabs, optional domain/config flags, and trace ring buffer.
-- [ ] Implement bounded trace append/query with `id` filter and `limit`; include extension build/version stamp.
-- [ ] Implement response/error builders that preserve request id/protocol version and always include page state for successful responses.
-- [ ] Define dedupe entry shape `{ response, ts }` and TTL/size eviction policy.
-- [ ] Unit-test ring-buffer bounds, filter semantics, and stale dedupe eviction.
+- [x] Define storage keys for pairing bootstrap, dedupe table, injected tabs, optional domain/config flags, and trace ring buffer.
+- [x] Implement bounded trace append/query with `id` filter and `limit`; include extension build/version stamp.
+- [x] Implement response/error builders that preserve request id/protocol version and always include page state for successful responses.
+- [x] Define dedupe entry shape `{ response, ts }` and TTL/size eviction policy.
+- [x] Unit-test ring-buffer bounds, filter semantics, and stale dedupe eviction.
 
 **Done when:** `debug.log` can later be implemented by reading this trace store with no action-specific knowledge.
 
@@ -176,16 +182,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 4: Popup pairing flow
 
+**Status:** ✅ Complete — commits `284724c`, `8e1b876`, `5075ffb`, `e1f7d0e`, `13ae918`, `2003f15`. Pairing logic lives in `extension/src/entrypoints/popup/pairing.ts` (pure, DI'd `fetch`/`storage`/`sendMessage`/`now`). `bootstrapItem` shape from Task 3 already matched the daemon payload — `storage.ts` wasn't touched. Seven distinct error codes (`INVALID_PAYLOAD_SHAPE`, `INVALID_WS_URL`, `UNSUPPORTED_PROTOCOL_VERSION`, `BOOTSTRAP_EXPIRED`, `MISSING_NONCE`, `PAIR_TRANSPORT_ERROR`, `PAIR_NOTIFY_FAILED`) plus the three daemon pass-throughs. 12 popup tests; `STATUS_FRIENDLY` table compile-time exhaustive over `PairingErrorCode`.
+
 **Files:** `extension/src/entrypoints/popup.html`, `extension/src/entrypoints/popup.ts`, `extension/src/background/storage.ts`, popup tests.
 
 **Purpose:** Let the user bootstrap extension auth without a manual token-entry options page.
 
-- [ ] Build a minimal form accepting the one-time pairing code.
-- [ ] POST `{ code }` to `http://127.0.0.1:9615/pair/claim` initially; if the daemon port is later made configurable for extension bootstrap, document and implement that path together.
-- [ ] Validate payload shape, loopback `wsUrl`, `protocolVersion === 1`, future `expiresAt`, and nonce presence.
-- [ ] Store the bootstrap payload in `chrome.storage.local` and send `pair.complete` to the background worker.
-- [ ] Show clear success/failure state in the popup; no interactive prompts outside the popup.
-- [ ] Test validation failures without a real daemon by mocking `fetch` and storage.
+- [x] Build a minimal form accepting the one-time pairing code.
+- [x] POST `{ code }` to `http://127.0.0.1:9615/pair/claim` initially; if the daemon port is later made configurable for extension bootstrap, document and implement that path together.
+- [x] Validate payload shape, loopback `wsUrl`, `protocolVersion === 1`, future `expiresAt`, and nonce presence.
+- [x] Store the bootstrap payload in `chrome.storage.local` and send `pair.complete` to the background worker.
+- [x] Show clear success/failure state in the popup; no interactive prompts outside the popup.
+- [x] Test validation failures without a real daemon by mocking `fetch` and storage.
 
 **Done when:** the popup can pair against a running Phase 2 daemon and the background worker receives a reconnect trigger.
 
