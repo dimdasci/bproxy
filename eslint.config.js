@@ -19,7 +19,9 @@ export default [
 		languageOptions: {
 			parser: tsparser,
 			parserOptions: {
-				projectService: true,
+				projectService: {
+					allowDefaultProject: ["*.config.ts", "*/*.config.ts"],
+				},
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},
@@ -42,6 +44,14 @@ export default [
 			"max-lines-per-function": ["error", { max: 60, skipBlankLines: true, skipComments: true }],
 			"max-depth": ["error", 4],
 			"no-warning-comments": ["error", { terms: ["TODO", "FIXME", "XXX"] }],
+		},
+	},
+	{
+		files: ["**/__tests__/**/*.ts", "**/*.test.ts"],
+		rules: {
+			"max-lines-per-function": "off",
+			"max-lines": "off",
+			"sonarjs/cognitive-complexity": "off",
 		},
 	},
 ];

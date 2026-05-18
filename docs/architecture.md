@@ -30,6 +30,9 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + scroll.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
+- **Session authority lives in the daemon** — `tabId`, `pacing`, `paused`, and `pauseReason` are daemon-owned in-memory state; extension executes forwarded browser actions but does not own session lifecycle.
+- **Auth is transport-boundary first-fail (header-auth routes)** — `POST /` and `GET /ws` are rejected at request ingress (before body parsing/validation and before any route logic). `POST /pair/claim` keeps Host/Origin checks at ingress and validates pairing code after body parse.
+- **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
 - **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
 - **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
@@ -43,7 +46,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 ### Proxy Daemon
 
-A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Supports multiple WS clients (one per Chrome profile).
+A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind` changes `tabId`, the next forwarded command uses the new tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
 
 Implementation: [solution/service.md](./solution/service.md)
 
@@ -51,7 +54,7 @@ Implementation: [solution/service.md](./solution/service.md)
 
 Chrome Manifest V3 extension. Three runtime layers:
 
-- **Background service worker** — WebSocket client to the daemon, request routing, tab/session management, frame table, keepalive, popup message handler.
+- **Background service worker** — WebSocket client to the daemon, request routing, tab/runtime context management, frame table, keepalive, popup message handler.
 - **Content script** (ISOLATED world, injected programmatically on first command per tab) — DOM reads, `direct`/`paste` writes, scroll, stability polling.
 - **Popup** — pairing code entry, token storage. No options page.
 
@@ -76,11 +79,14 @@ The extension has no manual token-entry UI. Pairing is explicit and popup-driven
 1. `bproxy service start` starts daemon and creates:
    - daemon bearer token in `~/.bproxy/token` (CLI → daemon HTTP auth)
    - one-time pairing code (short TTL, single-use)
+   - loads existing extension WS token from `~/.bproxy/extension-token` when present
 2. CLI prints pairing code in machine-readable output (`{pairingCode, expiresAt}`)
 3. User opens extension popup, enters pairing code
 4. Popup calls `POST /pair/claim` with the code, receives bootstrap payload
 5. Popup stores `{extensionToken, wsUrl, protocol}` in `chrome.storage.local`
 6. Popup notifies background SW; SW reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+7. The claimed token is active immediately for WS auth; daemon accepts only the latest claimed extension token (single-active-token policy).
+8. Daemon persists active extension token to `~/.bproxy/extension-token` (0600), so restart is transparent for a single-user setup (extension reconnects without re-pairing).
 
 Security properties:
 - Pairing code is one-time and expires quickly (TTL 5 minutes).
@@ -152,7 +158,9 @@ Errors use a single RFC 9457-aligned envelope:
 | `wait`       | Strategies: `selector` / `url` / `navigation`. DOM polling.                          |
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
 | `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
-| `tab` / `session` | Lifecycle and configuration verbs.                                              |
+| `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
+
+Routing details and contract: [solution/service.md#action-routing-and-session-contract](./solution/service.md#action-routing-and-session-contract).
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon log view (last N request lifecycles).                                     |
 | `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |

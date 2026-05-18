@@ -19,7 +19,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
 | 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
 | 1 | Shared types | The domain model | ✅ Done | [phases/01-shared-types.md](./phases/01-shared-types.md) |
-| 2 | Daemon | Routing, auth, pacing, lifecycle | Not started | _plan written when Phase 1 closes_ |
+| 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
 | 3 | Extension | Browser-side execution | Not started | _plan written when Phase 2 closes_ |
 | 4 | CLI | One-shot agent interface | Not started | _plan written when Phase 3 closes_ |
 | 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
@@ -66,7 +66,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Done when:** `pnpm check` passes from a clean checkout; every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; tests assert that the discriminated union is exhaustive.
 
-### Phase 2 — Daemon
+### Phase 2 — Daemon ✅ Done
 
 **Purpose:** routing, auth, pacing, and lifecycle. Per [docs/solution/service.md](../solution/service.md).
 

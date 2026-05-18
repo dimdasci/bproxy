@@ -44,6 +44,8 @@ const app = Fastify({ logger: true });
 await app.register(websocket);
 
 // Auth gate runs for both HTTP and WS upgrade
+// MUST stay on `onRequest` (not `preValidation`) so unauthenticated
+// requests are rejected before body parsing/validation.
 app.addHook('onRequest', authHook);
 
 // Routes
@@ -76,6 +78,10 @@ Token model:
 **Security invariant:** daemon token secrecy is enforced by OS file ownership and mode. CLI must fail closed if token owner/mode is unsafe.
 
 Failure at any layer → 401, connection closed.
+
+**Ordering contract (normative):** for header-auth routes (`POST /`, `GET /ws`), auth is evaluated at `onRequest`, before body parsing, schema validation, and route logic. If auth fails, daemon returns `401` even when the payload body is malformed or schema-invalid.
+
+`POST /pair/claim` is body-auth for pairing code, so Host/Origin/Sec-Fetch-Site checks run at `onRequest`, while code validation runs after body parse.
 
 ## HTTP Route: `POST /`
 
@@ -114,6 +120,43 @@ app.post('/', {
 ```
 
 The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires.
+
+**Status precedence (normative):** for `POST /`, auth failure (`401`) takes precedence over request-body parse/schema failures (`400`).
+
+## Action Routing and Session Contract
+
+### Session authority
+
+Daemon is the source of truth for session state (`tabId`, `pacing`, `paused`, `pauseReason`).
+This state is in-memory only and resets on daemon restart.
+
+### Routing matrix
+
+| Action family | Handled by daemon | Forwarded to extension |
+|---|---:|---:|
+| `debug.last`, `debug.status` | ✅ | ❌ |
+| `session.list`, `session.bind`, `session.unbind`, `session.resume` | ✅ | ❌ |
+| `debug.log` | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `fill`, `tab.*`, ...) | ❌ | ✅ |
+
+### `session.*` semantics
+
+- `session.list` — returns daemon's current in-memory session snapshot.
+- `session.bind` — must work even when session is currently unbound; sets `tabId`; optional `pacing` updates mode. Rebinding is immediate: the very next forwarded command for that session uses the new `tabId`.
+- `session.unbind` — clears `tabId`; idempotent.
+- `session.resume` — clears paused state/reason; idempotent.
+
+### Preconditions and error precedence
+
+- `session.*` actions do **not** require WS connection and do **not** require a bound tab.
+- Forwarded actions require a connected WS client and a bound tab.
+- Error precedence for forwarded actions is:
+  1. `NO_EXTENSION` when no WS client is connected.
+  2. `TAB_NOT_FOUND` when WS exists but session has no bound tab (or pinned tab is gone).
+
+### Pause/resume contract
+
+`require-human` pauses the session (`paused=true`). While paused, all forwarded actions (`debug.log`, browser actions, `tab.*`) return `HUMAN_REQUIRED`; daemon-local actions (`session.*`, `debug.last`, `debug.status`) remain available. `session.resume` is the only action that clears the paused state/reason.
 
 ## Pairing Bootstrap Route: `POST /pair/claim`
 
@@ -162,11 +205,16 @@ Failure codes:
 - `PAIRING_CODE_CONSUMED`
 - `PAIRING_RATE_LIMITED`
 
+Token activation contract:
+- The `extensionToken` returned by successful `POST /pair/claim` becomes WS-auth valid immediately.
+- Token lifecycle policy is **single-active-token**: daemon accepts only the latest claimed token and invalidates previously accepted extension tokens.
+- Active extension token is persisted at `~/.bproxy/extension-token` (mode `0600`, owner-checked) so daemon restart is transparent: extension can reconnect with the same token without re-pairing.
+
 ## WebSocket Route: `GET /ws`
 
 **File:** `src/routes/ws.ts`
 
-Extension connects here. Multiple clients supported (one per Chrome profile).
+Extension connects here. Multiple clients supported (one per Chrome profile), as long as they authenticate with the currently active extension token.
 
 ```typescript
 app.get('/ws', { websocket: true }, (socket, request) => {
@@ -300,22 +348,33 @@ Sessions are created implicitly on first command with `--session <name>`. Bound 
 
 ### Startup (`bproxy service start`)
 
-1. Check lockfile `~/.bproxy/bproxy.pid` — if process alive, exit with "already running".
-2. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
-   - If token file exists with wrong owner or mode, refuse start (fail closed) unless an explicit repair flag is provided.
-3. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
-4. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
-5. Parent writes PID to lockfile, exits 0.
-6. Child: build Fastify server, listen, write port to `~/.bproxy/port`.
+Lifecycle is scoped to the selected state directory (`BPROXY_HOME`, default `~/.bproxy`). Exactly one daemon instance is allowed per state directory.
 
-At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code—no CLI involvement. See [extension.md](../solution/extension.md) § Pairing.
+1. Read lockfile `~/.bproxy/bproxy.pid`.
+2. If PID exists and process is alive, fail cleanly with non-zero exit (already running).
+3. If PID exists but process is dead, treat as stale lock, remove stale state, continue.
+4. Generate daemon token (32 bytes, crypto random, hex-encoded). Write to `~/.bproxy/token` with mode `0600`.
+   - If token file exists with wrong owner or mode, refuse start (fail closed).
+5. Load active extension token from `~/.bproxy/extension-token` (owner + mode `0600` required).
+   - If present, WS auth is immediately available after restart (no re-pair required).
+   - If absent, daemon still starts and waits for a pairing claim.
+6. Generate one-time pairing code (human-readable, e.g. `ABCD-EFGH`), TTL 5 minutes, single-use.
+7. Fork self as detached child (`child_process.spawn` with `detached: true`, `stdio: 'ignore'`).
+8. Parent writes child PID to lockfile and exits 0.
+9. Child builds Fastify server, listens, then writes `~/.bproxy/port`.
+
+**Readiness boundary:** startup is considered ready when the daemon process is alive and `~/.bproxy/port` contains a valid bound port. `status` must report `running: true` at this point.
+
+At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code when first pairing or when rotating/recovering extension auth. See [extension.md](../solution/extension.md) § Pairing.
 
 ### Shutdown (`bproxy service stop`)
 
 1. Read PID from lockfile.
-2. Send `SIGTERM`.
+2. If PID is alive, send `SIGTERM`.
 3. Daemon catches `SIGTERM` → `fastify.close()` → drains connections → exits.
-4. CLI removes lockfile.
+4. Remove lockfile and transient files (`port`, daemon token) best-effort.
+
+**Status truth model:** `status` returns `running: false` when lockfile is missing, PID is invalid, or PID is not alive (even if stale files remain).
 
 ### Logs
 
@@ -328,6 +387,7 @@ Day-rotated to `~/.bproxy/logs/YYYY-MM-DD.log`. Fastify's built-in pino logger, 
 ├── bproxy.pid          # PID of running daemon
 ├── port                # port number (for CLI to find)
 ├── token               # daemon bearer token for CLI HTTP auth (mode 0600)
+├── extension-token     # active extension WS auth token (mode 0600)
 └── logs/
     └── 2026-05-08.log
 ```
