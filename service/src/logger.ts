@@ -8,9 +8,14 @@ export function buildLogger(config: ServiceConfig): Logger {
 	mkdirSync(dir, { recursive: true });
 	const today = new Date().toISOString().slice(0, 10);
 	const target = join(dir, `${today}.log`);
+	// `sync: true` avoids the sonic-boom async-open race: a fast SIGTERM
+	// arriving before the worker thread finished opening the file used to
+	// crash the daemon (`logger.info()` threw "sonic boom is not ready yet"
+	// inside the shutdown handler, killing the process with exit 1).
+	// Sync local-file appends are sub-millisecond at the daemon's log rate.
 	return pino(
 		{ level: config.logLevel },
-		pino.destination({ dest: target, sync: false, mkdir: true }),
+		pino.destination({ dest: target, sync: true, mkdir: true }),
 	);
 }
 

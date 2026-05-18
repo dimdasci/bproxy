@@ -30,7 +30,12 @@ async function runDaemonized(home: string, signal: "SIGTERM" | "SIGINT"): Promis
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 
-	// Track exit early so we don't miss it if the process exits before we listen.
+	let stderr = "";
+	child.stderr?.on("data", (chunk: Buffer) => {
+		stderr += chunk.toString();
+	});
+	child.stdout?.resume();
+
 	let exitCode: number | null = null;
 	const exitPromise = new Promise<number | null>((r) => {
 		child.once("exit", (c) => {
@@ -43,12 +48,11 @@ async function runDaemonized(home: string, signal: "SIGTERM" | "SIGINT"): Promis
 	const port = Number.parseInt(readFileSync(join(home, "port"), "utf8"), 10);
 	expect(port).toBeGreaterThan(0);
 
-	// Only send signal if child is still running.
 	if (exitCode === null) {
 		child.kill(signal);
 	}
 	const code = await exitPromise;
-	expect(code).toBe(0);
+	expect(code, `daemon exited ${code} after ${signal}; stderr=${stderr}`).toBe(0);
 }
 
 let home: string;
