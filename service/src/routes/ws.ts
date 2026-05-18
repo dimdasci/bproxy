@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyForwardedRequest, BproxyResponse } from "@bproxy/shared";
 import "@fastify/websocket";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Logger } from "pino";
@@ -19,7 +19,7 @@ export function wsRoute(deps: WsRouteDeps) {
 			const id = deps.newClientId();
 			deps.logger.info({ event: "ws_connect", ws_client: id });
 
-			const sendFn = (cmd: BproxyRequest) => socket.send(JSON.stringify(cmd));
+			const sendFn = (cmd: BproxyForwardedRequest) => socket.send(JSON.stringify(cmd));
 			const handle = { id, send: sendFn };
 			deps.clients.add(handle);
 

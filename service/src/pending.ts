@@ -1,9 +1,9 @@
-import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest, BproxyResponse } from "@bproxy/shared";
 
-type SendFn = (cmd: BproxyRequest) => void;
+type SendFn = (cmd: BproxyForwardedRequest) => void;
 
 interface PendingEntry {
-	cmd: BproxyRequest;
+	cmd: BproxyForwardedRequest;
 	promise: Promise<BproxyResponse>;
 	resolve: (r: BproxyResponse) => void;
 	timer: NodeJS.Timeout;
@@ -18,7 +18,7 @@ export interface PendingOptions {
 }
 
 export interface PendingMap {
-	register(cmd: BproxyRequest, send: SendFn): Promise<BproxyResponse>;
+	register(cmd: BproxyForwardedRequest, send: SendFn): Promise<BproxyResponse>;
 	resolveById(id: string, response: BproxyResponse): void;
 	replayForClient(send: SendFn, ids?: readonly string[], wsClient?: string): void;
 	delete(id: string): void;
@@ -48,7 +48,7 @@ function overloadedResponse(id: string): BproxyResponse {
 }
 
 function makeEntry(
-	cmd: BproxyRequest,
+	cmd: BproxyForwardedRequest,
 	entries: Map<string, PendingEntry>,
 	now: () => number,
 	onTimeout?: (info: { id: string; elapsedMs: number }) => void,

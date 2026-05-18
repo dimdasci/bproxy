@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyForwardedRequest, BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createClients } from "../clients";
 import { createDispatch } from "../dispatch";
@@ -61,10 +61,73 @@ describe("dispatch", () => {
 
 		const p = dispatch.send(req("a"));
 		expect(sendMock).toHaveBeenCalledOnce();
-		const forwarded = sendMock.mock.calls[0]![0] as BproxyRequest;
+		const forwarded = sendMock.mock.calls[0]![0] as BproxyForwardedRequest;
 		expect(onForwarded).toHaveBeenCalledWith({ id: forwarded.id, wsClient: "c1", tab: 42 });
+		// The on-wire shape MUST carry the daemon-owned target.tabId so the
+		// extension can route without re-resolving session state.
+		expect(forwarded.target).toEqual({ tabId: 42 });
 		pending.resolveById(forwarded.id, ok(forwarded.id));
 		await expect(p).resolves.toMatchObject({ ok: true });
+	});
+
+	it("rebinding the session changes target.tabId on the very next forwarded request", async () => {
+		const sessions = createSessionRegistry();
+		sessions.bind("default", 1);
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const dispatch = createDispatch({ clients, pending, sessions });
+
+		const p1 = dispatch.send(req("a"));
+		const first = sendMock.mock.calls[0]![0] as BproxyForwardedRequest;
+		expect(first.target.tabId).toBe(1);
+		pending.resolveById(first.id, ok(first.id));
+		await p1;
+
+		// Rebind: very next forwarded request must carry the new tabId.
+		sessions.bind("default", 2);
+		const p2 = dispatch.send(req("b"));
+		const second = sendMock.mock.calls[1]![0] as BproxyForwardedRequest;
+		expect(second.target.tabId).toBe(2);
+		pending.resolveById(second.id, ok(second.id));
+		await p2;
+	});
+
+	it("refuses forwarded actions on a paused session with HUMAN_REQUIRED, before any tab check", async () => {
+		const sessions = createSessionRegistry();
+		// Pause WITHOUT binding — proves the paused check fires before the
+		// tabId === null check (precedence: paused → unbound → forward).
+		sessions.pause("default", "captcha-check");
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const dispatch = createDispatch({ clients, pending, sessions });
+
+		const r = await dispatch.send(req("a"));
+		expect(r).toMatchObject({ ok: false, error: { code: "HUMAN_REQUIRED" } });
+		// The pause gate runs entirely inside the daemon — nothing is sent over WS.
+		expect(sendMock).not.toHaveBeenCalled();
+	});
+
+	it("HUMAN_REQUIRED gate carries the pause reason in the error message", async () => {
+		const sessions = createSessionRegistry();
+		sessions.bind("default", 42);
+		sessions.pause("default", "manual-attach");
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const dispatch = createDispatch({ clients, pending, sessions });
+
+		const r = await dispatch.send(req("a"));
+		expect(r.ok).toBe(false);
+		if (!r.ok) {
+			expect(r.error.code).toBe("HUMAN_REQUIRED");
+			expect(r.error.message).toContain("manual-attach");
+		}
+		expect(sendMock).not.toHaveBeenCalled();
 	});
 
 	it("serialises commands targeting the same tab in FIFO order", async () => {

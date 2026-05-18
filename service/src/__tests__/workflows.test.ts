@@ -168,26 +168,62 @@ describe("end-to-end workflows — GAP B", () => {
 			expect(body1.ok).toBe(true);
 			expect(commandCount).toBe(1);
 
-			// Pause the session
+			// Pause the session: the daemon must now refuse forwarded actions
+			// without sending anything to the extension.
 			built.sessions.pause("default", "captcha-check");
 
-			// This is a gap that might fail - pause might not actually block commands yet
 			const cmd2 = makeCmd({ action: "text" });
 			const res2 = await postCommand(cmd2);
-			// The response might succeed but commandCount shouldn't increase
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for future use
-			const _body2 = (await res2.json()) as BproxyResponse;
-			// Currently pause might not be implemented in the dispatch flow
-			// so this captures the gap
+			const body2 = (await res2.json()) as BproxyResponse;
+			expect(body2.ok).toBe(false);
+			if (!body2.ok) expect(body2.error.code).toBe("HUMAN_REQUIRED");
+			// The extension MUST NOT see the paused-session command.
+			expect(commandCount).toBe(1);
 
 			// Resume
 			const resumeCmd = makeCmd({ action: "session.resume" });
 			await postCommand(resumeCmd);
 
-			// Command should work after resume
+			// After resume, forwarded commands flow again.
 			const cmd3 = makeCmd({ action: "text" });
-			await postCommand(cmd3);
-			// commandCount should have increased
+			const res3 = await postCommand(cmd3);
+			const body3 = (await res3.json()) as BproxyResponse;
+			expect(body3.ok).toBe(true);
+			expect(commandCount).toBe(2);
+
+			ws.close();
+		});
+
+		it("forwarded HUMAN_REQUIRED response pauses the session in daemon state", async () => {
+			built.sessions.bind("default", 42);
+			const ws = await connectClient();
+
+			ws.on("message", (raw: unknown) => {
+				const req = JSON.parse(String(raw)) as BproxyRequest;
+				const resp: BproxyResponse = {
+					protocol_version: 1,
+					id: req.id,
+					ok: false,
+					error: {
+						code: "HUMAN_REQUIRED",
+						category: "policy",
+						retry: "never",
+						message: "interstitial detected",
+					},
+				};
+				ws.send(JSON.stringify(resp));
+			});
+
+			const cmd = makeCmd({ action: "text" });
+			const res = await postCommand(cmd);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body.ok).toBe(false);
+			if (!body.ok) expect(body.error.code).toBe("HUMAN_REQUIRED");
+
+			// Daemon must have flipped the session into paused state with the reason.
+			const after = built.sessions.getOrCreate("default");
+			expect(after.paused).toBe(true);
+			expect(after.pauseReason).toBe("interstitial detected");
 
 			ws.close();
 		});

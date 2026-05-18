@@ -35,7 +35,12 @@ export function createSessionRegistry(): SessionRegistry {
 		},
 		unbind(name) {
 			const s = sessions.get(name);
-			if (s) s.tabId = null;
+			if (!s) return;
+			s.tabId = null;
+			// `session.unbind` is allowed from `paused` too — it clears both
+			// the tab binding and the pause flag (see docs/views/04-session-state.md).
+			s.paused = false;
+			delete s.pauseReason;
 		},
 		pause(name, reason) {
 			const s = getOrCreate(name);
