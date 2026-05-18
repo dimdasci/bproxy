@@ -6,7 +6,6 @@
 	"scripts": {
 		"dev": "wxt",
 		"build": "wxt build",
-		"build:firefox": "wxt build -b firefox",
 		"postinstall": "wxt prepare",
 		"typecheck": "wxt prepare && tsc --noEmit",
 		"test": "vitest run",
