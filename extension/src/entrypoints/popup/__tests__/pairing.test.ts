@@ -117,6 +117,20 @@ describe("runPairing", () => {
 		expect(deps.sendMessage).not.toHaveBeenCalled();
 	});
 
+	it("missing wsUrl field is rejected with INVALID_PAYLOAD_SHAPE", async () => {
+		const data: Partial<PairingBootstrap> = { ...happyBody().data };
+		delete (data as { wsUrl?: string }).wsUrl;
+		const deps = makeDeps({
+			fetch: makeFetch(200, { ok: true, data }),
+		});
+
+		const res = await runPairing({ code: "X" }, deps);
+
+		expect(res).toMatchObject({ ok: false, code: "INVALID_PAYLOAD_SHAPE" });
+		expect(await deps.storage.getValue()).toBeNull();
+		expect(deps.sendMessage).not.toHaveBeenCalled();
+	});
+
 	it("protocolVersion !== 1 is rejected with UNSUPPORTED_PROTOCOL_VERSION", async () => {
 		const deps = makeDeps({
 			fetch: makeFetch(200, {
