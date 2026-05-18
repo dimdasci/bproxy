@@ -9,20 +9,21 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (off `main`, 21 commits ahead).
-- **Tasks complete (4 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow).
-- **Tasks remaining (13):** 5 → 17, in plan order.
+- **Tasks complete (6 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`).
+- **Tasks remaining (11):** 7 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 5 — Background WebSocket client and badge state.** Read its section in [`03-extension.md`](./03-extension.md#task-5-background-websocket-client-and-badge-state). It builds the SW that consumes the `bootstrapItem` Task 4 persists and re-reads it on a `pair.complete` runtime message.
+**Next: Task 7 — Tab resolution, frame table, and programmatic injection.** Read its section in [`03-extension.md`](./03-extension.md#task-7-tab-resolution-frame-table-and-programmatic-injection). Task 6 already wires the WS client to a dispatcher with explicit browser/content handler seams; Task 7 should replace the current "not implemented" DOM path with real tab resolution, injection, and background↔content RPC.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
-- `extension/src/background/storage.ts` — `bootstrapItem` carries `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`.
-- `BproxyForwardedRequest` from `@bproxy/shared` — wire shape with `target.tabId`. Task 6 will parse this.
-- `extension/src/background/{trace,dedupe,responses}.ts` — Task 6 wires these into the dispatcher.
+- `extension/src/background/storage.ts` — `bootstrapItem` carries `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }`; `dedupeItem` and `traceItem` are already wired in the SW.
+- `BproxyForwardedRequest` from `@bproxy/shared` — wire shape with `target.tabId`.
+- `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, traces every accepted request, and expects real browser/DOM handlers to be plugged into its DI seams.
+- `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket.
 
 ## Workflow rule that survives the context clear
 
@@ -62,10 +63,9 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 5** needs the bootstrap re-read on `pair.complete`. The popup already sends `chrome.runtime.sendMessage({ type: "pair.complete" })`; the SW must listen for it.
-- **Task 5** needs the subprotocol auth: `bproxy.v1` + `auth.{base64url(token)}`. The daemon WS route enforces both.
-- **Task 6** wires `dispatcher → dedupe → handler → trace → response`. The Task 3 modules are factory-shaped (`createDedupe`, `createTrace`); the dispatcher passes the storage items in.
 - **Task 7** needs the `BproxyForwardedRequest.target.tabId` to know which tab to target. The shared type already exists.
+- **Task 7** should replace the current background-entrypoint `notImplemented(...)` stubs with real browser/content routing modules, starting with tab resolution, injected-tab bookkeeping, and content RPC.
+- **Task 8** will define the runtime content-script message contract consumed by Task 7's RPC layer.
 - **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
 
 ## Decisions worth remembering across the clear
@@ -76,10 +76,9 @@ These are flagged here so you don't waste a research turn rediscovering them:
 - **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 5 (common scope drift)
+## Things NOT to do in Task 7 (common scope drift)
 
-- Don't add a dispatcher, dedupe, or any action routing — that's Task 6.
-- Don't add the content script (Task 7+ inject programmatically).
+- Don't add DOM action logic beyond the minimum RPC/injection substrate; read/write handlers start in Tasks 8–14.
 - Don't add MAIN-world helpers (Task 13).
 - Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
 - Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types.

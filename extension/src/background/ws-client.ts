@@ -71,6 +71,7 @@ export interface WsClient {
 	start(): Promise<void>;
 	stop(): Promise<void>;
 	reconnect(): Promise<void>;
+	send(data: string): boolean;
 	getState(): WsClientState;
 }
 
@@ -116,6 +117,7 @@ export function createWsClient(deps: WsClientDeps): WsClient {
 		start: () => start(ctx),
 		stop: () => stop(ctx),
 		reconnect: () => forceReconnect(ctx),
+		send: (data) => send(ctx, data),
 		getState: () => state.badge,
 	};
 }
@@ -252,6 +254,17 @@ async function forceReconnect(ctx: Ctx): Promise<void> {
 	clearReconnect(ctx);
 	ctx.state.attempt = 0;
 	await ctx.connect();
+}
+
+function send(ctx: Ctx, data: string): boolean {
+	const socket = ctx.state.socket;
+	if (!socket || socket.readyState !== WS_OPEN) return false;
+	try {
+		socket.send(data);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 // ---------- pure helpers ----------

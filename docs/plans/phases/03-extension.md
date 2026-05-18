@@ -201,17 +201,19 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 5: Background WebSocket client and badge state
 
+**Status:** ✅ Complete — local workspace. Implemented in `extension/src/background/ws-client.ts`, wired in `extension/src/entrypoints/background.ts`, covered by `extension/src/background/__tests__/ws-client.test.ts`.
+
 **Files:** `extension/src/background/ws-client.ts`, `extension/src/entrypoints/background.ts`, storage tests.
 
 **Purpose:** Maintain the daemon connection across normal closes and MV3 service-worker restarts.
 
-- [ ] On SW startup, read stored bootstrap payload; connect only when token and loopback WS URL are valid.
-- [ ] Authenticate with subprotocols `bproxy.v1` and `auth.{base64url(extensionToken)}`.
-- [ ] Implement exponential backoff with cap and reset-on-open.
-- [ ] Register `chrome.alarms` keepalive and app-level ping/pong or send-level heartbeat compatible with daemon behaviour.
-- [ ] React to `pair.complete` by re-reading storage and reconnecting immediately.
-- [ ] Update badge state for disconnected/connecting/connected/error in a compact, non-noisy way.
-- [ ] Unit-test URL/token validation, subprotocol construction, reconnect schedule, and pair-complete reconnect.
+- [x] On SW startup, read stored bootstrap payload; connect only when token and loopback WS URL are valid.
+- [x] Authenticate with subprotocols `bproxy.v1` and `auth.{base64url(extensionToken)}`.
+- [x] Implement exponential backoff with cap and reset-on-open.
+- [x] Register `chrome.alarms` keepalive and app-level ping/pong or send-level heartbeat compatible with daemon behaviour.
+- [x] React to `pair.complete` by re-reading storage and reconnecting immediately.
+- [x] Update badge state for disconnected/connecting/connected/error in a compact, non-noisy way.
+- [x] Unit-test URL/token validation, subprotocol construction, reconnect schedule, and pair-complete reconnect.
 
 **Done when:** killing/restarting the daemon or forcing a SW restart results in reconnect without re-pairing when `extension-token` is still valid on the daemon side.
 
@@ -219,17 +221,19 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 6: Background dispatcher, dedupe, and `debug.log`
 
+**Status:** ✅ Complete — local workspace. Added `dispatcher.ts` plus forwarded-request parsing helpers, wired dispatcher/dedupe/trace into the background entrypoint, and covered duplicate/error/debug-log flows in `extension/src/background/__tests__/dispatcher.test.ts`.
+
 **Files:** `extension/src/background/dispatcher.ts`, `extension/src/background/trace.ts`, `extension/src/entrypoints/background.ts`, dispatcher tests.
 
 **Purpose:** Convert daemon WS messages into exactly-once extension executions and responses.
 
-- [ ] Parse forwarded requests, reject malformed messages with normalized protocol errors where possible.
-- [ ] Check dedupe before dispatch; duplicates return cached responses and mark `replay: true` without re-running destructive actions.
-- [ ] Route `debug.log` directly to the trace ring buffer.
-- [ ] Route browser API actions to background modules and DOM actions to the content script.
-- [ ] Append one trace entry per request with elapsed time and final result.
-- [ ] Send a response for every accepted request, even when action execution throws.
-- [ ] Unit-test duplicate destructive requests, duplicate read requests, handler throw normalization, and `debug.log` filtering.
+- [x] Parse forwarded requests, reject malformed messages with normalized protocol errors where possible.
+- [x] Check dedupe before dispatch; duplicates return cached responses and mark `replay: true` without re-running destructive actions.
+- [x] Route `debug.log` directly to the trace ring buffer.
+- [x] Route browser API actions to background modules and DOM actions to the content script.
+- [x] Append one trace entry per request with elapsed time and final result.
+- [x] Send a response for every accepted request, even when action execution throws.
+- [x] Unit-test duplicate destructive requests, duplicate read requests, handler throw normalization, and `debug.log` filtering.
 
 **Done when:** daemon replay-on-reconnect can safely resend an in-flight request and the extension replies from cache if it already executed that request.
 
