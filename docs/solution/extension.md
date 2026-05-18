@@ -139,7 +139,11 @@ WXT ref: [Storage](https://wxt.dev/guide/essentials/storage.md)
 Simple pairing code entry form. No options page per ADR-011.
 
 ```typescript
-// Popup flow
+// Popup flow — see extension/src/entrypoints/popup/pairing.ts for the real
+// implementation. The pairing module is dependency-injected (fetch, storage,
+// sendMessage, now) so it stays unit-testable without jsdom or a real daemon.
+import { bootstrapItem } from "../../background/storage";
+
 async function onSubmit(pairingCode: string) {
   // 1. Call daemon POST /pair/claim
   const res = await fetch('http://127.0.0.1:9615/pair/claim', {
@@ -147,42 +151,39 @@ async function onSubmit(pairingCode: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code: pairingCode }),
   });
-  
-  if (!res.ok) {
-    showError(await res.json());
-    return;
-  }
-  
-  const payload = await res.json();
-  
-  // 2. Validate payload shape
-  if (!payload.extensionToken || !payload.wsUrl) {
-    showError({ code: 'PAIR_REJECTED', reason: 'invalid_payload' });
-    return;
-  }
-  
-  // 3. Store in chrome.storage.local
-  await chrome.storage.local.set({
-    token: payload.extensionToken,
-    wsUrl: payload.wsUrl,
-    issuedAt: payload.issuedAt,
-    expiresAt: payload.expiresAt,
-    nonce: payload.nonce,
-  });
-  
-  // 4. Notify background SW
+  const body = await res.json();
+  if (!res.ok) { showError(body?.error?.code ?? 'PAIR_TRANSPORT_ERROR'); return; }
+
+  // 2. Validate success envelope + bootstrap shape:
+  //    - body.ok === true && typeof body.data === "object"
+  //    - extensionToken: non-empty string
+  //    - wsUrl: ws:// with hostname 127.0.0.1 or localhost (parsed via URL)
+  //    - protocolVersion === 1 (strict)
+  //    - issuedAt: number; expiresAt: number > Date.now()
+  //    - nonce: non-empty string
+  const validated = validateBootstrap(body, Date.now());
+  if (!validated.ok) { showError(validated.code); return; }
+
+  // 3. Persist as ONE atomic record via WXT's typed storage. This replaces
+  //    the older multi-key `chrome.storage.local.set({ token, wsUrl, ... })`
+  //    shape — the daemon always issues these fields together and the
+  //    background SW needs them as a set before opening the WebSocket.
+  await bootstrapItem.setValue(validated.value);
+
+  // 4. Fire-and-forget pair.complete so the background SW reconnects.
+  //    If this throws AFTER the storage write, the bootstrap is still
+  //    persisted; the SW will pick it up on its next startup.
   await chrome.runtime.sendMessage({ type: 'pair.complete' });
-  
-  // 5. Show success, close popup
+
   showSuccess();
-  setTimeout(() => window.close(), 1000);
 }
 ```
 
-Popup validation:
-- `wsUrl` host must be loopback (`127.0.0.1` or `localhost`)
-- `expiresAt` must be in the future
-- `nonce` is stored but not validated here (background validates on first use)
+Popup validation surfaces distinct error codes per failed check
+(`INVALID_PAYLOAD_SHAPE`, `INVALID_WS_URL`, `UNSUPPORTED_PROTOCOL_VERSION`,
+`BOOTSTRAP_EXPIRED`, `MISSING_NONCE`, `PAIR_TRANSPORT_ERROR`,
+`PAIR_NOTIFY_FAILED`), in addition to passing through daemon-side codes
+(`PAIRING_CODE_INVALID`, `PAIRING_CODE_EXPIRED`, `PAIRING_CODE_CONSUMED`).
 
 ---
 
