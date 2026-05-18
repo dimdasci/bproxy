@@ -42,8 +42,21 @@ pnpm --filter @bproxy/extension test
 2. Open `chrome://extensions`, enable **Developer mode** (top right).
 3. Click **Load unpacked** and select `extension/.output/chrome-mv3/`.
 
-The extension toolbar action opens the pairing popup. The popup pairing
-flow itself lands in Task 4 of the Phase 3 plan.
+The extension toolbar action opens the pairing popup.
+
+## Pairing the extension to a running daemon
+
+1. Start the daemon (`pnpm --filter @bproxy/service start` or your normal
+   workflow). The daemon listens on `127.0.0.1:9615` by default.
+2. Issue a one-time pairing code via the daemon CLI (`bproxy pair` once the
+   Phase 4 CLI ships, or by calling `POST /pair/issue` directly today).
+3. Open the extension popup and paste the code into **Pairing code**, then
+   click **Pair**. On success the popup shows `Paired. You can close this
+   popup.` and the background worker reconnects to the daemon WebSocket.
+4. On failure the popup shows a status line in red with a machine-readable
+   error code (e.g. `PAIRING_CODE_EXPIRED`, `INVALID_WS_URL`,
+   `PAIR_TRANSPORT_ERROR`) plus a hint; the popup is the only place the
+   user is prompted (no options page — see ADR-011).
 
 ## Architecture notes
 
