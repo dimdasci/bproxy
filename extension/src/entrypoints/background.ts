@@ -72,7 +72,25 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 	});
 	const browserActions = createBrowserActionHandler({
 		mainWorld,
+		tabRuntime: tabs,
+		tabs: {
+			update: (tabId, updateProperties) => chrome.tabs.update(tabId, updateProperties),
+			query: (queryInfo = {}) => chrome.tabs.query(queryInfo),
+			create: (createProperties) => chrome.tabs.create(createProperties),
+			remove: (tabId) => chrome.tabs.remove(tabId),
+			captureVisibleTab: (windowId, options) => {
+				if (typeof windowId === "number") {
+					return options
+						? chrome.tabs.captureVisibleTab(windowId, options)
+						: chrome.tabs.captureVisibleTab(windowId);
+				}
+				return options ? chrome.tabs.captureVisibleTab(options) : chrome.tabs.captureVisibleTab();
+			},
+		},
+		now: () => Date.now(),
 		isEvalEnabled: async () => (await configFlagsItem.getValue())["evalEnabled"] === true,
+		isDebuggerScreenshotEnabled: async () =>
+			(await configFlagsItem.getValue())["debuggerScreenshot"] === true,
 	});
 
 	return createDispatcher({

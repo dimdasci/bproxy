@@ -9,14 +9,14 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
-- **Tasks complete (13 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`), Task 13 (MAIN-world `runtime-api` + default-disabled `eval`).
-- **Tasks remaining (4):** 14 → 17, in plan order.
+- **Tasks complete (14 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`), Task 13 (MAIN-world `runtime-api` + default-disabled `eval`), Task 14 (background browser actions: `navigate` / `screenshot` / `tab.*` / `require-human`).
+- **Tasks remaining (3):** 15 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 14 — background browser actions (`navigate`, `screenshot`, `tab.*`, `require-human`).** Read its section in [`03-extension.md`](./03-extension.md#task-14-background-browser-actions--navigation-screenshot-tabs-human-handoff). Task 13 is now in: `extension/src/background/main-world.ts` owns one-shot MAIN-world execution, `background/browser-actions.ts` routes `fill(method=runtime-api)` there and gates `eval` behind `local:configFlags["evalEnabled"]`, `dispatcher.ts` special-cases runtime-api fill before content-script routing, and `entrypoints/background.ts` wires the new handler stack into the SW. Extend `browser-actions.ts`; do not move browser-API work into the content script.
+**Next: Task 15 — local integration smoke against daemon + Chrome.** Read its section in [`03-extension.md`](./03-extension.md#task-15-local-integration-smoke-against-daemon--chrome). Task 14 is now in: `extension/src/background/browser-actions.ts` handles `navigate`, `screenshot`, `tab.*`, and `require-human`; `background/tabs.ts` gained top-level load wait helpers; `entrypoints/background.ts` wires the Chrome tabs seam into the browser-action handler. Debugger screenshots remain intentionally gated by `DEBUGGER_DISABLED` because the manifest still omits the `debugger` permission.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -65,9 +65,8 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 14** now owns the remaining background action surface: `navigate`, `screenshot`, `tab.*`, and `require-human` still fall through `browser-actions.ts` as not-yet-implemented.
 - `eval` is default-disabled today via `local:configFlags["evalEnabled"]`; there is still no Phase 2 daemon/CLI wiring to set that flag.
-- **Task 14** will need to connect background browser actions (`navigate`, `screenshot`, `tab.*`, `require-human`) to the dispatcher; Task 12 only touched content-side DOM writes.
+- Debugger-backed screenshots are still intentionally disabled: Task 14 wired the normal `captureVisibleTab` path plus `DEBUGGER_DISABLED`, but the manifest still omits the `debugger` permission until a future explicit opt-in lands.
 
 ## Decisions worth remembering across the clear
 

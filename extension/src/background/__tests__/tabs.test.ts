@@ -137,6 +137,46 @@ describe("createTabRuntime", () => {
 		]);
 	});
 
+	it("waits for the next main-frame load completion", async () => {
+		let currentTab = { id: 42, url: "https://example.test/", status: "loading" };
+		const onRemoved = createEvent<(tabId: number, removeInfo?: unknown) => void>();
+		const onCommitted = createEvent<(details: NavigationEvent) => void>();
+		const onCompleted = createEvent<(details: NavigationEvent) => void>();
+		const onHistoryStateUpdated = createEvent<(details: NavigationEvent) => void>();
+		const runtime = createTabRuntime({
+			tabs: {
+				get: vi.fn(async () => currentTab),
+				sendMessage: vi.fn(async () => ({})),
+				onRemoved,
+			},
+			webNavigation: {
+				onCommitted,
+				onCompleted,
+				onHistoryStateUpdated,
+			},
+			injector: createContentInjector({
+				store: createFakeStorageItem("session:injectedTabs", [] as number[]),
+				scripting: { executeScript: vi.fn(async () => []) },
+			}),
+			now: () => 1000,
+			setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
+			clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
+			rpcTimeoutMs: 10,
+		});
+		runtime.start();
+
+		const pending = runtime.waitForLoad(42, { timeoutMs: 50 });
+		await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+		currentTab = { id: 42, url: "https://example.test/next", status: "complete" };
+		onCompleted.emit({ tabId: 42, frameId: 0, url: "https://example.test/next" });
+
+		await expect(pending).resolves.toMatchObject({
+			id: 42,
+			url: "https://example.test/next",
+			status: "complete",
+		});
+	});
+
 	it("times out when the content script never responds", async () => {
 		const h = createHarness({
 			sendMessage: vi.fn(async () => await new Promise(() => undefined)),

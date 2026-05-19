@@ -373,17 +373,19 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 14: Background browser actions — navigation, screenshot, tabs, human handoff
 
+**Status:** ✅ Complete — local workspace. Landed in `extension/src/background/browser-actions.ts` + `tabs.ts`, wired through `entrypoints/background.ts`, and covered by `extension/src/background/__tests__/{browser-actions,tabs}.test.ts`. `navigate` now waits for top-level load completion and maps interstitials to `HUMAN_REQUIRED`; screenshot uses `captureVisibleTab` and keeps debugger capture gated behind `DEBUGGER_DISABLED` until the explicit opt-in path/permission exists.
+
 **Files:** `extension/src/background/browser-actions.ts`, `extension/src/background/tabs.ts`, tests.
 
 **Purpose:** Implement actions that use Chrome extension APIs rather than content-script DOM logic.
 
-- [ ] `navigate`: call `chrome.tabs.update(tabId, { url })`, wait for load/navigation completion, then check interstitial patterns.
-- [ ] `screenshot`: use `chrome.tabs.captureVisibleTab`; implement debugger capture only behind an explicit opt-in flag, otherwise return `DEBUGGER_DISABLED` for debugger requests.
-- [ ] `tab.list`: return Chrome tabs with current session binding/injected status where available from forwarded metadata/local injected set.
-- [ ] `tab.open` / `tab.close`: use Chrome tabs API and return shared results.
-- [ ] `tab.pin` / `tab.unpin`: resolve/echo target tab state without taking ownership of daemon session state. If one-command session pinning is required, update daemon/service docs rather than mutating extension-only state.
-- [ ] `require-human`: return a structured `HUMAN_REQUIRED` error/signal with reason and suggested action; rely on daemon pause integration from Task 1.
-- [ ] Test navigation success/failure, screenshot normal path, debugger-disabled path, tab-not-found paths, and interstitial-to-human-required mapping.
+- [x] `navigate`: call `chrome.tabs.update(tabId, { url })`, wait for load/navigation completion, then check interstitial patterns.
+- [x] `screenshot`: use `chrome.tabs.captureVisibleTab`; implement debugger capture only behind an explicit opt-in flag, otherwise return `DEBUGGER_DISABLED` for debugger requests.
+- [x] `tab.list`: return Chrome tabs with current session binding/injected status where available from forwarded metadata/local injected set.
+- [x] `tab.open` / `tab.close`: use Chrome tabs API and return shared results.
+- [x] `tab.pin` / `tab.unpin`: resolve/echo target tab state without taking ownership of daemon session state. If one-command session pinning is required, update daemon/service docs rather than mutating extension-only state.
+- [x] `require-human`: return a structured `HUMAN_REQUIRED` error/signal with reason and suggested action; rely on daemon pause integration from Task 1.
+- [x] Test navigation success/failure, screenshot normal path, debugger-disabled path, tab-not-found paths, and interstitial-to-human-required mapping.
 
 **Done when:** browser-API actions do not require a content script except where explicitly needed for page state.
 

@@ -16,6 +16,7 @@ export interface TabLike {
 	status?: string;
 	active?: boolean;
 	windowId?: number;
+	pinned?: boolean;
 }
 
 export interface TabsSeam {
@@ -50,6 +51,10 @@ export interface FrameRecord {
 	lastHistoryStateUpdatedAt?: number;
 }
 
+export interface WaitForLoadOptions {
+	timeoutMs: number;
+}
+
 export interface TabRuntimeDeps {
 	tabs: TabsSeam;
 	webNavigation: WebNavigationSeam;
@@ -64,8 +69,16 @@ export interface TabRuntime {
 	start(): void;
 	stop(): void;
 	resolveTargetTab(tabId: number): Promise<TabLike & { id: number }>;
+	waitForLoad(tabId: number, options: WaitForLoadOptions): Promise<TabLike & { id: number }>;
 	handleDomAction<A extends DomAction>(request: BproxyForwardedRequest<A>): Promise<ExecutedAction>;
 	getFrames(tabId: number): FrameRecord[];
+	getInjectedTabs(): Promise<number[]>;
+}
+
+interface LoadWaiter {
+	resolve: (tab: TabLike & { id: number }) => void;
+	reject: (error: BproxyError) => void;
+	timer: unknown;
 }
 
 interface RuntimeState {
@@ -75,6 +88,7 @@ interface RuntimeState {
 	completedListener: ((details: NavigationEvent) => void) | null;
 	historyListener: ((details: NavigationEvent) => void) | null;
 	frames: Map<number, Map<number, FrameRecord>>;
+	loadWaiters: Map<number, Set<LoadWaiter>>;
 }
 
 export function createTabRuntime(deps: TabRuntimeDeps): TabRuntime {
@@ -85,14 +99,17 @@ export function createTabRuntime(deps: TabRuntimeDeps): TabRuntime {
 		completedListener: null,
 		historyListener: null,
 		frames: new Map(),
+		loadWaiters: new Map(),
 	};
 
 	return {
 		start: () => startRuntime(deps, state),
 		stop: () => stopRuntime(deps, state),
 		resolveTargetTab: (tabId) => resolveTargetTab(deps, tabId),
+		waitForLoad: (tabId, options) => waitForLoad(deps, state, tabId, options),
 		handleDomAction: (request) => handleDomAction(deps, request),
 		getFrames: (tabId) => getFrames(state, tabId),
+		getInjectedTabs: () => deps.injector.getInjectedTabs(),
 	};
 }
 
@@ -101,6 +118,7 @@ function startRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 	state.started = true;
 	const removed = (tabId: number) => {
 		state.frames.delete(tabId);
+		rejectLoadWaiters(deps, state, tabId, tabNotFound(tabId));
 		void deps.injector.forgetTab(tabId);
 	};
 	const committed = (details: NavigationEvent) => {
@@ -112,6 +130,9 @@ function startRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 	};
 	const completed = (details: NavigationEvent) => {
 		upsertFrame(state.frames, details, "lastCompletedAt", deps.now());
+		if (details.frameId === 0) {
+			settleLoadWaiters(deps, state, details.tabId);
+		}
 	};
 	const history = (details: NavigationEvent) => {
 		upsertFrame(state.frames, details, "lastHistoryStateUpdatedAt", deps.now());
@@ -145,6 +166,7 @@ function stopRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 		deps.webNavigation.onHistoryStateUpdated.removeListener(state.historyListener);
 		state.historyListener = null;
 	}
+	rejectAllLoadWaiters(deps, state, scriptError("Tab runtime stopped"));
 }
 
 async function handleDomAction<A extends DomAction>(
@@ -198,6 +220,82 @@ async function resolveTargetTab(
 	}
 }
 
+async function waitForLoad(
+	deps: TabRuntimeDeps,
+	state: RuntimeState,
+	tabId: number,
+	options: WaitForLoadOptions,
+): Promise<TabLike & { id: number }> {
+	if (options.timeoutMs <= 0) {
+		throw timeoutError(options.timeoutMs);
+	}
+	const current = await resolveTargetTab(deps, tabId);
+	if (current.status === "complete") {
+		return current;
+	}
+	return await new Promise((resolve, reject) => {
+		const waiter: LoadWaiter = {
+			resolve,
+			reject,
+			timer: null,
+		};
+		let waiters = state.loadWaiters.get(tabId);
+		if (!waiters) {
+			waiters = new Set();
+			state.loadWaiters.set(tabId, waiters);
+		}
+		waiters.add(waiter);
+		waiter.timer = deps.setTimeout(() => {
+			removeLoadWaiter(state, tabId, waiter);
+			reject(timeoutError(options.timeoutMs));
+		}, options.timeoutMs);
+	});
+}
+
+function settleLoadWaiters(deps: TabRuntimeDeps, state: RuntimeState, tabId: number): void {
+	const waiters = state.loadWaiters.get(tabId);
+	if (!waiters || waiters.size === 0) return;
+	for (const waiter of [...waiters]) {
+		removeLoadWaiter(state, tabId, waiter);
+		deps.clearTimeout(waiter.timer);
+		void resolveTargetTab(deps, tabId).then(waiter.resolve, (error: BproxyError) => waiter.reject(error));
+	}
+}
+
+function rejectLoadWaiters(
+	deps: TabRuntimeDeps,
+	state: RuntimeState,
+	tabId: number,
+	error: BproxyError,
+): void {
+	const waiters = state.loadWaiters.get(tabId);
+	if (!waiters || waiters.size === 0) return;
+	for (const waiter of [...waiters]) {
+		removeLoadWaiter(state, tabId, waiter);
+		deps.clearTimeout(waiter.timer);
+		waiter.reject(error);
+	}
+}
+
+function rejectAllLoadWaiters(
+	deps: TabRuntimeDeps,
+	state: RuntimeState,
+	error: BproxyError,
+): void {
+	for (const tabId of [...state.loadWaiters.keys()]) {
+		rejectLoadWaiters(deps, state, tabId, error);
+	}
+}
+
+function removeLoadWaiter(state: RuntimeState, tabId: number, waiter: LoadWaiter): void {
+	const waiters = state.loadWaiters.get(tabId);
+	if (!waiters) return;
+	waiters.delete(waiter);
+	if (waiters.size === 0) {
+		state.loadWaiters.delete(tabId);
+	}
+}
+
 async function withTimeout(deps: TabRuntimeDeps, promise: Promise<unknown>): Promise<unknown> {
 	let timer: unknown = null;
 	try {
@@ -246,7 +344,7 @@ function timeoutError(timeoutMs: number): BproxyError {
 		code: "TIMEOUT",
 		category: "transport",
 		retry: "conditional",
-		message: `Timed out waiting for content-script response after ${timeoutMs}ms`,
+		message: `Timed out waiting for tab activity after ${timeoutMs}ms`,
 		details: { timeoutMs },
 	};
 }
