@@ -32,12 +32,14 @@ export class FakeElement implements QueryElementLike {
 	ownerDocument: FakeDocument | null = null;
 	shadowRoot: FakeShadowRoot | null = null;
 	textContent = "";
-	value?: string;
 	isContentEditable = false;
 	style: { display?: string; visibility?: string } = {};
+	emittedEvents: Event[] = [];
 	private readonly attributes = new Map<string, string>();
+	private readonly listeners = new Map<string, Array<(event: Event) => void>>();
 	private rect: Required<RectInit> = defaultRect();
 	private parentRoot: FakeDocument | FakeShadowRoot | null = null;
+	private currentValue: string | undefined;
 
 	constructor(tagName: string, init: ElementInit = {}) {
 		this.tagName = tagName.toUpperCase();
@@ -52,6 +54,14 @@ export class FakeElement implements QueryElementLike {
 		return normalizeText([this.textContent, childText].filter(Boolean).join(" "));
 	}
 
+	get value(): string | undefined {
+		return this.currentValue;
+	}
+
+	set value(next: string | undefined) {
+		this.currentValue = next;
+	}
+
 	getAttribute(name: string): string | null {
 		return this.attributes.get(name) ?? null;
 	}
@@ -64,6 +74,12 @@ export class FakeElement implements QueryElementLike {
 		this.attributes.set(name, value);
 		if (name === "id") this.id = value;
 		if (name === "contenteditable") this.isContentEditable = value === "true";
+	}
+
+	removeAttribute(name: string): void {
+		this.attributes.delete(name);
+		if (name === "id") this.id = "";
+		if (name === "contenteditable") this.isContentEditable = false;
 	}
 
 	append(...children: FakeElement[]): this {
@@ -140,6 +156,41 @@ export class FakeElement implements QueryElementLike {
 
 	setRect(rect: RectInit): void {
 		this.rect = { ...this.rect, ...rect };
+	}
+
+	addEventListener(type: string, listener: (event: Event) => void): void {
+		const current = this.listeners.get(type) ?? [];
+		current.push(listener);
+		this.listeners.set(type, current);
+	}
+
+	removeEventListener(type: string, listener: (event: Event) => void): void {
+		const current = this.listeners.get(type);
+		if (!current) return;
+		this.listeners.set(
+			type,
+			current.filter((candidate) => candidate !== listener),
+		);
+	}
+
+	dispatchEvent(event: Event): boolean {
+		this.emittedEvents.push(event);
+		for (const listener of this.listeners.get(event.type) ?? []) listener(event);
+		return true;
+	}
+
+	focus(): void {
+		const root = this.getRootNode();
+		if (root instanceof FakeShadowRoot) {
+			root.activeElement = this;
+			if (root.ownerDocument) root.ownerDocument.activeElement = root.host;
+			return;
+		}
+		root.activeElement = this;
+	}
+
+	click(): void {
+		this.dispatchEvent(createEvent("click"));
 	}
 }
 
@@ -226,7 +277,7 @@ export function doc(...children: FakeElement[]): FakeDocument {
 
 function applyElementInit(element: FakeElement, init: ElementInit): void {
 	element.textContent = init.text ?? "";
-	element.value = init.value;
+	if (init.value !== undefined) element.value = init.value;
 	element.style = { ...init.style };
 	element.setRect(init.rect ?? defaultRect());
 	for (const [name, raw] of Object.entries(init.attrs ?? {})) {
@@ -242,4 +293,9 @@ function defaultRect(): Required<RectInit> {
 
 function normalizeText(value: string): string {
 	return value.replace(/\s+/g, " ").trim();
+}
+
+function createEvent(type: string): Event {
+	if (typeof Event === "function") return new Event(type, { bubbles: true, composed: true });
+	return { type, bubbles: true, composed: true } as Event;
 }

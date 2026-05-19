@@ -9,14 +9,14 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
-- **Tasks complete (11 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`).
-- **Tasks remaining (6):** 12 → 17, in plan order.
+- **Tasks complete (12 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`).
+- **Tasks remaining (5):** 13 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 12 — ISOLATED-world writes (`direct`, `paste`, `fill-form`, `select`).** Read its section in [`03-extension.md`](./03-extension.md#task-12-isolated-world-writes--direct-paste-fill-form-select). Tasks 10 and 11 already landed the read surface plus jittered polling/`wait`/`scroll`; Task 12 should now build on `content/targeting.ts`, `content/discovery.ts`, `content/read-tree.ts`, and `content/polling.ts` rather than re-deriving DOM/actionability primitives.
+**Next: Task 13 — MAIN-world one-shot actions (`runtime-api` and `eval`).** Read its section in [`03-extension.md`](./03-extension.md#task-13-main-world-one-shot-actions--runtime-api-and-eval). Task 12 is now in: `extension/src/content/events.ts` holds native setter / paste event helpers plus actionability checks, `content/actions/fill.ts` implements `fill` + `fill-form`, `content/actions/select.ts` covers native/custom dropdown flows, and `entrypoints/content.ts` wires the new handlers into the runtime content host. Build on that boundary; do not move `runtime-api` into the content script.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -65,9 +65,9 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 12** should reuse `content/targeting.ts`, `content/discovery.ts`, `content/dom-helpers.ts`, and `content/polling.ts` rather than re-introducing selector/visibility/stability logic in each write handler.
-- **Task 12** still needs real `fill`, `fill-form`, and `select` action handlers plus event-shape assertions (`paste` events, no fake key events, hidden-field guards, read-back verification).
+- **Task 13** now owns the remaining `fill` branch: `runtime-api` must stay background-owned and use one-shot `chrome.scripting.executeScript(..., { world: "MAIN" })` only when `method === "runtime-api" && world === "main"`.
 - **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
+- **Task 14** will need to connect background browser actions (`navigate`, `screenshot`, `tab.*`, `require-human`) to the dispatcher; Task 12 only touched content-side DOM writes.
 
 ## Decisions worth remembering across the clear
 
@@ -77,9 +77,9 @@ These are flagged here so you don't waste a research turn rediscovering them:
 - **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 12 (common scope drift)
+## Things NOT to do in Task 13 (common scope drift)
 
-- Don't add MAIN-world helpers yet; `runtime-api` and `eval` belong to Task 13.
+- Don't move `runtime-api` execution into the content script; MAIN-world one-shot execution belongs in background helpers.
 - Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make write handlers convenient.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make MAIN-world plumbing convenient.
 - Don't add extension-side method auto-selection or fallback chains; the agent chooses `direct` / `paste` / `runtime-api` explicitly.

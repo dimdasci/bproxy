@@ -336,16 +336,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 12: ISOLATED-world writes — `direct`, `paste`, `fill-form`, `select`
 
+**Status:** ✅ Complete — local workspace. Added `content/events.ts`, `content/actions/{fill,select}.ts`, wired them into `entrypoints/content.ts`, extended fake DOM fixtures for focus/click/event capture, and covered direct/paste/fill-form/select flows in `extension/src/content/__tests__/{fill,select}.test.ts`.
+
 **Files:** `extension/src/content/events.ts`, `extension/src/content/actions/fill.ts`, `extension/src/content/actions/select.ts`, tests.
 
 **Purpose:** Execute the explicit write method the agent selected, without extension-side escalation.
 
-- [ ] `direct`: set native DOM state for inputs/textareas/contenteditable; dispatch no input/change/key events.
-- [ ] `paste`: focus, use the native value setter where applicable, dispatch paste-flavoured `beforeinput`, `input`, and `change`; never synthesize keydown/keypress/keyup.
-- [ ] Validate method/world compatibility: `direct` and `paste` require `world: "isolated"`; `runtime-api` is rejected here and handled by the background MAIN-world path.
-- [ ] `fill-form`: process fields in one round-trip, guard hidden/non-actionable fields, verify read-back per field. Do not add extension-level method selection.
-- [ ] `select`: click trigger, poll for menu/listbox/options, click matching option text, verify selection.
-- [ ] Test native setters, event payloads, no-key-event invariant, hidden-field guard, read-back verification, and shadow-route targets.
+- [x] `direct`: set native DOM state for inputs/textareas/contenteditable; dispatch no input/change/key events.
+- [x] `paste`: focus, use the native value setter where applicable, dispatch paste-flavoured `beforeinput`, `input`, and `change`; never synthesize keydown/keypress/keyup.
+- [x] Validate method/world compatibility: `direct` and `paste` require `world: "isolated"`; `runtime-api` is rejected here and handled by the background MAIN-world path.
+- [x] `fill-form`: process fields in one round-trip, guard hidden/non-actionable fields, verify read-back per field. Do not add extension-level method selection.
+- [x] `select`: click trigger, poll for menu/listbox/options, click matching option text, verify selection.
+- [x] Test native setters, event payloads, no-key-event invariant, hidden-field guard, read-back verification, and shadow-route targets.
 
 **Done when:** framework-friendly paste semantics are asserted by tests and direct writes remain event-free.
 

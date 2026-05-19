@@ -1,5 +1,7 @@
+import { createFillHandlers } from "../content/actions/fill";
 import { createReadHandlers } from "../content/actions/reads";
 import { createScrollWaitHandlers } from "../content/actions/scroll-wait";
+import { createSelectHandlers } from "../content/actions/select";
 import { snapshotDomPageState } from "../content/page-state";
 import { registerContentRpcListener } from "../content/rpc";
 
@@ -30,4 +32,6 @@ export default defineContentScript({
 const handlers = {
 	...createReadHandlers(),
 	...createScrollWaitHandlers(),
+	...createFillHandlers(),
+	...createSelectHandlers(),
 };
