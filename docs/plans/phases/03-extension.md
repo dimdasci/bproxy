@@ -297,17 +297,19 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 10: Read action handlers
 
-**Files:** `extension/src/content/actions/reads.ts`, `extension/src/content/discovery.ts`, tests.
+**Status:** ✅ Complete — local workspace. Landed `content/actions/reads.ts` with shared read-tree helpers in `content/read-tree.ts`, kept reads in ISOLATED world, and covered `text`/`images`/`elements`/`outline`/`dom` against fake-DOM fixtures in `extension/src/content/__tests__/reads.test.ts`.
+
+**Files:** `extension/src/content/actions/reads.ts`, `extension/src/content/read-tree.ts`, `extension/src/content/discovery.ts`, tests.
 
 **Purpose:** Ship the read-mode surface that covers most agent workflows without MAIN-world presence.
 
-- [ ] `text`: extract visible-ish `innerText` from selector/route or `body` default.
-- [ ] `images`: return visible images with `src`, `alt`, natural/rendered dimensions scoped by selector when provided.
-- [ ] `elements`: return interactive controls and, with `form: true`, form fields only.
-- [ ] `outline`: return landmarks and heading hierarchy.
-- [ ] `dom`: serialize a simplified subtree with bounded depth and no script/style noise.
-- [ ] Keep all reads in ISOLATED world and avoid persistent observers/listeners.
-- [ ] Test each action against DOM fixtures, including shadow-root targets and bounded output.
+- [x] `text`: extract visible-ish `innerText` from selector/route or `body` default.
+- [x] `images`: return visible images with `src`, `alt`, natural/rendered dimensions scoped by selector when provided.
+- [x] `elements`: return interactive controls and, with `form: true`, form fields only.
+- [x] `outline`: return landmarks and heading hierarchy.
+- [x] `dom`: serialize a simplified subtree with bounded depth and no script/style noise.
+- [x] Keep all reads in ISOLATED world and avoid persistent observers/listeners.
+- [x] Test each action against DOM fixtures, including shadow-root targets and bounded output.
 
 **Done when:** the extension can satisfy the daemon action-contract read set without touching MAIN world.
 
@@ -315,16 +317,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 11: DOM polling, wait, and scroll
 
+**Status:** ✅ Complete — local workspace. Added jittered polling hooks in `content/polling.ts`, wired `scroll`/`wait` handlers via `content/actions/scroll-wait.ts` into the runtime content entrypoint, and covered jitter/timeout/hidden-tab/selector-url-navigation waits/scroll math in `extension/src/content/__tests__/{polling,scroll-wait}.test.ts`.
+
 **Files:** `extension/src/content/polling.ts`, `extension/src/content/actions/scroll-wait.ts`, tests.
 
 **Purpose:** Implement page-settle behaviour in the low-signal way specified by ADR-006.
 
-- [ ] Implement jittered polling with injected random/clock hooks for deterministic tests.
-- [ ] Support stability by element-count/subtree signature, bounded timeout, and stable-count threshold.
-- [ ] Respect visibility: destructive actions bail with `TAB_NOT_VISIBLE` when `document.visibilityState === "hidden"` unless the action is explicitly marked as user-initiated in future protocol metadata.
-- [ ] `scroll`: compute pixel distance from `by`/`direction`, perform `window.scrollBy`, optionally wait until stable, return before/after/scrolled/stable.
-- [ ] `wait`: implement selector, URL, and navigation strategies using polling rather than MutationObserver.
-- [ ] Test jitter range, timeout, hidden-tab bail-out, selector wait, URL wait, and scroll result math.
+- [x] Implement jittered polling with injected random/clock hooks for deterministic tests.
+- [x] Support stability by element-count/subtree signature, bounded timeout, and stable-count threshold.
+- [x] Respect visibility: destructive actions bail with `TAB_NOT_VISIBLE` when `document.visibilityState === "hidden"` unless the action is explicitly marked as user-initiated in future protocol metadata.
+- [x] `scroll`: compute pixel distance from `by`/`direction`, perform `window.scrollBy`, optionally wait until stable, return before/after/scrolled/stable.
+- [x] `wait`: implement selector, URL, and navigation strategies using polling rather than MutationObserver.
+- [x] Test jitter range, timeout, hidden-tab bail-out, selector wait, URL wait, and scroll result math.
 
 **Done when:** source and built output remain free of `MutationObserver`, and scroll/wait behave deterministically in tests with injected time.
 

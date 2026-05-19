@@ -9,14 +9,14 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
-- **Tasks complete (9 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives).
-- **Tasks remaining (8):** 10 → 17, in plan order.
+- **Tasks complete (11 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`).
+- **Tasks remaining (6):** 12 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 10 — Read action handlers.** Read its section in [`03-extension.md`](./03-extension.md#task-10-read-action-handlers). Task 9 landed route resolution, stable selector generation, progressive discovery scopes, runtime-handle probing, and fake-DOM coverage; Task 10 should wire those primitives into `text`/`images`/`elements`/`outline`/`dom` handlers.
+**Next: Task 12 — ISOLATED-world writes (`direct`, `paste`, `fill-form`, `select`).** Read its section in [`03-extension.md`](./03-extension.md#task-12-isolated-world-writes--direct-paste-fill-form-select). Tasks 10 and 11 already landed the read surface plus jittered polling/`wait`/`scroll`; Task 12 should now build on `content/targeting.ts`, `content/discovery.ts`, `content/read-tree.ts`, and `content/polling.ts` rather than re-deriving DOM/actionability primitives.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -24,7 +24,7 @@ Dependencies that landed in earlier tasks (don't re-derive):
 - `BproxyForwardedRequest` from `@bproxy/shared` — wire shape with `target.tabId`.
 - `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, and traces every accepted request.
 - `extension/src/background/{injection,tabs}.ts` — Task 7 resolves daemon-targeted tabs, tracks injected tabs in session storage, observes navigation/frame events, injects `content-scripts/content.js` on first use, and routes DOM actions through timeout-bounded RPC.
-- `extension/src/content/{rpc,page-state}.ts` plus `extension/src/entrypoints/content.ts` — Task 8 owns the content-side contract, runtime listener registration, normalized thrown-error handling, and consistent page-state snapshots. The `text` handler now resolves unique selectors through `content/targeting.ts` and uses shared visibility helpers, but the broader read surface is still pending Task 10.
+- `extension/src/content/{rpc,page-state,polling,read-tree}.ts` plus `extension/src/entrypoints/content.ts` — Task 8 owns the content-side contract and listener registration; Tasks 10/11 now add the read handlers, subtree/text serialization helpers, and jittered polling primitives already wired into the runtime content script.
 - `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket.
 
 ## Workflow rule that survives the context clear
@@ -65,8 +65,8 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 10** should reuse `content/targeting.ts`, `content/discovery.ts`, and `content/dom-helpers.ts` rather than re-introducing selector/visibility logic in each read handler.
-- **Task 10** still needs real `elements`, `images`, `outline`, and `dom` action handlers; Task 9 only landed the substrate and tests proving the returned targets round-trip.
+- **Task 12** should reuse `content/targeting.ts`, `content/discovery.ts`, `content/dom-helpers.ts`, and `content/polling.ts` rather than re-introducing selector/visibility/stability logic in each write handler.
+- **Task 12** still needs real `fill`, `fill-form`, and `select` action handlers plus event-shape assertions (`paste` events, no fake key events, hidden-field guards, read-back verification).
 - **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
 
 ## Decisions worth remembering across the clear
@@ -77,9 +77,9 @@ These are flagged here so you don't waste a research turn rediscovering them:
 - **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 10 (common scope drift)
+## Things NOT to do in Task 12 (common scope drift)
 
-- Don't add write handlers yet; Task 10 is the read surface only.
-- Don't add MAIN-world helpers (Task 13).
+- Don't add MAIN-world helpers yet; `runtime-api` and `eval` belong to Task 13.
 - Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make read handlers convenient.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make write handlers convenient.
+- Don't add extension-side method auto-selection or fallback chains; the agent chooses `direct` / `paste` / `runtime-api` explicitly.

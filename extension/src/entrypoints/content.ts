@@ -1,12 +1,7 @@
-import type { ActionResult, BproxyError } from "@bproxy/shared";
-import { isElementVisible } from "../content/dom-helpers";
+import { createReadHandlers } from "../content/actions/reads";
+import { createScrollWaitHandlers } from "../content/actions/scroll-wait";
 import { snapshotDomPageState } from "../content/page-state";
-import {
-	type ContentRpcHandlers,
-	type ContentRpcRequest,
-	registerContentRpcListener,
-} from "../content/rpc";
-import { resolveSelectorTarget } from "../content/targeting";
+import { registerContentRpcListener } from "../content/rpc";
 
 // Runtime content script entrypoint.
 //
@@ -32,31 +27,7 @@ export default defineContentScript({
 	},
 });
 
-const handlers: ContentRpcHandlers = {
-	text: (request) => ({ text: readText(request) }),
+const handlers = {
+	...createReadHandlers(),
+	...createScrollWaitHandlers(),
 };
-
-function readText(request: ContentRpcRequest<"text">): ActionResult["text"]["text"] {
-	const root = request.params.selector
-		? resolveSelectorTarget(request.params.selector)
-		: document.body;
-	if (!root) {
-		throw elementNotFound(
-			request.params.selector
-				? `No element matched selector ${request.params.selector}`
-				: "Document body is not available",
-		);
-	}
-	const readable = root as Element & { innerText?: string };
-	if (isElementVisible(root) && typeof readable.innerText === "string") return readable.innerText;
-	return root.textContent ?? "";
-}
-
-function elementNotFound(message: string): BproxyError {
-	return {
-		code: "ELEMENT_NOT_FOUND",
-		category: "target",
-		retry: "conditional",
-		message,
-	};
-}
