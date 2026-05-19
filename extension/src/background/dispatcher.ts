@@ -29,6 +29,7 @@ export interface DispatcherDeps {
 	sendResponse: (response: BproxyResponse) => void;
 	handleBrowserAction: (request: BproxyForwardedRequest<BrowserAction>) => Promise<ExecutedAction>;
 	handleDomAction: (request: BproxyForwardedRequest<DomAction>) => Promise<ExecutedAction>;
+	handleMainWorldFill: (request: BproxyForwardedRequest<"fill">) => Promise<ExecutedAction>;
 }
 
 export interface Dispatcher {
@@ -86,6 +87,12 @@ async function executeRequest(
 				data: { entries },
 				page: emptyPageState(),
 			});
+		}
+		if (request.action === "fill") {
+			const fillRequest = request as BproxyForwardedRequest<"fill">;
+			if (fillRequest.params.method === "runtime-api") {
+				return buildSuccess(fillRequest, await deps.handleMainWorldFill(fillRequest));
+			}
 		}
 		if (isBrowserAction(request.action)) {
 			return buildSuccess(

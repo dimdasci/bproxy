@@ -1,7 +1,9 @@
+import { createBrowserActionHandler } from "../background/browser-actions";
 import { createDedupe, type Dedupe } from "../background/dedupe";
-import { createDispatcher, type Dispatcher, type ExecutedAction } from "../background/dispatcher";
+import { createDispatcher, type Dispatcher } from "../background/dispatcher";
 import { createContentInjector } from "../background/injection";
-import { bootstrapItem, dedupeItem, injectedTabsItem, traceItem } from "../background/storage";
+import { createMainWorldExecutor } from "../background/main-world";
+import { bootstrapItem, configFlagsItem, dedupeItem, injectedTabsItem, traceItem } from "../background/storage";
 import { createTabRuntime, type TabRuntime } from "../background/tabs";
 import { createTrace } from "../background/trace";
 import {
@@ -50,10 +52,6 @@ const DEDUPE_MAX_SIZE = 1000;
 const DEDUPE_TTL_MS = 10 * 60 * 1000;
 const CONTENT_RPC_TIMEOUT_MS = 5000;
 
-function notImplemented(action: string): Promise<ExecutedAction> {
-	return Promise.reject(new Error(`No extension handler is registered yet for action ${action}`));
-}
-
 function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 	const trace = createTrace({
 		store: traceItem,
@@ -67,6 +65,16 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 		now: () => Date.now(),
 	});
 
+	const mainWorld = createMainWorldExecutor({
+		scripting: {
+			executeScript: (details) => chrome.scripting.executeScript(details),
+		},
+	});
+	const browserActions = createBrowserActionHandler({
+		mainWorld,
+		isEvalEnabled: async () => (await configFlagsItem.getValue())["evalEnabled"] === true,
+	});
+
 	return createDispatcher({
 		dedupe,
 		trace,
@@ -74,8 +82,9 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 		sendResponse: (response) => {
 			client.send(JSON.stringify(response));
 		},
-		handleBrowserAction: (request) => notImplemented(request.action),
+		handleBrowserAction: (request) => browserActions.handleBrowserAction(request),
 		handleDomAction: (request) => tabs.handleDomAction(request),
+		handleMainWorldFill: (request) => browserActions.handleMainWorldFill(request),
 	});
 }
 

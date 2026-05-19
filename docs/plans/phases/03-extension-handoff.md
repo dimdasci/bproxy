@@ -9,14 +9,14 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
-- **Tasks complete (12 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`).
-- **Tasks remaining (5):** 13 → 17, in plan order.
+- **Tasks complete (13 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`), Task 13 (MAIN-world `runtime-api` + default-disabled `eval`).
+- **Tasks remaining (4):** 14 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 13 — MAIN-world one-shot actions (`runtime-api` and `eval`).** Read its section in [`03-extension.md`](./03-extension.md#task-13-main-world-one-shot-actions--runtime-api-and-eval). Task 12 is now in: `extension/src/content/events.ts` holds native setter / paste event helpers plus actionability checks, `content/actions/fill.ts` implements `fill` + `fill-form`, `content/actions/select.ts` covers native/custom dropdown flows, and `entrypoints/content.ts` wires the new handlers into the runtime content host. Build on that boundary; do not move `runtime-api` into the content script.
+**Next: Task 14 — background browser actions (`navigate`, `screenshot`, `tab.*`, `require-human`).** Read its section in [`03-extension.md`](./03-extension.md#task-14-background-browser-actions--navigation-screenshot-tabs-human-handoff). Task 13 is now in: `extension/src/background/main-world.ts` owns one-shot MAIN-world execution, `background/browser-actions.ts` routes `fill(method=runtime-api)` there and gates `eval` behind `local:configFlags["evalEnabled"]`, `dispatcher.ts` special-cases runtime-api fill before content-script routing, and `entrypoints/background.ts` wires the new handler stack into the SW. Extend `browser-actions.ts`; do not move browser-API work into the content script.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -65,8 +65,8 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 13** now owns the remaining `fill` branch: `runtime-api` must stay background-owned and use one-shot `chrome.scripting.executeScript(..., { world: "MAIN" })` only when `method === "runtime-api" && world === "main"`.
-- **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
+- **Task 14** now owns the remaining background action surface: `navigate`, `screenshot`, `tab.*`, and `require-human` still fall through `browser-actions.ts` as not-yet-implemented.
+- `eval` is default-disabled today via `local:configFlags["evalEnabled"]`; there is still no Phase 2 daemon/CLI wiring to set that flag.
 - **Task 14** will need to connect background browser actions (`navigate`, `screenshot`, `tab.*`, `require-human`) to the dispatcher; Task 12 only touched content-side DOM writes.
 
 ## Decisions worth remembering across the clear
@@ -79,7 +79,7 @@ These are flagged here so you don't waste a research turn rediscovering them:
 
 ## Things NOT to do in Task 13 (common scope drift)
 
-- Don't move `runtime-api` execution into the content script; MAIN-world one-shot execution belongs in background helpers.
-- Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make MAIN-world plumbing convenient.
+- Don't move `runtime-api` execution into the content script; MAIN-world one-shot execution stays in background helpers.
+- Don't expand `wxt.config.ts` manifest permissions unless Task 14 actually lands the optional debugger screenshot path behind its opt-in flag.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make browser-action plumbing convenient.
 - Don't add extension-side method auto-selection or fallback chains; the agent chooses `direct` / `paste` / `runtime-api` explicitly.

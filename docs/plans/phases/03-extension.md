@@ -355,15 +355,17 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 13: MAIN-world one-shot actions — `runtime-api` and `eval`
 
+**Status:** ✅ Complete — local workspace. Added `background/main-world.ts` plus `background/browser-actions.ts`, wired runtime-api fill through one-shot `chrome.scripting.executeScript({ world: "MAIN" })` in the SW, default-disabled `eval` behind `local:configFlags["evalEnabled"]`, and covered executeScript shape / hygiene / normalized error / disabled eval in `extension/src/background/__tests__/{main-world,browser-actions,dispatcher}.test.ts`.
+
 **Files:** `extension/src/background/main-world.ts`, `extension/src/background/browser-actions.ts`, tests.
 
 **Purpose:** Provide explicit MAIN-world capability without creating a persistent page fingerprint.
 
-- [ ] `fill` with `method: "runtime-api"` must require `world: "main"` and execute exactly one `chrome.scripting.executeScript` call with `world: "MAIN"`.
-- [ ] The injected runtime-api function resolves only the provided route/handle, calls the editor API, verifies when possible, catches all errors, and returns plain data only.
-- [ ] The injected function body must contain no identifying literals such as extension id, `chrome-extension`, package names, or bproxy branding.
-- [ ] `eval` remains disabled unless the daemon/extension config explicitly enables it. If Phase 2 lacks an eval flag, implement default `EVAL_DISABLED` and document the Phase 4 wiring required to turn it on.
-- [ ] Test executeScript arguments, one-shot/no-listener behaviour, normalized error path, no identifying literals, and disabled eval.
+- [x] `fill` with `method: "runtime-api"` must require `world: "main"` and execute exactly one `chrome.scripting.executeScript` call with `world: "MAIN"`.
+- [x] The injected runtime-api function resolves only the provided route/handle, calls the editor API, verifies when possible, catches all errors, and returns plain data only.
+- [x] The injected function body must contain no identifying literals such as extension id, `chrome-extension`, package names, or bproxy branding.
+- [x] `eval` remains disabled unless the daemon/extension config explicitly enables it. If Phase 2 lacks an eval flag, implement default `EVAL_DISABLED` and document the Phase 4 wiring required to turn it on.
+- [x] Test executeScript arguments, one-shot/no-listener behaviour, normalized error path, no identifying literals, and disabled eval.
 
 **Done when:** MAIN-world execution is observable in tests only as a single Chrome API call per request and cannot leak raw extension stack/errors into page code.
 

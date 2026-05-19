@@ -48,6 +48,10 @@ function makeHarness() {
 		page: PAGE,
 	}));
 	const handleDomAction = vi.fn(async () => ({ data: { text: "hello" }, page: PAGE }));
+	const handleMainWorldFill = vi.fn(async () => ({
+		data: { filled: true, verifiedValue: "from-main" },
+		page: PAGE,
+	}));
 	const dispatcher = createDispatcher({
 		dedupe,
 		trace,
@@ -55,6 +59,7 @@ function makeHarness() {
 		sendResponse,
 		handleBrowserAction,
 		handleDomAction,
+		handleMainWorldFill,
 	});
 	return {
 		now,
@@ -64,6 +69,7 @@ function makeHarness() {
 		trace,
 		handleBrowserAction,
 		handleDomAction,
+		handleMainWorldFill,
 		dispatcher,
 	};
 }
@@ -147,9 +153,35 @@ describe("dispatcher", () => {
 
 		expect(h.handleDomAction).toHaveBeenCalledTimes(1);
 		expect(h.handleBrowserAction).not.toHaveBeenCalled();
+		expect(h.handleMainWorldFill).not.toHaveBeenCalled();
 		expect(h.responses).toHaveLength(2);
 		expect(h.responses[0]).toMatchObject({ ok: true, replay: false, id: request.id });
 		expect(h.responses[1]).toMatchObject({ ok: true, replay: true, id: request.id });
+	});
+
+	it("routes runtime-api fill through the MAIN-world handler instead of the content script", async () => {
+		const h = makeHarness();
+		const request = makeRequest({
+			action: "fill",
+			params: {
+				target: { selector: "#editor" },
+				value: "hello",
+				method: "runtime-api",
+				world: "main",
+			},
+			destructive: true,
+		});
+
+		await h.dispatcher.handleMessage(JSON.stringify(request));
+
+		expect(h.handleMainWorldFill).toHaveBeenCalledTimes(1);
+		expect(h.handleDomAction).not.toHaveBeenCalled();
+		expect(h.handleBrowserAction).not.toHaveBeenCalled();
+		expect(h.responses[0]).toMatchObject({
+			ok: true,
+			id: request.id,
+			data: { filled: true, verifiedValue: "from-main" },
+		});
 	});
 
 	it("normalizes thrown handler errors and caches the error response", async () => {

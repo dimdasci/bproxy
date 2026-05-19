@@ -121,11 +121,25 @@ Using WXT's typed storage (`wxt/utils/storage`):
 // utils/storage.ts
 import { storage } from 'wxt/utils/storage';
 
-export const tokenItem = storage.defineItem<string>('local:token');
-export const wsUrlItem = storage.defineItem<string>('local:wsUrl');
-export const sessionPins = storage.defineItem<Record<string, number>>('session:pins', { defaultValue: {} });
-export const dedupeTable = storage.defineItem<Record<string, { result: unknown; ts: number }>>('session:dedupe', { defaultValue: {} });
-export const injectedTabs = storage.defineItem<number[]>('session:injectedTabs', { defaultValue: [] });
+export const bootstrapItem = storage.defineItem<{
+  extensionToken: string;
+  wsUrl: string;
+  protocolVersion: 1;
+  issuedAt: number;
+  expiresAt: number;
+  nonce: string;
+} | null>('local:bootstrap', { fallback: null });
+
+// Future opt-in flags live here. Phase 3 keeps `evalEnabled` false by default;
+// Phase 4 CLI/daemon wiring must set this explicitly before `eval` can run.
+export const configFlagsItem = storage.defineItem<Record<string, boolean>>('local:configFlags', {
+  fallback: {},
+});
+
+export const sessionPins = storage.defineItem<Record<string, number>>('session:pins', { fallback: {} });
+export const dedupeTable = storage.defineItem<Record<string, { result: unknown; ts: number }>>('session:dedupe', { fallback: {} });
+export const injectedTabs = storage.defineItem<number[]>('session:injectedTabs', { fallback: [] });
+export const traceRing = storage.defineItem<TraceEntry[]>('session:trace', { fallback: [] });
 ```
 
 WXT ref: [Storage](https://wxt.dev/guide/essentials/storage.md)
@@ -245,7 +259,8 @@ Each action is a module in `utils/actions/`. Receives typed params, returns type
 
 | Action | Implementation |
 |---|---|
-| `fill` (method: `runtime-api`) | One-shot `chrome.scripting.executeScript({ world: 'MAIN', func: ... })`. Target has `route` selecting editor handle in page scope. See MAIN-World Hygiene section. |
+| `fill` (method: `runtime-api`) | One-shot `chrome.scripting.executeScript({ world: 'MAIN', func: ... })`. Resolves only the provided selector/route, probes known runtime handles on that target/ancestor chain, writes through the page-owned API, and verifies when the handle exposes a read API. See MAIN-World Hygiene section. |
+| `eval` | Disabled by default. Returns `EVAL_DISABLED` unless a future explicit allow-eval control is wired through daemon/CLI into `local:configFlags.evalEnabled`. When enabled later, it must still use one-shot `chrome.scripting.executeScript({ world: 'MAIN' })`. |
 
 ### Screenshot
 
