@@ -1,10 +1,12 @@
 import type { ActionResult, BproxyError } from "@bproxy/shared";
+import { isElementVisible } from "../content/dom-helpers";
 import { snapshotDomPageState } from "../content/page-state";
 import {
 	type ContentRpcHandlers,
 	type ContentRpcRequest,
 	registerContentRpcListener,
 } from "../content/rpc";
+import { resolveSelectorTarget } from "../content/targeting";
 
 // Runtime content script entrypoint.
 //
@@ -36,7 +38,7 @@ const handlers: ContentRpcHandlers = {
 
 function readText(request: ContentRpcRequest<"text">): ActionResult["text"]["text"] {
 	const root = request.params.selector
-		? document.querySelector(request.params.selector)
+		? resolveSelectorTarget(request.params.selector)
 		: document.body;
 	if (!root) {
 		throw elementNotFound(
@@ -45,7 +47,9 @@ function readText(request: ContentRpcRequest<"text">): ActionResult["text"]["tex
 				: "Document body is not available",
 		);
 	}
-	return root instanceof HTMLElement ? root.innerText : (root.textContent ?? "");
+	const readable = root as Element & { innerText?: string };
+	if (isElementVisible(root) && typeof readable.innerText === "string") return readable.innerText;
+	return root.textContent ?? "";
 }
 
 function elementNotFound(message: string): BproxyError {

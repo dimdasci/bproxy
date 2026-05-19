@@ -278,16 +278,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 9: Targeting and shadow-aware discovery primitives
 
+**Status:** ✅ Complete — local workspace. Added `content/targeting.ts`, `content/discovery.ts`, `content/dom-helpers.ts`, fake DOM fixtures under `extension/src/test/fixtures/`, and coverage in `extension/src/content/__tests__/{targeting,discovery}.test.ts`.
+
 **Files:** `extension/src/content/targeting.ts`, `extension/src/content/discovery.ts`, fixtures/tests.
 
 **Purpose:** Implement the route-based targeting substrate shared by reads, writes, and select.
 
-- [ ] Resolve `ElementTarget` as exactly one of light-DOM selector or open-shadow-root route.
-- [ ] Treat closed shadow roots as out of scope and return `ELEMENT_NOT_FOUND`/target error, not a fallback guess.
-- [ ] Implement stable selector generation for discovered interactive elements.
-- [ ] Implement progressive, intent-scoped discovery: active element chain, visible dialogs/popovers, viewport hit-test/candidate root, scoped subtree.
-- [ ] Probe runtime editor handles only inside a candidate root; no whole-page recursive scans.
-- [ ] Test nested open shadow roots, missing hosts, closed-shadow behaviour, ambiguous selectors, labels/placeholders/options, and runtime-handle markers.
+- [x] Resolve `ElementTarget` as exactly one of light-DOM selector or open-shadow-root route.
+- [x] Treat closed shadow roots as out of scope and return `ELEMENT_NOT_FOUND`/target error, not a fallback guess.
+- [x] Implement stable selector generation for discovered interactive elements.
+- [x] Implement progressive, intent-scoped discovery: active element chain, visible dialogs/popovers, viewport hit-test/candidate root, scoped subtree.
+- [x] Probe runtime editor handles only inside a candidate root; no whole-page recursive scans.
+- [x] Test nested open shadow roots, missing hosts, closed-shadow behaviour, ambiguous selectors, labels/placeholders/options, and runtime-handle markers.
 
 **Done when:** an `elements` result can be fed back directly as an `ElementTarget` to `fill` or `select`.
 

@@ -8,15 +8,15 @@ title: Phase 3 — Hand-off note for the next session
 
 ## Where we are
 
-- **Branch:** `plan/03-extension` (off `main`, 22 commits ahead after Task 7 commit; Task 8 changes may still be uncommitted depending on where you resume).
-- **Tasks complete (8 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation).
-- **Tasks remaining (9):** 9 → 17, in plan order.
+- **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
+- **Tasks complete (9 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives).
+- **Tasks remaining (8):** 10 → 17, in plan order.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 9 — Targeting and shadow-aware discovery primitives.** Read its section in [`03-extension.md`](./03-extension.md#task-9-targeting-and-shadow-aware-discovery-primitives). Task 8 already landed the content RPC host, page-state snapshotting, one-listener registration, and normalized error handling; Task 9 should build route-based targeting and scoped discovery on that foundation.
+**Next: Task 10 — Read action handlers.** Read its section in [`03-extension.md`](./03-extension.md#task-10-read-action-handlers). Task 9 landed route resolution, stable selector generation, progressive discovery scopes, runtime-handle probing, and fake-DOM coverage; Task 10 should wire those primitives into `text`/`images`/`elements`/`outline`/`dom` handlers.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -24,7 +24,7 @@ Dependencies that landed in earlier tasks (don't re-derive):
 - `BproxyForwardedRequest` from `@bproxy/shared` — wire shape with `target.tabId`.
 - `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, and traces every accepted request.
 - `extension/src/background/{injection,tabs}.ts` — Task 7 resolves daemon-targeted tabs, tracks injected tabs in session storage, observes navigation/frame events, injects `content-scripts/content.js` on first use, and routes DOM actions through timeout-bounded RPC.
-- `extension/src/content/{rpc,page-state}.ts` plus `extension/src/entrypoints/content.ts` — Task 8 now owns the content-side contract, runtime listener registration, normalized thrown-error handling, and consistent page-state snapshots. The inline `text` handler is intentionally tiny and exists only to prove the host path end-to-end.
+- `extension/src/content/{rpc,page-state}.ts` plus `extension/src/entrypoints/content.ts` — Task 8 owns the content-side contract, runtime listener registration, normalized thrown-error handling, and consistent page-state snapshots. The `text` handler now resolves unique selectors through `content/targeting.ts` and uses shared visibility helpers, but the broader read surface is still pending Task 10.
 - `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket.
 
 ## Workflow rule that survives the context clear
@@ -65,21 +65,21 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
-- **Task 9** should build on the Task 8 content host rather than inventing a second dispatch path.
-- **Task 9** is the first task that should introduce `content/targeting.ts` and `content/discovery.ts`; keep runtime-handle probing scoped and route-based per the plan.
+- **Task 10** should reuse `content/targeting.ts`, `content/discovery.ts`, and `content/dom-helpers.ts` rather than re-introducing selector/visibility logic in each read handler.
+- **Task 10** still needs real `elements`, `images`, `outline`, and `dom` action handlers; Task 9 only landed the substrate and tests proving the returned targets round-trip.
 - **Task 13** will need to decide whether to default-disable `eval` with an `EVAL_DISABLED` error. Daemon has no eval flag wired today; extension-side default-deny is fine.
 
 ## Decisions worth remembering across the clear
 
 - **Bootstrap is one atomic record**, not multiple `chrome.storage.local` keys. Use `bootstrapItem.setValue(...)` / `bootstrapItem.getValue()` — never `chrome.storage.local.set({ token, ... })`.
-- **Pairing/module convention:** all side-effects DI'd via a typed `*Deps` interface where practical, no hidden global `Date.now()` / `fetch` dependencies in core logic. Tests inject in-memory fakes. Task 8 followed this for the content RPC host/page-state snapshot; keep that style for targeting/discovery helpers.
+- **Pairing/module convention:** all side-effects DI'd via a typed `*Deps` interface where practical, no hidden global `Date.now()` / `fetch` dependencies in core logic. Tests inject in-memory fakes. Task 9 continued that style with fake-DOM fixtures instead of bringing in jsdom.
 - **Popup is a directory entrypoint** (`popup/index.html` + `popup/main.ts`) because WXT 0.20 rejects same-basename siblings. The plan's text still says flat `popup.html`/`popup.ts` — the directory form is canonical.
 - **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 9 (common scope drift)
+## Things NOT to do in Task 10 (common scope drift)
 
-- Don't jump ahead to full read/write handlers; Task 9 is targeting/discovery substrate only.
+- Don't add write handlers yet; Task 10 is the read surface only.
 - Don't add MAIN-world helpers (Task 13).
 - Don't expand `wxt.config.ts` manifest permissions (`debugger` is gated on Task 14's opt-in flag).
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make targeting/discovery convenient.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make read handlers convenient.
