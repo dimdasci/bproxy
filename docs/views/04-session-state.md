@@ -6,7 +6,8 @@ sources:
   - service/src/routes/command.ts
   - service/src/dispatch.ts
   - service/src/pacing.ts
-  - shared/src/types.ts
+  - shared/src/sessions.ts
+  - shared/src/actions.ts
 relatedAdrs: [ADR-009]
 related: [02-containers, 06-threat-model]
 ---

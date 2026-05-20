@@ -220,7 +220,7 @@ Token activation contract:
 
 **File:** `src/routes/ws.ts`
 
-Extension connects here. Multiple clients supported (one per Chrome profile), as long as they authenticate with the currently active extension token.
+Extension connects here. Multiple clients are supported (for example one per Chrome profile), as long as they authenticate with the currently active extension token. In addition to WS-level `ping`, the daemon now answers the extension's app-level `{ type: "ping" }` messages with `{ type: "pong" }` so the MV3 service worker can detect stale-but-not-yet-closed sockets.
 
 ```typescript
 app.get('/ws', { websocket: true }, (socket, request) => {
@@ -237,15 +237,24 @@ app.get('/ws', { websocket: true }, (socket, request) => {
 
   socket.on('message', (raw) => {
     const msg = JSON.parse(raw.toString());
-    // Response from extension — resolve the pending promise
-    pending.resolve(msg.id, msg);
+
+    // Extension app-level heartbeat.
+    if (msg?.type === 'ping') {
+      socket.send(JSON.stringify({ type: 'pong', ts: msg.ts }));
+      return;
+    }
+
+    // Response from extension — resolve the pending promise.
+    if (typeof msg?.id === 'string') {
+      pending.resolveById(msg.id, msg);
+    }
   });
 
   socket.on('close', () => {
     clients.delete(socket);
   });
 
-  // App-level heartbeat
+  // Transport heartbeat.
   const heartbeat = setInterval(() => socket.ping(), 20_000);
   socket.on('close', () => clearInterval(heartbeat));
 });

@@ -413,16 +413,18 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 16: Design assertions and quality gates
 
+**Status:** ✅ Complete — local workspace. Added post-build artifact assertions in `extension/scripts/assert-build.ts`, wired them into `extension/package.json`, and tightened `extension/wxt.config.ts` to keep source maps while disabling Vite's modulepreload polyfill so the shipped bundle stays free of `MutationObserver`.
+
 **Files:** extension tests, package scripts, optional scripts under `extension/scripts/`.
 
 **Purpose:** Turn architectural constraints into automated checks.
 
-- [ ] Add a post-build/static test that scans `.output/chrome-mv3/` for forbidden `MutationObserver` references.
-- [ ] Add a manifest test asserting no declarative `content_scripts` and no `web_accessible_resources` unless a future ADR changes that.
-- [ ] Add tests for paste event shape, MAIN-world executeScript shape, and dedupe replay.
-- [ ] Add post-build/debug assertions that make extension failures easier to diagnose from the built bundle/service-worker console (for example preserving usable source maps/build metadata and asserting the production artifact still surfaces actionable crash locations instead of only opaque bundled output).
-- [ ] Ensure `pnpm --filter @bproxy/extension test`, `build`, and `typecheck` run cleanly.
-- [ ] Run root `pnpm check` and resolve dependency-cruiser/knip issues without weakening architecture rules.
+- [x] Add a post-build/static test that scans `.output/chrome-mv3/` for forbidden `MutationObserver` references.
+- [x] Add a manifest test asserting no declarative `content_scripts` and no `web_accessible_resources` unless a future ADR changes that.
+- [x] Add tests for paste event shape, MAIN-world executeScript shape, and dedupe replay.
+- [x] Add post-build/debug assertions that make extension failures easier to diagnose from the built bundle/service-worker console (for example preserving usable source maps/build metadata and asserting the production artifact still surfaces actionable crash locations instead of only opaque bundled output).
+- [x] Ensure `pnpm --filter @bproxy/extension test`, `build`, and `typecheck` run cleanly.
+- [x] Run root `pnpm check` and resolve dependency-cruiser/knip issues without weakening architecture rules.
 
 **Done when:** the phase's design constraints fail fast in CI/local checks, not by manual review only.
 
@@ -430,20 +432,22 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 17: Views and documentation integration
 
+**Status:** ✅ Complete — local workspace.
+
 **Files:** `docs/views/02-containers.md`, `docs/views/06-threat-model.md`, `docs/views/auto/extension-components.svg`, `docs/solution/extension.md`, `docs/solution/shared.md`, `docs/solution/service.md`, `extension/README.md`.
 
 **Purpose:** Make the visual architecture describe the implementation that now exists.
 
-- [ ] Run `pnpm views:regen` and commit the updated `docs/views/auto/extension-components.svg`.
-- [ ] Update `docs/views/02-containers.md`:
+- [x] Run `pnpm views:regen` and commit the updated `docs/views/auto/extension-components.svg`.
+- [x] Update `docs/views/02-containers.md`:
   - add a `click Ext "../auto/extension-components.svg"` directive;
   - replace “Inside the Extension: coming in Phase 3” with a real link;
   - adjust the caption if target-tab metadata or forwarded-request shape changed.
-- [ ] Update `docs/views/06-threat-model.md` from “extension-side threats out of scope” to a Phase 3 extension surface section covering storage tokens, WS auth, content-script isolation, MAIN-world hygiene, ring-buffer leakage, screenshot/debugger opt-in, and WAR default-deny.
-- [ ] If Task 1 changes request shapes or pause semantics, update relevant view `sources` frontmatter so `views:audit` reports the right views when protocol/service/extension files change.
-- [ ] Update `docs/solution/extension.md` with actual layout/config choices and any deliberate deviations from the original WXT layout.
-- [ ] Update `docs/solution/shared.md` / `docs/solution/service.md` for forwarded-request metadata, TraceEntry shape, and HUMAN_REQUIRED pause handling if changed.
-- [ ] Run `pnpm views:audit`, `pnpm docs:build`, and verify the SVG is served from `views/public/views/auto/`.
+- [x] Update `docs/views/06-threat-model.md` from “extension-side threats out of scope” to a Phase 3 extension surface section covering storage tokens, WS auth, content-script isolation, MAIN-world hygiene, ring-buffer leakage, screenshot/debugger opt-in, and WAR default-deny.
+- [x] If Task 1 changes request shapes or pause semantics, update relevant view `sources` frontmatter so `views:audit` reports the right views when protocol/service/extension files change.
+- [x] Update `docs/solution/extension.md` with actual layout/config choices and any deliberate deviations from the original WXT layout.
+- [x] Update `docs/solution/shared.md` / `docs/solution/service.md` for forwarded-request metadata, TraceEntry shape, and HUMAN_REQUIRED pause handling if changed.
+- [x] Run `pnpm views:audit`, `pnpm docs:build`, and verify the SVG is served from `views/public/views/auto/`.
 
 **Done when:** the Container view drills into the generated extension component graph and the Threat view no longer describes extension risks as future work.
 
@@ -458,9 +462,9 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 - [ ] Read actions and `direct`/`paste` writes stay in ISOLATED world.
 - [ ] `runtime-api` writes and gated `eval` use MAIN world one-shot only.
 - [ ] `debug.log` returns extension trace entries by id/limit.
-- [ ] Design-assertion tests cover no MutationObserver, no default WAR/content scripts, paste event shape, MAIN-world hygiene, and dedupe.
-- [ ] `extension/README.md` and affected solution docs are updated.
-- [ ] Views task is complete: regenerated extension SVG, Container click link, Threat view update.
+- [x] Design-assertion tests cover no MutationObserver, no default WAR/content scripts, paste event shape, MAIN-world hygiene, and dedupe.
+- [x] `extension/README.md` and affected solution docs are updated.
+- [x] Views task is complete: regenerated extension SVG, Container click link, Threat view update.
 - [ ] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---

@@ -17,6 +17,18 @@ forwarded browser actions on behalf of a CLI agent. Built with [WXT](https://wxt
   uses the directory form (`index.html` is the entrypoint; `main.ts` is its
   companion module).
 
+## Architecture references
+
+- Solution spec: [`docs/solution/extension.md`](../docs/solution/extension.md)
+- Container view: [`docs/views/02-containers.md`](../docs/views/02-containers.md)
+- Threat model: [`docs/views/06-threat-model.md`](../docs/views/06-threat-model.md)
+- Generated component graph: [`docs/views/auto/extension-components.svg`](../docs/views/auto/extension-components.svg)
+
+Build-time assertions also lock the shipped MV3 surface: no declarative
+`content_scripts`, no default `web_accessible_resources`, no forbidden
+`MutationObserver` in the production bundle, and usable source maps/startup
+labels for debugging.
+
 ## Local development
 
 ```bash
