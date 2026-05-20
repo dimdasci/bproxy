@@ -5,7 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "wxt",
-		"build": "wxt build",
+		"build": "wxt build && pnpm run assert:build",
+		"assert:build": "node --experimental-strip-types ./scripts/assert-build.ts",
 		"postinstall": "wxt prepare",
 		"typecheck": "wxt prepare && tsc --noEmit",
 		"test": "vitest run",

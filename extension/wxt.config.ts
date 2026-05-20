@@ -12,6 +12,16 @@ import { defineConfig } from "wxt";
 //    knip, which scan `extension/src/**`.
 export default defineConfig({
 	srcDir: "src",
+	vite: () => ({
+		build: {
+			// Keep production artifacts debuggable from the SW/content-script
+			// consoles instead of forcing opaque bundle offsets only.
+			sourcemap: true,
+			// Vite's modulepreload polyfill injects a MutationObserver into the
+			// popup chunk, which violates ADR-006 / Task 16's bundle hygiene.
+			modulePreload: false,
+		},
+	}),
 	manifest: {
 		name: "bproxy",
 		description: "Browser proxy companion extension for bproxy daemon.",
