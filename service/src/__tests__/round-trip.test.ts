@@ -140,6 +140,16 @@ describe("round-trip — happy path", () => {
 		expect(body.ok).toBe(true);
 		expect(body.data.extensionToken.length).toBeGreaterThan(0);
 	});
+
+	it("responds to app-level heartbeat ping with pong", async () => {
+		const ws = await connectClient();
+		const pongPromise = new Promise<unknown>((resolve) => {
+			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw))));
+		});
+		ws.send(JSON.stringify({ type: "ping", ts: 12345 }));
+		await expect(pongPromise).resolves.toEqual({ type: "pong", ts: 12345 });
+		ws.close();
+	});
 });
 
 describe("round-trip — reconnect and replay", () => {

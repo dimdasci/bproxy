@@ -62,7 +62,9 @@ describe("createMainWorldExecutor", () => {
 				busy: false,
 			},
 		});
-		const [{ func }] = executeScript.mock.calls[0] as [MainWorldExecuteDetails<readonly unknown[], unknown>];
+		const [{ func }] = executeScript.mock.calls[0] as [
+			MainWorldExecuteDetails<readonly unknown[], unknown>,
+		];
 		const source = func.toString();
 		expect(source).not.toMatch(/chrome-extension|bproxy|quill|lexical|monaco|slate|prosemirror/i);
 	});
@@ -103,14 +105,12 @@ function fillRequest(
 		protocol_version: 1,
 		id: overrides.id ?? "req-fill-main",
 		action: "fill",
-		params:
-			overrides.params ??
-			{
-				target: { selector: "#editor" },
-				value: "hello from main",
-				method: "runtime-api",
-				world: "main",
-			},
+		params: overrides.params ?? {
+			target: { selector: "#editor" },
+			value: "hello from main",
+			method: "runtime-api",
+			world: "main",
+		},
 		session: overrides.session ?? "default",
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
@@ -125,12 +125,17 @@ function pageDoc(...children: FakeElement[]): FakeDocument {
 		}),
 	);
 	(page as FakeDocument & { title: string; readyState: DocumentReadyState }).title = "Editor";
-	(page as FakeDocument & { title: string; readyState: DocumentReadyState }).readyState = "complete";
+	(page as FakeDocument & { title: string; readyState: DocumentReadyState }).readyState =
+		"complete";
 	return page;
 }
 
 function setPageGlobals(page: FakeDocument | undefined, href: string | undefined): void {
-	Reflect.set(globalThis, "document", (page as unknown as Document | undefined) ?? originalGlobals.document);
+	Reflect.set(
+		globalThis,
+		"document",
+		(page as unknown as Document | undefined) ?? originalGlobals.document,
+	);
 	Reflect.set(
 		globalThis,
 		"location",

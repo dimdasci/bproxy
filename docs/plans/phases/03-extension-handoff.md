@@ -9,14 +9,14 @@ title: Phase 3 — Hand-off note for the next session
 ## Where we are
 
 - **Branch:** `plan/03-extension` (verify exact divergence with `git log --oneline main..HEAD`).
-- **Tasks complete (14 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`), Task 13 (MAIN-world `runtime-api` + default-disabled `eval`), Task 14 (background browser actions: `navigate` / `screenshot` / `tab.*` / `require-human`).
-- **Tasks remaining (3):** 15 → 17, in plan order.
+- **Tasks complete (15 of 17):** Task 1 (contract alignment), Task 2 (WXT bootstrap), Task 3 (storage/trace/dedupe/response helpers), Task 4 (popup pairing flow), Task 5 (background WebSocket client), Task 6 (dispatcher/dedupe/`debug.log`), Task 7 (tab resolution/frame table/programmatic injection), Task 8 (content RPC/page-state foundation), Task 9 (targeting and shadow-aware discovery primitives), Task 10 (read action handlers), Task 11 (DOM polling / `wait` / `scroll`), Task 12 (ISOLATED-world writes: `direct` / `paste` / `fill-form` / `select`), Task 13 (MAIN-world `runtime-api` + default-disabled `eval`), Task 14 (background browser actions: `navigate` / `screenshot` / `tab.*` / `require-human`), Task 15 (local integration smoke against daemon + Chrome).
+- **Tasks remaining (2):** 16 → 17.
 
 Verify with `git log --oneline main..HEAD` from the repo root.
 
 ## Where to resume
 
-**Next: Task 15 — local integration smoke against daemon + Chrome.** Read its section in [`03-extension.md`](./03-extension.md#task-15-local-integration-smoke-against-daemon--chrome). Task 14 is now in: `extension/src/background/browser-actions.ts` handles `navigate`, `screenshot`, `tab.*`, and `require-human`; `background/tabs.ts` gained top-level load wait helpers; `entrypoints/background.ts` wires the Chrome tabs seam into the browser-action handler. Debugger screenshots remain intentionally gated by `DEBUGGER_DISABLED` because the manifest still omits the `debugger` permission.
+**Next implementation task: Task 16 — design assertions and quality gates.** Task 15 is now complete: the real Chrome popup pairing flow, local fixture workflow, daemon restart reconnect, and extension/service-worker reload reconnect were all executed against the real daemon/extension pair. That smoke also exposed two real reconnect gaps that are now fixed: `service/src/routes/ws.ts` replies to app-level `{"type":"ping"}` with `{"type":"pong"}`, and `extension/src/background/ws-client.ts` no longer treats bootstrap `expiresAt` as a hard reconnect cutoff after pairing has succeeded. Task 14 remains in place as before: `extension/src/background/browser-actions.ts` handles `navigate`, `screenshot`, `tab.*`, and `require-human`; `background/tabs.ts` carries top-level load wait helpers; `entrypoints/background.ts` wires the Chrome tabs seam into the browser-action handler. Debugger screenshots remain intentionally gated by `DEBUGGER_DISABLED` because the manifest still omits the `debugger` permission.
 
 Dependencies that landed in earlier tasks (don't re-derive):
 
@@ -25,7 +25,10 @@ Dependencies that landed in earlier tasks (don't re-derive):
 - `extension/src/background/{dispatcher,forwarded-actions,forwarded-params,forwarded-request}.ts` — Task 6 parses and routes forwarded requests, handles `debug.log`, and traces every accepted request.
 - `extension/src/background/{injection,tabs}.ts` — Task 7 resolves daemon-targeted tabs, tracks injected tabs in session storage, observes navigation/frame events, injects `content-scripts/content.js` on first use, and routes DOM actions through timeout-bounded RPC.
 - `extension/src/content/{rpc,page-state,polling,read-tree}.ts` plus `extension/src/entrypoints/content.ts` — Task 8 owns the content-side contract and listener registration; Tasks 10/11 now add the read handlers, subtree/text serialization helpers, and jittered polling primitives already wired into the runtime content script.
-- `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket.
+- `extension/src/background/ws-client.ts` now exposes `send(data)` so the dispatcher can reply over the active socket. It also tracks app-level heartbeat liveness, force-reconnects stale sockets, and ignores bootstrap `expiresAt` for post-pair reconnect decisions.
+- `service/src/routes/ws.ts` now answers app-level heartbeat `ping` messages with `pong` before attempting response resolution.
+- `extension/scripts/smoke/*` — TypeScript smoke helpers for Task 15 are now present: `fixture-server.ts`, `daemon.ts`, `command.ts`, `workflow.ts`, plus `fixture.html`. They were exercised manually against real Chrome during Task 15.
+- `pnpm check` currently passes from the repo root; preserve that baseline while doing Tasks 16 and 17.
 
 ## Workflow rule that survives the context clear
 
@@ -65,6 +68,7 @@ Some service tests bind sockets (`workflows`, `round-trip`, `lifecycle*`, `obser
 
 These are flagged here so you don't waste a research turn rediscovering them:
 
+- Task 16 is the next closure target: add the design-assertion tests/checks (manifest hygiene, built-bundle no-`MutationObserver`, paste/MAIN-world/dedupe assertions), improve post-build/debug assertions so service-worker failures are easier to diagnose from the production artifact, and keep `pnpm check` clean.
 - `eval` is default-disabled today via `local:configFlags["evalEnabled"]`; there is still no Phase 2 daemon/CLI wiring to set that flag.
 - Debugger-backed screenshots are still intentionally disabled: Task 14 wired the normal `captureVisibleTab` path plus `DEBUGGER_DISABLED`, but the manifest still omits the `debugger` permission until a future explicit opt-in lands.
 
@@ -73,12 +77,14 @@ These are flagged here so you don't waste a research turn rediscovering them:
 - **Bootstrap is one atomic record**, not multiple `chrome.storage.local` keys. Use `bootstrapItem.setValue(...)` / `bootstrapItem.getValue()` — never `chrome.storage.local.set({ token, ... })`.
 - **Pairing/module convention:** all side-effects DI'd via a typed `*Deps` interface where practical, no hidden global `Date.now()` / `fetch` dependencies in core logic. Tests inject in-memory fakes. Task 9 continued that style with fake-DOM fixtures instead of bringing in jsdom.
 - **Popup is a directory entrypoint** (`popup/index.html` + `popup/main.ts`) because WXT 0.20 rejects same-basename siblings. The plan's text still says flat `popup.html`/`popup.ts` — the directory form is canonical.
-- **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 will lock it in as a hygiene test.
+- **Manifest hygiene hook in `wxt.config.ts`** strips `content_scripts: []` and `web_accessible_resources: []` that WXT emits when a runtime content script is declared. Don't fight this — Task 16 should lock it in as a hygiene test.
+- **Bootstrap `expiresAt` is a pairing-time validation, not a reconnect-time kill switch.** Don't re-introduce post-pair reconnect gating on that field unless the service contract changes too.
 - **`noPropertyAccessFromIndexSignature: true`** stays on for the extension package. If a future task genuinely needs to bypass it, do so with a per-file `// @ts-expect-error`, not by re-introducing the per-project override.
 
-## Things NOT to do in Task 13 (common scope drift)
+## Things NOT to do in the remaining tasks (common scope drift)
 
 - Don't move `runtime-api` execution into the content script; MAIN-world one-shot execution stays in background helpers.
-- Don't expand `wxt.config.ts` manifest permissions unless Task 14 actually lands the optional debugger screenshot path behind its opt-in flag.
-- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make browser-action plumbing convenient.
+- Don't expand `wxt.config.ts` manifest permissions unless a task actually lands the optional debugger screenshot path behind its opt-in flag.
+- Don't change `BproxyForwardedRequest` or any other `@bproxy/shared` types just to make later plumbing convenient.
 - Don't add extension-side method auto-selection or fallback chains; the agent chooses `direct` / `paste` / `runtime-api` explicitly.
+- Don't weaken Task 16 design assertions just to match current bundle output; if a hygiene check fails, fix the implementation or WXT hook instead.

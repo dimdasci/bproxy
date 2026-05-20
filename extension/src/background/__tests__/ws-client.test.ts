@@ -14,6 +14,7 @@ import {
 	nextDelay,
 	RECONNECT_BASE_MS,
 	RECONNECT_MAX_MS,
+	STALE_CONNECTION_MS,
 	type WebSocketLike,
 	WS_OPEN,
 	type WsClientDeps,
@@ -248,8 +249,8 @@ describe("decideConnect", () => {
 		expect(decideConnect(happyBootstrap({ extensionToken: "" }), 5000)).toEqual({ kind: "skip" });
 	});
 
-	it("returns skip when expiresAt is in the past", () => {
-		expect(decideConnect(happyBootstrap({ expiresAt: 4000 }), 5000)).toEqual({ kind: "skip" });
+	it("ignores expiresAt for reconnect decisions after pairing has succeeded", () => {
+		expect(decideConnect(happyBootstrap({ expiresAt: 4000 }), 5000).kind).toBe("open");
 	});
 
 	it("returns reject when wsUrl is non-loopback", () => {
@@ -340,12 +341,12 @@ describe("createWsClient — start()", () => {
 		expect(client.getState()).toBe("disconnected");
 	});
 
-	it("expired bootstrap: no socket, badge disconnected", async () => {
+	it("expired bootstrap still reconnects because daemon token lifetime owns reconnect", async () => {
 		const h = makeHarness(happyBootstrap({ expiresAt: 100 }));
 		const client = createWsClient(h.deps);
 		await client.start();
-		expect(h.sockets.created.length).toBe(0);
-		expect(client.getState()).toBe("disconnected");
+		expect(h.sockets.created.length).toBe(1);
+		expect(client.getState()).toBe("connecting");
 	});
 
 	it("empty token: no socket, badge disconnected", async () => {
@@ -519,6 +520,37 @@ describe("createWsClient — keepalive", () => {
 		h.alarms.fire(KEEPALIVE_ALARM_NAME);
 		expect(h.sockets.last().sent).toEqual([JSON.stringify({ type: "ping", ts: 12_345 })]);
 		await client.stop();
+	});
+
+	it("stale open socket with no heartbeat pong is force-reconnected", async () => {
+		const h = makeHarness();
+		const client = createWsClient(h.deps);
+		await client.start();
+		const first = h.sockets.last();
+		first.fireOpen();
+		h.nowMs.value = 5000 + STALE_CONNECTION_MS;
+		h.alarms.fire(KEEPALIVE_ALARM_NAME);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(first.closed).toBe(true);
+		expect(h.sockets.created.length).toBe(2);
+		expect(client.getState()).toBe("connecting");
+	});
+
+	it("pong refreshes liveness and is not forwarded to the dispatcher seam", async () => {
+		const h = makeHarness();
+		const client = createWsClient(h.deps);
+		await client.start();
+		h.sockets.last().fireOpen();
+		h.nowMs.value = 20_000;
+		h.sockets.last().fireMessage('{"type":"pong","ts":20000}');
+		expect(h.onMessage).not.toHaveBeenCalled();
+		h.nowMs.value = 20_000 + STALE_CONNECTION_MS - 1;
+		h.alarms.fire(KEEPALIVE_ALARM_NAME);
+		expect(h.sockets.created.length).toBe(1);
+		expect(h.sockets.last().sent).toEqual([
+			JSON.stringify({ type: "ping", ts: 20_000 + STALE_CONNECTION_MS - 1 }),
+		]);
 	});
 
 	it("alarm fires while not open → does not call send", async () => {

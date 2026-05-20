@@ -24,7 +24,7 @@ function tab(overrides: Partial<TargetTab> = {}): TargetTab {
 	};
 }
 
-function createHarness(overrides?: {
+interface HarnessOverrides {
 	resolveTargetTab?: (tabId: number) => Promise<TargetTab>;
 	waitForLoad?: (tabId: number, options: { timeoutMs: number }) => Promise<TargetTab>;
 	getInjectedTabs?: () => Promise<number[]>;
@@ -32,93 +32,111 @@ function createHarness(overrides?: {
 	query?: (queryInfo?: Record<string, unknown>) => Promise<TabLike[]>;
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
-	captureVisibleTab?: (
-		windowId?: number,
-		options?: { format?: "png" | "jpeg" },
-	) => Promise<string>;
+	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
 	isEvalEnabled?: () => boolean | Promise<boolean>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
-	captureDebuggerScreenshot?: (tab: TargetTab) => Promise<{ base64: string; format: "png" | "jpeg" }>;
-}) {
+	captureDebuggerScreenshot?: (
+		tab: TargetTab,
+	) => Promise<{ base64: string; format: "png" | "jpeg" }>;
+}
+
+function createHarness(overrides: HarnessOverrides = {}) {
 	const now = { value: 1000 };
-	const mainWorld = {
-		executeRuntimeApiFill: vi.fn(async () => ({ data: { filled: true, verifiedValue: "x" }, page: PAGE })),
+	const mainWorld = createMainWorldSeam();
+	const tabRuntime = createTabRuntimeSeam(overrides, now);
+	const tabs = createTabsSeam(overrides);
+	const handler = createBrowserActionHandler({
+		mainWorld,
+		tabRuntime,
+		tabs,
+		now: () => now.value,
+		isEvalEnabled: overrides.isEvalEnabled,
+		isDebuggerScreenshotEnabled: overrides.isDebuggerScreenshotEnabled,
+		captureDebuggerScreenshot: overrides.captureDebuggerScreenshot,
+	});
+	return {
+		now,
+		mainWorld,
+		...tabRuntime,
+		...tabs,
+		handler,
+	};
+}
+
+function createMainWorldSeam() {
+	return {
+		executeRuntimeApiFill: vi.fn(async () => ({
+			data: { filled: true, verifiedValue: "x" },
+			page: PAGE,
+		})),
 		executeEval: vi.fn(async () => ({ data: { result: "ok" }, page: PAGE })),
 	};
-	const target = tab({ active: false, status: "loading" });
-	const resolveTargetTab = vi.fn(overrides?.resolveTargetTab ?? (async (tabId: number) => tab({ id: tabId })));
+}
+
+function createTabRuntimeSeam(overrides: HarnessOverrides, now: { value: number }) {
+	const resolveTargetTab = vi.fn(
+		overrides.resolveTargetTab ?? (async (tabId: number) => tab({ id: tabId })),
+	);
 	const waitForLoad = vi.fn(
-		overrides?.waitForLoad ??
+		overrides.waitForLoad ??
 			(async (tabId: number) => {
 				now.value += 12;
 				return tab({ id: tabId, url: "https://example.test/next", title: "Next" });
 			}),
 	);
-	const getInjectedTabs = vi.fn(overrides?.getInjectedTabs ?? (async () => []));
-	const update = vi.fn(
-		overrides?.update ??
-			(async (tabId: number, updateProperties: Record<string, unknown>) =>
-				tab({
-					id: tabId,
-					url:
-						typeof updateProperties["url"] === "string"
-							? (updateProperties["url"] as string)
-							: target.url,
-					title: target.title,
-					active: updateProperties["active"] === true ? true : target.active,
-					status: updateProperties["url"] ? "loading" : target.status,
-					windowId: target.windowId,
-					pinned: updateProperties["pinned"] === true,
-				})),
-	);
-	const query = vi.fn(
-		overrides?.query ??
-			(async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })]),
-	);
-	const create = vi.fn(
-		overrides?.create ??
-			(async (createProperties: Record<string, unknown>) =>
-				tab({
-					id: 77,
-					url: String(createProperties["url"]),
-					title: "Created",
-					active: false,
-				})),
-	);
-	const remove = vi.fn(overrides?.remove ?? (async () => undefined));
-	const captureVisibleTab = vi.fn(overrides?.captureVisibleTab ?? (async () => "data:image/png;base64,QUJDRA=="));
-	const handler = createBrowserActionHandler({
-		mainWorld,
-		tabRuntime: {
-			resolveTargetTab,
-			waitForLoad,
-			getInjectedTabs,
-		},
-		tabs: {
-			update,
-			query,
-			create,
-			remove,
-			captureVisibleTab,
-		},
-		now: () => now.value,
-		isEvalEnabled: overrides?.isEvalEnabled,
-		isDebuggerScreenshotEnabled: overrides?.isDebuggerScreenshotEnabled,
-		captureDebuggerScreenshot: overrides?.captureDebuggerScreenshot,
-	});
+	const getInjectedTabs = vi.fn(overrides.getInjectedTabs ?? (async () => []));
 	return {
-		now,
-		mainWorld,
 		resolveTargetTab,
 		waitForLoad,
 		getInjectedTabs,
+	};
+}
+
+function createTabsSeam(overrides: HarnessOverrides) {
+	const target = tab({ active: false, status: "loading" });
+	const update = vi.fn(overrides.update ?? createUpdateResult(target));
+	const query = vi.fn(
+		overrides.query ??
+			(async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })]),
+	);
+	const create = vi.fn(overrides.create ?? createTabCreator());
+	const remove = vi.fn(overrides.remove ?? (async () => undefined));
+	const captureVisibleTab = vi.fn(
+		overrides.captureVisibleTab ?? (async () => "data:image/png;base64,QUJDRA=="),
+	);
+	return {
 		update,
 		query,
 		create,
 		remove,
 		captureVisibleTab,
-		handler,
 	};
+}
+
+function createUpdateResult(target: TargetTab) {
+	return async (tabId: number, updateProperties: Record<string, unknown>) =>
+		tab({
+			id: tabId,
+			url:
+				typeof updateProperties["url"] === "string"
+					? (updateProperties["url"] as string)
+					: target.url,
+			title: target.title,
+			active: updateProperties["active"] === true ? true : target.active,
+			status: updateProperties["url"] ? "loading" : target.status,
+			windowId: target.windowId,
+			pinned: updateProperties["pinned"] === true,
+		});
+}
+
+function createTabCreator() {
+	return async (createProperties: Record<string, unknown>) =>
+		tab({
+			id: 77,
+			url: String(createProperties["url"]),
+			title: "Created",
+			active: false,
+		});
 }
 
 describe("createBrowserActionHandler", () => {
@@ -128,7 +146,12 @@ describe("createBrowserActionHandler", () => {
 		await expect(
 			h.handler.handleMainWorldFill(
 				fillRequest({
-					params: { target: { selector: "#editor" }, value: "x", method: "runtime-api", world: "isolated" },
+					params: {
+						target: { selector: "#editor" },
+						value: "x",
+						method: "runtime-api",
+						world: "isolated",
+					},
 				}),
 			),
 		).rejects.toMatchObject({
@@ -170,7 +193,8 @@ describe("createBrowserActionHandler", () => {
 
 	it("maps chrome error pages to NAVIGATION_FAILED", async () => {
 		const h = createHarness({
-			waitForLoad: async (tabId: number) => tab({ id: tabId, url: "chrome-error://chromewebdata/", title: "", status: "complete" }),
+			waitForLoad: async (tabId: number) =>
+				tab({ id: tabId, url: "chrome-error://chromewebdata/", title: "", status: "complete" }),
 		});
 
 		await expect(
@@ -342,7 +366,8 @@ describe("createBrowserActionHandler", () => {
 				forAttach: "#resume",
 				url: "https://upload.test/",
 			},
-			suggestedAction: "Complete the requested browser action manually, then run `bproxy session resume`.",
+			suggestedAction:
+				"Complete the requested browser action manually, then run `bproxy session resume`.",
 		});
 	});
 });
@@ -354,14 +379,12 @@ function fillRequest(
 		protocol_version: 1,
 		id: overrides.id ?? "req-fill",
 		action: "fill",
-		params:
-			overrides.params ??
-			{
-				target: { selector: "#editor" },
-				value: "x",
-				method: "runtime-api",
-				world: "main",
-			},
+		params: overrides.params ?? {
+			target: { selector: "#editor" },
+			value: "x",
+			method: "runtime-api",
+			world: "main",
+		},
 		session: overrides.session ?? "default",
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,

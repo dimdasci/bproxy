@@ -3,7 +3,8 @@
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
-		"types": ["chrome"]
+		"types": ["chrome", "node"],
+		"allowImportingTsExtensions": true
 	},
-	"include": ["src", ".wxt/**/*"]
+	"include": ["src", "scripts", ".wxt/**/*"]
 }

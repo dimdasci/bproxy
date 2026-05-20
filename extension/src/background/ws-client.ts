@@ -77,6 +77,10 @@ export interface WsClient {
 
 export const KEEPALIVE_ALARM_NAME = "bproxy-ws-keepalive";
 export const KEEPALIVE_PERIOD_MIN = 0.5;
+// If the socket stays open but no app-level heartbeat comes back within this
+// window, treat it as stale and force a reconnect. This covers the real-world
+// daemon-restart case where MV3 may not surface `onclose` promptly.
+export const STALE_CONNECTION_MS = 45_000;
 
 // Reconnect schedule: 1s, 2s, 4s, ..., 30s cap. Each delay is multiplied by
 // a jitter factor in [0.8, 1.2] using the injected `random`.
@@ -95,6 +99,7 @@ interface ClientState {
 	alarmListener: ((alarm: { name: string }) => void) | null;
 	messageListener: ((msg: unknown) => void) | null;
 	started: boolean;
+	lastAliveAt: number | null;
 }
 
 type ConnectDecision =
@@ -111,6 +116,7 @@ export function createWsClient(deps: WsClientDeps): WsClient {
 		alarmListener: null,
 		messageListener: null,
 		started: false,
+		lastAliveAt: null,
 	};
 	const ctx: Ctx = { deps, state, connect: () => connectOnce(ctx) };
 	return {
@@ -155,6 +161,7 @@ function tearDownSocket(ctx: Ctx): void {
 		// Already-closed sockets throw on some platforms; ignore.
 	}
 	ctx.state.socket = null;
+	ctx.state.lastAliveAt = null;
 }
 
 function scheduleReconnect(ctx: Ctx): void {
@@ -189,6 +196,7 @@ function openSocket(ctx: Ctx, boot: PairingBootstrap): void {
 	ctx.state.socket = socket;
 	socket.onopen = () => {
 		ctx.state.attempt = 0;
+		ctx.state.lastAliveAt = ctx.deps.now();
 		clearReconnect(ctx);
 		setBadge(ctx, "connected");
 	};
@@ -202,6 +210,11 @@ function openSocket(ctx: Ctx, boot: PairingBootstrap): void {
 	// from here would double-book a reconnect.
 	socket.onerror = () => {};
 	socket.onmessage = (ev) => {
+		if (isPongMessage(ev.data)) {
+			ctx.state.lastAliveAt = ctx.deps.now();
+			return;
+		}
+		ctx.state.lastAliveAt = ctx.deps.now();
 		ctx.deps.onMessage?.(ev.data);
 	};
 }
@@ -210,11 +223,15 @@ function onAlarm(ctx: Ctx, alarm: { name: string }): void {
 	if (alarm.name !== KEEPALIVE_ALARM_NAME) return;
 	const socket = ctx.state.socket;
 	if (!socket || socket.readyState !== WS_OPEN) return;
+	const now = ctx.deps.now();
+	if (ctx.state.lastAliveAt !== null && now - ctx.state.lastAliveAt >= STALE_CONNECTION_MS) {
+		void forceReconnect(ctx);
+		return;
+	}
 	try {
-		socket.send(JSON.stringify({ type: "ping", ts: ctx.deps.now() }));
+		socket.send(JSON.stringify({ type: "ping", ts: now }));
 	} catch {
-		// Send on a stale socket may throw; the platform `onclose` handler
-		// will fire and drive the reconnect.
+		void forceReconnect(ctx);
 	}
 }
 
@@ -269,15 +286,16 @@ function send(ctx: Ctx, data: string): boolean {
 
 // ---------- pure helpers ----------
 
-// Pre-flight: a missing/expired/empty-token bootstrap is "skip" (badge
-// stays disconnected, no error noise — re-pairing will arrive via popup).
-// A structurally-present but semantically-bad `wsUrl` is "reject" (badge
-// error) because we want it visible to the user that pairing produced a
-// payload the SW refuses to honour.
-export function decideConnect(boot: PairingBootstrap | null, now: number): ConnectDecision {
+// Pre-flight: a missing/empty-token bootstrap is "skip" (badge stays
+// disconnected, no error noise — re-pairing will arrive via popup).
+// The popup validates `expiresAt` on first claim, but reconnect lifetime is
+// governed by the daemon's persisted active extension token, not by the
+// bootstrap envelope freshness. A structurally-present but semantically-bad
+// `wsUrl` is "reject" (badge error) because we want it visible to the user
+// that pairing produced a payload the SW refuses to honour.
+export function decideConnect(boot: PairingBootstrap | null, _now: number): ConnectDecision {
 	if (!boot) return { kind: "skip" };
 	if (!boot.extensionToken) return { kind: "skip" };
-	if (boot.expiresAt <= now) return { kind: "skip" };
 	if (!isLoopbackWsUrl(boot.wsUrl)) return { kind: "reject" };
 	return { kind: "open", bootstrap: boot };
 }
@@ -323,4 +341,25 @@ function isPairCompleteMessage(msg: unknown): boolean {
 	if (typeof msg !== "object" || msg === null || Array.isArray(msg)) return false;
 	const rec = msg as Record<string, unknown>;
 	return rec["type"] === PAIR_COMPLETE_MESSAGE;
+}
+
+function isPongMessage(data: unknown): boolean {
+	const parsed = parseJsonRecord(data);
+	return parsed?.["type"] === "pong";
+}
+
+function parseJsonRecord(data: unknown): Record<string, unknown> | null {
+	if (typeof data === "string") {
+		try {
+			const parsed = JSON.parse(data) as unknown;
+			return isRecord(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	return isRecord(data) ? data : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

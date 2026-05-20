@@ -393,18 +393,21 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 15: Local integration smoke against daemon + Chrome
 
+**Status:** ✅ Complete — real Chrome/popup smoke was executed against the real daemon. The run also exposed and closed two reconnect gaps: daemon app-level heartbeat now answers `ping` with `pong`, and the extension no longer treats bootstrap `expiresAt` as a hard reconnect cutoff after pairing has already succeeded.
+
 **Files:** extension test harness/scripts, optional local fixture page, docs notes.
 
 **Purpose:** Prove the real extension can talk to the real daemon, not just unit fakes.
 
-- [ ] Start the daemon in a temp `BPROXY_HOME` and issue a pairing code.
-- [ ] Load `.output/chrome-mv3/` in a local Chrome profile.
-- [ ] Pair through the popup, verify daemon sees a WS client, and bind a known local tab.
-- [ ] Run a small fixture workflow: `text`, `elements`, `fill` paste, `scroll`, `debug.log` by id.
-- [ ] Restart/close the SW or daemon and verify reconnect/replay behaviour manually or with an automated browser harness if stable.
-- [ ] Document the exact smoke commands in `extension/README.md`.
+- [x] Implement local smoke helpers under `extension/scripts/smoke/` (fixture server, temp-daemon launcher, command helper, workflow runner) and keep them TypeScript-native.
+- [x] Start the daemon in a temp `BPROXY_HOME` and issue a pairing code.
+- [x] Load `.output/chrome-mv3/` in a local Chrome profile.
+- [x] Pair through the popup, verify daemon sees a WS client, and bind a known local tab.
+- [x] Run a small fixture workflow: `text`, `elements`, `fill` paste, `scroll`, `debug.log` by id.
+- [x] Restart/close the SW or daemon and verify reconnect/replay behaviour manually or with an automated browser harness if stable.
+- [x] Document the exact smoke commands in `extension/README.md`.
 
-**Done when:** a developer can reproduce the smoke without external websites or bot-protection surfaces.
+**Done when:** a developer can reproduce the smoke without external websites or bot-protection surfaces. Do not mark Task 15 complete until the real Chrome popup pairing flow, fixture workflow, and reconnect behaviour have been executed against the real daemon/extension pair.
 
 ---
 
@@ -417,6 +420,7 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 - [ ] Add a post-build/static test that scans `.output/chrome-mv3/` for forbidden `MutationObserver` references.
 - [ ] Add a manifest test asserting no declarative `content_scripts` and no `web_accessible_resources` unless a future ADR changes that.
 - [ ] Add tests for paste event shape, MAIN-world executeScript shape, and dedupe replay.
+- [ ] Add post-build/debug assertions that make extension failures easier to diagnose from the built bundle/service-worker console (for example preserving usable source maps/build metadata and asserting the production artifact still surfaces actionable crash locations instead of only opaque bundled output).
 - [ ] Ensure `pnpm --filter @bproxy/extension test`, `build`, and `typecheck` run cleanly.
 - [ ] Run root `pnpm check` and resolve dependency-cruiser/knip issues without weakening architecture rules.
 

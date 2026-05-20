@@ -8,6 +8,7 @@ import {
 import type { ExecutedAction } from "./dispatcher";
 import type { DomAction } from "./forwarded-actions";
 import type { ContentInjector } from "./injection";
+import { tabNotFoundError, tabRuntimeScriptError, timeoutError, withTimeout } from "./tabs-support";
 
 export interface TabLike {
 	id?: number;
@@ -118,7 +119,7 @@ function startRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 	state.started = true;
 	const removed = (tabId: number) => {
 		state.frames.delete(tabId);
-		rejectLoadWaiters(deps, state, tabId, tabNotFound(tabId));
+		rejectLoadWaiters(deps, state, tabId, tabNotFoundError(tabId));
 		void deps.injector.forgetTab(tabId);
 	};
 	const committed = (details: NavigationEvent) => {
@@ -166,7 +167,7 @@ function stopRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 		deps.webNavigation.onHistoryStateUpdated.removeListener(state.historyListener);
 		state.historyListener = null;
 	}
-	rejectAllLoadWaiters(deps, state, scriptError("Tab runtime stopped"));
+	rejectAllLoadWaiters(deps, state, tabRuntimeScriptError("Tab runtime stopped"));
 }
 
 async function handleDomAction<A extends DomAction>(
@@ -188,7 +189,7 @@ async function handleDomAction<A extends DomAction>(
 	);
 	const parsed = parseContentRpcResponse(raw, request.id);
 	if (parsed.kind === "invalid") {
-		throw scriptError(`Invalid content-script response: ${parsed.error}`);
+		throw tabRuntimeScriptError(`Invalid content-script response: ${parsed.error}`);
 	}
 	if (!parsed.ok) {
 		throw parsed.error;
@@ -216,7 +217,7 @@ async function resolveTargetTab(
 		}
 		return { ...tab, id: tab.id };
 	} catch {
-		throw tabNotFound(tabId);
+		throw tabNotFoundError(tabId);
 	}
 }
 
@@ -258,7 +259,9 @@ function settleLoadWaiters(deps: TabRuntimeDeps, state: RuntimeState, tabId: num
 	for (const waiter of [...waiters]) {
 		removeLoadWaiter(state, tabId, waiter);
 		deps.clearTimeout(waiter.timer);
-		void resolveTargetTab(deps, tabId).then(waiter.resolve, (error: BproxyError) => waiter.reject(error));
+		void resolveTargetTab(deps, tabId).then(waiter.resolve, (error: BproxyError) =>
+			waiter.reject(error),
+		);
 	}
 }
 
@@ -277,11 +280,7 @@ function rejectLoadWaiters(
 	}
 }
 
-function rejectAllLoadWaiters(
-	deps: TabRuntimeDeps,
-	state: RuntimeState,
-	error: BproxyError,
-): void {
+function rejectAllLoadWaiters(deps: TabRuntimeDeps, state: RuntimeState, error: BproxyError): void {
 	for (const tabId of [...state.loadWaiters.keys()]) {
 		rejectLoadWaiters(deps, state, tabId, error);
 	}
@@ -293,20 +292,6 @@ function removeLoadWaiter(state: RuntimeState, tabId: number, waiter: LoadWaiter
 	waiters.delete(waiter);
 	if (waiters.size === 0) {
 		state.loadWaiters.delete(tabId);
-	}
-}
-
-async function withTimeout(deps: TabRuntimeDeps, promise: Promise<unknown>): Promise<unknown> {
-	let timer: unknown = null;
-	try {
-		return await Promise.race([
-			promise,
-			new Promise<never>((_, reject) => {
-				timer = deps.setTimeout(() => reject(timeoutError(deps.rpcTimeoutMs)), deps.rpcTimeoutMs);
-			}),
-		]);
-	} finally {
-		if (timer !== null) deps.clearTimeout(timer);
 	}
 }
 
@@ -327,33 +312,4 @@ function upsertFrame(
 		url: details.url ?? current.url,
 		[field]: at,
 	});
-}
-
-function tabNotFound(tabId: number): BproxyError {
-	return {
-		code: "TAB_NOT_FOUND",
-		category: "target",
-		retry: "conditional",
-		message: `Target tab ${tabId} was not found`,
-		details: { tabId },
-	};
-}
-
-function timeoutError(timeoutMs: number): BproxyError {
-	return {
-		code: "TIMEOUT",
-		category: "transport",
-		retry: "conditional",
-		message: `Timed out waiting for tab activity after ${timeoutMs}ms`,
-		details: { timeoutMs },
-	};
-}
-
-function scriptError(message: string): BproxyError {
-	return {
-		code: "SCRIPT_ERROR",
-		category: "execution",
-		retry: "conditional",
-		message,
-	};
 }

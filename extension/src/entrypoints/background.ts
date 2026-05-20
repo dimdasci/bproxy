@@ -3,7 +3,13 @@ import { createDedupe, type Dedupe } from "../background/dedupe";
 import { createDispatcher, type Dispatcher } from "../background/dispatcher";
 import { createContentInjector } from "../background/injection";
 import { createMainWorldExecutor } from "../background/main-world";
-import { bootstrapItem, configFlagsItem, dedupeItem, injectedTabsItem, traceItem } from "../background/storage";
+import {
+	bootstrapItem,
+	configFlagsItem,
+	dedupeItem,
+	injectedTabsItem,
+	traceItem,
+} from "../background/storage";
 import { createTabRuntime, type TabRuntime } from "../background/tabs";
 import { createTrace } from "../background/trace";
 import {
