@@ -33,6 +33,17 @@ describe("session registry", () => {
 		expect(reg.getOrCreate("default").paused).toBe(false);
 	});
 
+	it("unbind clears the tab AND drops the pause flag (view: 04-session-state)", () => {
+		const reg = createSessionRegistry();
+		reg.bind("default", 42);
+		reg.pause("default", "captcha");
+		reg.unbind("default");
+		const s = reg.getOrCreate("default");
+		expect(s.tabId).toBeNull();
+		expect(s.paused).toBe(false);
+		expect(s.pauseReason).toBeUndefined();
+	});
+
 	it("lists all sessions", () => {
 		const reg = createSessionRegistry();
 		reg.getOrCreate("a");

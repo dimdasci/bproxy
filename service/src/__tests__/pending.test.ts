@@ -1,10 +1,10 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyForwardedRequest, BproxyResponse } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createPending } from "../pending";
 
 const BASE = 1_000_000;
 
-function req(id: string, deadline = BASE + 5000): BproxyRequest {
+function req(id: string, deadline = BASE + 5000): BproxyForwardedRequest {
 	return {
 		protocol_version: 1,
 		id,
@@ -13,6 +13,7 @@ function req(id: string, deadline = BASE + 5000): BproxyRequest {
 		session: "default",
 		deadline,
 		destructive: false,
+		target: { tabId: 42 },
 	};
 }
 
@@ -102,7 +103,7 @@ describe("pending map", () => {
 		const send2 = vi.fn();
 		pending.replayForClient(send2);
 		expect(send2).toHaveBeenCalledOnce();
-		const replayed = send2.mock.calls[0]![0]! as BproxyRequest;
+		const replayed = send2.mock.calls[0]![0]! as BproxyForwardedRequest;
 		expect(replayed.id).toBe("a");
 
 		// The new client responds — the ORIGINAL promise must resolve.
@@ -117,7 +118,7 @@ describe("pending map", () => {
 		const send = vi.fn();
 		pending.replayForClient(send, ["a"]);
 		expect(send).toHaveBeenCalledOnce();
-		expect((send.mock.calls[0]![0]! as BproxyRequest).id).toBe("a");
+		expect((send.mock.calls[0]![0]! as BproxyForwardedRequest).id).toBe("a");
 	});
 
 	it("emits onReplay with request id and ws client", () => {

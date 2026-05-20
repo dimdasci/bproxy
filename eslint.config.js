@@ -9,6 +9,7 @@ export default [
 			"**/node_modules/**",
 			"**/.astro/**",
 			"**/.output/**",
+			"**/.wxt/**",
 			"poc/**",
 			"docs/**",
 			"views/scripts/**",

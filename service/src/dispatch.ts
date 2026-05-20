@@ -1,4 +1,9 @@
-import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type {
+	BproxyError,
+	BproxyForwardedRequest,
+	BproxyRequest,
+	BproxyResponse,
+} from "@bproxy/shared";
 import type { ClientsRegistry } from "./clients";
 import type { PendingMap } from "./pending";
 import type { SessionRegistry } from "./sessions";
@@ -87,6 +92,23 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 			}
 
 			const session = deps.sessions.getOrCreate(cmd.session);
+
+			// Precedence (normative): paused → unbound → forward.
+			// A paused session refuses every forwarded action without going
+			// to the WS — daemon-local actions (session.*, debug.last,
+			// debug.status) are unaffected because they never reach dispatch.
+			if (session.paused) {
+				// SessionRegistry.pause() permits an undefined reason; the fallback
+				// keeps the WS error message human-readable in that case.
+				const reason = session.pauseReason ?? "session paused";
+				return errorResponse(cmd.id, {
+					code: "HUMAN_REQUIRED",
+					category: "policy",
+					retry: "never",
+					message: `Session '${cmd.session}' is paused: ${reason}`,
+				});
+			}
+
 			if (session.tabId === null) {
 				return errorResponse(cmd.id, {
 					code: "TAB_NOT_FOUND",
@@ -97,8 +119,9 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 			}
 
 			const tabId = session.tabId;
+			const forwarded: BproxyForwardedRequest = { ...cmd, target: { tabId } };
 			return withTabLock(tabId, () =>
-				deps.pending.register(cmd, (wireCmd) => {
+				deps.pending.register(forwarded, (wireCmd) => {
 					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: tabId });
 					client.send(wireCmd);
 				}),

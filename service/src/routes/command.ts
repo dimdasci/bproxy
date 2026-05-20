@@ -83,6 +83,21 @@ function handleSessionLocal(
 	};
 }
 
+async function executeCommand(cmd: BproxyRequest, deps: CommandRouteDeps): Promise<BproxyResponse> {
+	if (isDaemonLocal(cmd.action)) return handleDaemonLocal(cmd, deps.debug);
+	if (isSessionLocal(cmd.action)) return handleSessionLocal(cmd, deps.sessions, deps.logger);
+	// Forwarded path. Distinguish an extension-authored HUMAN_REQUIRED (must
+	// pause) from a daemon-synthesized one (session already paused — must not
+	// overwrite the original reason). Read live state immediately before
+	// mutating: a pre-dispatch snapshot is racy under concurrent requests.
+	const response = await deps.dispatch.send(cmd);
+	if (!response.ok && response.error.code === "HUMAN_REQUIRED") {
+		const live = deps.sessions.getOrCreate(cmd.session);
+		if (!live.paused) deps.sessions.pause(cmd.session, response.error.message);
+	}
+	return response;
+}
+
 export function commandRoute(deps: CommandRouteDeps) {
 	return async function (app: FastifyInstance): Promise<void> {
 		app.post("/", async (request, reply) => {
@@ -106,11 +121,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 			const waited = await deps.pacing.waitForSlot(cmd.session, cmd.action);
 			if (waited > 0) deps.logger.info({ id: cmd.id, event: "pacing_wait", delay_ms: waited });
 
-			const response = isDaemonLocal(cmd.action)
-				? handleDaemonLocal(cmd, deps.debug)
-				: isSessionLocal(cmd.action)
-					? handleSessionLocal(cmd, deps.sessions, deps.logger)
-					: await deps.dispatch.send(cmd);
+			const response = await executeCommand(cmd, deps);
 
 			deps.logger.info({
 				id: cmd.id,

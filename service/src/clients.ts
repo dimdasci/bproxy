@@ -1,8 +1,8 @@
-import type { BproxyRequest } from "@bproxy/shared";
+import type { BproxyForwardedRequest } from "@bproxy/shared";
 
 export interface ClientHandle {
 	id: string;
-	send: (cmd: BproxyRequest) => void;
+	send: (cmd: BproxyForwardedRequest) => void;
 }
 
 export interface ClientsRegistry {

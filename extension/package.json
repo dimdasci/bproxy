@@ -4,9 +4,26 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"dev": "wxt",
+		"build": "wxt build && pnpm run assert:build",
+		"assert:build": "node --experimental-strip-types ./scripts/assert-build.ts",
+		"postinstall": "wxt prepare",
+		"typecheck": "wxt prepare && tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"smoke:daemon": "node --experimental-strip-types ./scripts/smoke/daemon.ts",
+		"smoke:fixture": "node --experimental-strip-types ./scripts/smoke/fixture-server.ts",
+		"smoke:command": "node --experimental-strip-types ./scripts/smoke/command.ts",
+		"smoke:workflow": "node --experimental-strip-types ./scripts/smoke/workflow.ts"
 	},
 	"devDependencies": {
-		"typescript": "^5.8.3"
+		"@types/chrome": "^0.0.287",
+		"@types/node": "^24.10.0",
+		"typescript": "^5.8.3",
+		"vitest": "^2.1.8",
+		"wxt": "^0.20.26"
+	},
+	"dependencies": {
+		"@bproxy/shared": "workspace:^"
 	}
 }
