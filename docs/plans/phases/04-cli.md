@@ -67,7 +67,8 @@ Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 
 
 4. **Token and state-file semantics mirror the daemon.**
    - `BPROXY_HOME` remains the state-directory boundary; `--home` is a global CLI override that maps to `BPROXY_HOME` for child service processes.
-   - Daemon token file checks are POSIX-style because the daemon already enforces them: mode exactly `0600`; owner check only when `process.getuid()` is available.
+   - Daemon token file checks are POSIX-style because the daemon already enforces them: mode exactly `0600`; owner check only when `process.getuid()` is available. On platforms where these APIs are unavailable (Windows), checks are skipped — the application still works, but security enforcement relies on OS-level ACLs managed by the user.
+   - Document: "macOS/Linux supported and tested; Windows works but POSIX permission checks are skipped."
    - `service stop` removes transient daemon state (`bproxy.pid`, `port`, `token`) and preserves `extension-token` for transparent extension reconnect after restart.
 
 5. **Eval/debugger control-plane wiring is deferred.**
