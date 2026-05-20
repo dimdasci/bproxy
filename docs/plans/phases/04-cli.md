@@ -100,9 +100,12 @@ Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 
 
 ## Command UX decisions
 
-Agents are the primary consumers, so prefer explicit flags and JSON/stdin over clever positional parsing.
+Agents are the primary consumers, so prefer explicit flags and JSON/stdin over clever positional parsing. **No positional arguments anywhere.** Every value is passed as a named flag. This keeps command construction uniform for agents and avoids ambiguity.
 
+- **General rule:** no positional args. Even simple commands use `--url`, `--selector`, etc.
 - **Target inputs:** write/select commands accept exactly one of `--selector <css>` or `--route-json <json>`. The parsed value becomes the shared `ElementTarget`. Do not accept both.
+- **`navigate`:** `bproxy navigate --url <url>`.
+- **`text` / `images` / `dom`:** `bproxy text [--selector <css>]`, `bproxy dom [--selector <css>] [--depth N]`.
 - **`fill`:** `bproxy fill --selector <css> --value <text> --method direct|paste|runtime-api --world isolated|main`; also support `--value-file <path>` and `--value-stdin` as mutually exclusive alternatives to `--value`.
 - **`fill-form`:** accept exactly one of `--json <json>`, `--file <path>`, or `--stdin`. The payload must be the shared params shape `{ "fields": [...] }`; do not accept a friendlier array shorthand in Phase 4.
 - **`select`:** `bproxy select --selector <css> --option-text <text>` or the route-json equivalent for the trigger.
@@ -244,8 +247,8 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Purpose:** Ship the read-mode command surface that agents will call most often.
 
-- [ ] Implement `navigate <url>`.
-- [ ] Implement `text [selector]`, `images [selector]`, `elements [--form]`, `outline`, and `dom [selector] [--depth N]`.
+- [ ] Implement `navigate --url <url>`.
+- [ ] Implement `text [--selector]`, `images [--selector]`, `elements [--form]`, `outline`, and `dom [--selector] [--depth N]`.
 - [ ] Implement `scroll` with `--by`, `--direction up|down`, and `--until-stable` semantics matching shared params.
 - [ ] Implement `screenshot --activate --debugger`; document that `--debugger` currently passes through to the extension and normally returns `DEBUGGER_DISABLED` because no Phase 4 control path enables the extension flag.
 - [ ] Implement `wait --strategy selector|url|navigation --target <value> [--timeout ms]`.
