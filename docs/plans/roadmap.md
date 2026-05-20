@@ -23,6 +23,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
 | 4 | CLI | One-shot agent interface + complete curated views set | Not started | [phases/04-cli.md](./phases/04-cli.md) |
 | 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
+| 6 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 5 closes_ |
 
 Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
 
@@ -105,6 +106,18 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 **Output:** Scenarios 1–3 from [docs/scenarios.md](../scenarios.md) pass against real sites; deadline timeouts behave correctly; error envelope is complete across all error codes; observability covers all lifecycle events; pre-commit hooks (Husky + lint-staged or equivalent) installed and wired to a fast subset of `pnpm check` per [docs/quality-gates.md](../quality-gates.md).
 
 **Done when:** Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles `HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step; pre-commit hooks block commits that fail format, lint, or per-file type-check on changed files.
+
+**Out of scope:** public npm packaging, release artifacts, extension distribution, and installer/update flows. Phase 5 hardens behavior; Phase 6 packages it.
+
+### Phase 6 — Distribution & installation
+
+**Purpose:** make the hardened system installable and updatable outside the monorepo.
+
+**Output:** a documented distribution shape for CLI + daemon + extension artifacts. The likely direction is one user-facing `bproxy` distribution that bundles or installs the CLI and daemon while preserving separate internal workspaces; the exact package shape is decided at Phase 6 start, after Phase 5 proves the workflow.
+
+**Done when:** a user can install bproxy from published/release artifacts, load or install the extension, start the daemon, pair the extension, run a smoke command, and upgrade without breaking existing `BPROXY_HOME` token/state semantics.
+
+**Candidate scope:** package shape decision; CLI/service version compatibility checks; extension build zip or store path; install docs; upgrade/re-pair recovery; optional Homebrew/GitHub Release automation.
 
 ## Cross-cutting rules
 

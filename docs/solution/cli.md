@@ -44,7 +44,7 @@ cli/
         └── debug.ts          # subCommands: log, last, status
 ```
 
-Bundled with `tsup` → `dist/bproxy.mjs`. Installed globally via npm (`npm i -g bproxy`).
+Bundled with `tsup` → `dist/bproxy.mjs`. During Phase 4 it is run from the workspace or built binary; public/global installation is deferred to the Distribution & installation phase after integration hardening.
 
 ## Entry Point
 

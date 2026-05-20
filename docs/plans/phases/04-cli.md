@@ -89,7 +89,8 @@ Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 
 
 9. **Service binary resolution is pragmatic and non-invasive.**
    - Resolver order: `BPROXY_SERVICE_BIN` env override, workspace `service/dist/index.mjs` when present, then `bproxy-service` on `PATH`.
-   - Phase 4 does not solve public npm packaging. It must avoid source imports and provide clear diagnostics when the service binary is not built or not discoverable.
+   - Phase 4 supports repository/developer execution and explicit binary overrides only. It must avoid source imports and provide clear diagnostics when the service binary is not built or not discoverable.
+   - Public distribution is deferred to Phase 6, after Phase 5 proves and hardens the real workflows. The likely future shape is a single user-facing `bproxy` distribution that packages CLI + daemon + extension artifacts while preserving separate internal workspaces.
 
 10. **Response validation stays local to the CLI.**
    - Do not import service schemas. Add a small CLI-side guard that distinguishes “valid enough `BproxyResponse`” from non-JSON/malformed daemon output.
@@ -396,5 +397,5 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 - New browser capabilities or extension action handlers. Phase 4 may expose existing actions; it should not add page-side behavior.
 - Agent-side fill-method selection guidance beyond keeping links/docs accurate. The CLI must not implement method selection.
 - Closed shadow-root support, network shims, stealth patches, or trusted input simulation.
-- Public npm publishing and installer polish beyond keeping bin/package structure compatible with a future publish.
+- Public npm publishing, release artifacts, extension distribution, and installer/update flows. Phase 6 owns distribution after Phase 5 hardens behavior.
 - Pre-commit hooks. Phase 5 owns that hardening step per `docs/quality-gates.md`.
