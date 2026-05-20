@@ -20,7 +20,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
 | 1 | Shared types | The domain model | ✅ Done | [phases/01-shared-types.md](./phases/01-shared-types.md) |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
-| 3 | Extension | Browser-side execution | In progress | [phases/03-extension.md](./phases/03-extension.md) |
+| 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
 | 4 | CLI | One-shot agent interface + complete curated views set | Not started | _plan written when Phase 3 closes_ |
 | 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
 
@@ -76,11 +76,11 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Views integration:** `service` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/service-components.svg`; Container diagram in `02-containers.md` gets a `click Daemon` directive linking to the generated SVG.
 
-### Phase 3 — Extension
+### Phase 3 — Extension ✅ Done
 
 **Purpose:** browser-side execution. Per [docs/solution/extension.md](../solution/extension.md).
 
-**Status note:** Task 17 (views/documentation integration for the shipped extension surface) is complete in the Phase 3 detail plan. That closes the extension-specific docs integration pass, but it does **not** yet complete the full curated views set from [docs/solution/views.md](../solution/views.md).
+**Status note:** Phase 3 is complete. Task 17 closed the extension-specific docs integration pass and the follow-up structural docs pass added `docs/views/01-context.md` and `docs/views/03-deployment.md`. The remaining curated views work is now the Phase 4 scenario-view completion described below.
 
 **Output:** `extension/.output/chrome-mv3/` loadable in Chrome, with all action handlers, ring buffer, pairing receiver, and connection-state badge.
 
@@ -94,9 +94,9 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands. Phase 4 also closes the remaining curated architecture-view content so Phase 5 hardening can validate against a complete explanatory set.
 
-**Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens. The remaining curated views are authored against the real shipped system — specifically `docs/views/01-context.md`, `docs/views/03-deployment.md`, and `docs/views/05-scenarios/*.md` are present, accurate, and build cleanly.
+**Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens. The remaining curated views are authored against the real shipped system — specifically `docs/views/05-scenarios/*.md` is present, accurate, and builds cleanly alongside the now-existing `01-context.md` and `03-deployment.md`.
 
-**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG. Phase 4 is also the explicit home for finishing the curated views set left intentionally incomplete by Phase 0.7.
+**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG. Phase 4 is also the explicit home for finishing the remaining curated scenario views left intentionally incomplete by Phase 0.7.
 
 ### Phase 5 — Integration & hardening
 

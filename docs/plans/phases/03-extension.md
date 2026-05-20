@@ -432,7 +432,7 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Task 17: Views and documentation integration
 
-**Status:** ✅ Complete — local workspace.
+**Status:** ✅ Complete — commits `5fb629a`, `e1d3211`.
 
 **Files:** `docs/views/02-containers.md`, `docs/views/06-threat-model.md`, `docs/views/auto/extension-components.svg`, `docs/solution/extension.md`, `docs/solution/shared.md`, `docs/solution/service.md`, `extension/README.md`.
 
@@ -455,17 +455,17 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 ## Final verification checklist
 
-- [ ] `pnpm --filter @bproxy/extension build` emits a loadable `.output/chrome-mv3/`.
-- [ ] Popup pairing works against a real daemon and persists a token usable after SW restart.
-- [ ] WS reconnect and daemon replay are safe due to dedupe.
-- [ ] Every forwarded action has an extension handler or documented gated error (`EVAL_DISABLED`, `DEBUGGER_DISABLED`).
-- [ ] Read actions and `direct`/`paste` writes stay in ISOLATED world.
-- [ ] `runtime-api` writes and gated `eval` use MAIN world one-shot only.
-- [ ] `debug.log` returns extension trace entries by id/limit.
+- [x] `pnpm --filter @bproxy/extension build` emits a loadable `.output/chrome-mv3/`.
+- [x] Popup pairing works against a real daemon and persists a token usable after SW restart.
+- [x] WS reconnect and daemon replay are safe due to dedupe.
+- [x] Every forwarded action has an extension handler or documented gated error (`EVAL_DISABLED`, `DEBUGGER_DISABLED`).
+- [x] Read actions and `direct`/`paste` writes stay in ISOLATED world.
+- [x] `runtime-api` writes and gated `eval` use MAIN world one-shot only.
+- [x] `debug.log` returns extension trace entries by id/limit.
 - [x] Design-assertion tests cover no MutationObserver, no default WAR/content scripts, paste event shape, MAIN-world hygiene, and dedupe.
 - [x] `extension/README.md` and affected solution docs are updated.
 - [x] Views task is complete: regenerated extension SVG, Container click link, Threat view update.
-- [ ] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
+- [x] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---
 
