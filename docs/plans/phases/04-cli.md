@@ -42,29 +42,72 @@ title: Phase 4 — CLI
 
 ---
 
-## Contract seams to close before command work
+## Resolved implementation decisions before command work
 
-Phase 2 and Phase 3 proved the daemon and extension without a real CLI. Building lifecycle and installable CLI surfaces exposes a few seams. Resolve these first so command work does not bake in ad-hoc behavior.
+Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 decisions unless implementation proves them impossible.
 
-1. **Detached daemon start must return the pairing code.**
+1. **Service binary remains the lifecycle authority.**
+   - `bproxy service start|stop|status` must spawn the built service binary; CLI production code must not import `service/src/**` or call lifecycle functions directly.
+   - Direct service binary behavior stays scriptable too. The service binary should own PID/port/token/pairing files and emit stable lifecycle JSON; the CLI may parse and re-emit that JSON, but must not reconstruct daemon state by scraping logs.
+   - `service restart` is a CLI composition: stop, then start.
+
+2. **Detached start must return pairing metadata.**
    - Current service code issues the pairing code inside the foreground daemon and writes it to that process's stdout, while `startDetached` spawns the child with ignored stdio. A real `bproxy service start` therefore cannot fulfill ADR-011 yet.
-   - Preferred fix: have the foreground daemon write a short-lived pairing metadata file in `BPROXY_HOME` when it issues the code, and have the detached `start` path read it after readiness and print machine JSON. Keep permissions conservative (`0600`) because the code is a temporary auth factor.
-   - Update `docs/solution/service.md` and `docs/solution/cli.md` with the actual readiness and output contract.
+   - Implement a pairing metadata file in `BPROXY_HOME` (recommended name: `pairing.json`) written by the foreground daemon immediately after issuing the code. File mode must be `0600` because the code is a temporary auth factor.
+   - Successful detached start output is a plain lifecycle object, not a protocol envelope:
+     - `{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}`
+   - The daemon issues and prints a fresh pairing code on every daemon start. A persisted `extension-token` still allows reconnect without re-pairing; the printed code is for first pair, rotation, or recovery.
 
-2. **Lifecycle output shape must be normalized.**
-   - Service binary status currently prints a process-liveness object, while CLI action commands print protocol envelopes. Phase 4 should define and test the lifecycle JSON shapes separately from protocol responses.
-   - Keep success JSON on stdout for `service start|stop|restart|status`; lifecycle failures use stderr + exit `2`. Do not invent protocol-like envelopes for service commands unless the service actually returned a protocol response.
+3. **Lifecycle JSON is separate from protocol JSON.**
+   - Lifecycle success uses plain JSON objects on stdout. Lifecycle failures write diagnostics to stderr; when surfaced through `bproxy`, they exit `2`.
+   - `service status` is token-free and process-liveness based: `{"running":false}` or `{"running":true,"pid":123,"port":9615}`.
+   - `service stop` success should produce `{"running":false}`. `service restart` should produce the same success shape as `service start`.
 
-3. **Eval/debugger opt-in is still split across docs and implementation.**
-   - The extension currently treats `eval` and debugger screenshots as disabled unless future config wiring exists. The CLI can expose the actions, but must not imply that `service start --allow-eval` or `--enable-debugger-mode` works unless the daemon→extension config path is implemented in the same task.
-   - Decide explicitly in Task 1: either wire the opt-in end-to-end and update specs/tests, or document Phase 4 behavior as “CLI sends the action, extension returns `EVAL_DISABLED`/`DEBUGGER_DISABLED` unless configured out-of-band.” Avoid half-implemented flags.
+4. **Token and state-file semantics mirror the daemon.**
+   - `BPROXY_HOME` remains the state-directory boundary; `--home` is a global CLI override that maps to `BPROXY_HOME` for child service processes.
+   - Daemon token file checks are POSIX-style because the daemon already enforces them: mode exactly `0600`; owner check only when `process.getuid()` is available.
+   - `service stop` removes transient daemon state (`bproxy.pid`, `port`, `token`) and preserves `extension-token` for transparent extension reconnect after restart.
 
-4. **Packaging must locate the service binary without violating architecture rules.**
-   - In the monorepo, the CLI needs to spawn the built service entrypoint. In a future npm install, the service binary must still be available.
-   - Implement a small resolver with tests for workspace/dev and installed-package layouts. It may resolve package files or binary paths, but production CLI code must not import `service/src/**` or call service functions directly.
+5. **Eval/debugger control-plane wiring is deferred.**
+   - The shipped extension already reads `local:configFlags.evalEnabled` and `local:configFlags.debuggerScreenshot`, but no daemon/CLI route sets those flags.
+   - Phase 4 must not add misleading `service start --allow-eval` or `--enable-debugger-mode` flags.
+   - CLI still exposes `eval --allow-eval` as a local user-intent guard and `screenshot --debugger` as a request flag. Unless extension storage was configured out-of-band, the protocol response will be `EVAL_DISABLED` or `DEBUGGER_DISABLED`; pass it through and exit `1`.
 
-5. **Scenario views directory is absent.**
-   - Phase 4 owns `docs/views/05-scenarios/`. Do not leave this as a Phase 5 hardening task; Phase 5 validates against the scenarios and needs the explanatory sequence views already present.
+6. **`session bind` is the targeting command; `tab pin` is browser chrome state.**
+   - The daemon owns `session -> tabId`. Agents should use `bproxy session bind --tab-id N` to choose the tab for a session.
+   - `tab.pin` / `tab.unpin` are forwarded Chrome tab actions that visually pin/unpin a tab. They do **not** bind a session, and because they are forwarded they still require a connected extension and an already-bound session.
+   - Command help and docs must make this distinction explicit.
+
+7. **Top-level `status` is protocol-backed.**
+   - `bproxy status` is an alias for `bproxy debug status`: it requires a secure daemon token and returns the protocol `debug.status` response.
+   - `bproxy service status` is the token-free lifecycle check. Do not silently fall back from top-level `status` to service status; a token problem is a config/security failure and exits `2`.
+
+8. **`debug.log` follows current daemon pause semantics.**
+   - The daemon currently refuses every forwarded action while a session is paused, including `debug.log`; daemon-local `debug.last`, `debug.status`, and `session.*` remain available.
+   - Phase 4 should document this rather than changing service semantics. If extension trace access while paused becomes important, make that a later service/architecture decision.
+
+9. **Service binary resolution is pragmatic and non-invasive.**
+   - Resolver order: `BPROXY_SERVICE_BIN` env override, workspace `service/dist/index.mjs` when present, then `bproxy-service` on `PATH`.
+   - Phase 4 does not solve public npm packaging. It must avoid source imports and provide clear diagnostics when the service binary is not built or not discoverable.
+
+10. **Response validation stays local to the CLI.**
+   - Do not import service schemas. Add a small CLI-side guard that distinguishes “valid enough `BproxyResponse`” from non-JSON/malformed daemon output.
+   - Malformed/non-protocol output is a CLI/control-plane failure: stderr + exit `2`.
+
+---
+
+## Command UX decisions
+
+Agents are the primary consumers, so prefer explicit flags and JSON/stdin over clever positional parsing.
+
+- **Target inputs:** write/select commands accept exactly one of `--selector <css>` or `--route-json <json>`. The parsed value becomes the shared `ElementTarget`. Do not accept both.
+- **`fill`:** `bproxy fill --selector <css> --value <text> --method direct|paste|runtime-api --world isolated|main`; also support `--value-file <path>` and `--value-stdin` as mutually exclusive alternatives to `--value`.
+- **`fill-form`:** accept exactly one of `--json <json>`, `--file <path>`, or `--stdin`. The payload must be the shared params shape `{ "fields": [...] }`; do not accept a friendlier array shorthand in Phase 4.
+- **`select`:** `bproxy select --selector <css> --option-text <text>` or the route-json equivalent for the trigger.
+- **`require-human`:** `--reason <text>` and optional `--for-attach <selector-string>` matching the current shared type.
+- **`eval`:** require `--allow-eval` plus exactly one of `--code <code>`, `--file <path>`, or `--stdin`.
+- **Timeouts:** global `--timeout <ms>` sets the protocol `deadline`; the HTTP fetch should also be aborted shortly after that deadline so the one-shot process cannot hang forever.
+- **Request ids:** `crypto.randomUUID()` is acceptable. ULID/time-sortable ids are not required for Phase 4.
 
 ---
 
@@ -97,8 +140,9 @@ cli/
     └── test/
         ├── fakes/                # NEW — fetch/fs/process fakes
         └── fixtures/             # NEW — JSON target/field fixtures
-service/src/lifecycle.ts          # MODIFIED — pairing metadata + start output seam
-service/src/index.ts              # MODIFIED if service CLI output/args are normalized
+service/src/lifecycle.ts          # MODIFIED — pairing.json + start/stop output seam
+service/src/config.ts             # MODIFIED — stateFile support for pairing.json
+service/src/index.ts              # MODIFIED — lifecycle JSON output/args normalized
 docs/solution/cli.md              # MODIFIED — actual command surfaces and lifecycle contract
 docs/solution/service.md          # MODIFIED if lifecycle/eval-debug contract changes
 docs/views/02-containers.md       # MODIFIED — click CLI link
@@ -118,11 +162,11 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Purpose:** Make daemon lifecycle scriptable by the future CLI without violating the package dependency boundary.
 
-- [ ] Add a daemon-start output contract that includes `pid`, `port`, `pairingCode`, and `pairingExpiresAt` for a successful detached start.
-- [ ] Persist the active pairing metadata long enough for the parent `start` command to read it after readiness. Remove or expire it best-effort on shutdown and stale-lock cleanup.
+- [ ] Add a detached-start output contract: service binary `start` prints `{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}` after readiness.
+- [ ] Add `BPROXY_HOME/pairing.json` (mode `0600`) written by the foreground daemon after issuing the code and read by the detached parent. Remove or expire it best-effort on shutdown and stale-lock cleanup.
 - [ ] Keep `service status` process-liveness based: `running: true` only means PID alive; stale files do not count.
-- [ ] Decide the eval/debugger flag contract. Either wire it end-to-end or explicitly keep it disabled and remove/adjust misleading CLI docs for Phase 4.
-- [ ] Add service tests for successful detached start output, duplicate start failure, stale PID recovery, missing/expired pairing metadata handling, and stop/status behavior.
+- [ ] Keep eval/debugger control-plane wiring deferred: remove `service start --allow-eval` / `--enable-debugger-mode` from Phase 4 CLI docs and tests; pass extension `EVAL_DISABLED` / `DEBUGGER_DISABLED` responses through.
+- [ ] Add service tests for start JSON shape, pairing file mode/contents, duplicate start failure, stale PID recovery, stop JSON, status JSON, and preservation of `extension-token` across stop/start.
 - [ ] Reconcile service and CLI solution docs before adding CLI code.
 
 **Done when:** a script can run the service binary's start/status/stop commands in a temp `BPROXY_HOME` and receive stable JSON output, including a pairing code on start, without reading daemon logs or child stdout races.
@@ -139,7 +183,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 - [ ] Add citty and `@bproxy/shared` as runtime dependencies; add tsup, Vitest, and Node types as dev dependencies.
 - [ ] Configure `bin: { "bproxy": "./dist/bproxy.mjs" }`, `build`, `dev`, `typecheck`, and `test` scripts.
-- [ ] Create the top-level citty command with global `--session/-s`, `--timeout`, `--home`, and `--verbose/-v` args. `--home` should set the same state directory role as `BPROXY_HOME`; the environment variable remains the default path.
+- [ ] Create the top-level citty command with global `--session/-s`, `--timeout`, `--home`, and `--verbose/-v` args. `--home` overrides `BPROXY_HOME` for both token/port lookup and child service processes; the environment variable remains the default path.
 - [ ] Register subcommands lazily so tight agent loops do not load every command module.
 - [ ] Keep process exit at the outermost boundary. Command/client modules should return an exit plan in tests rather than calling `process.exit` deep inside helpers.
 - [ ] Write a short README covering purpose, local development, output contract, exit codes, and service lifecycle commands.
@@ -176,13 +220,15 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Purpose:** Centralize the “one command = one POST” contract.
 
-- [ ] Generate a unique request id per invocation. `crypto.randomUUID()` is acceptable; a no-dependency ULID is optional, not required.
-- [ ] Build `BproxyRequest<Action>` envelopes from shared types with `protocol_version: 1`, global session, deadline, and destructive classification.
-- [ ] Maintain the destructive-action set in one module. Include writes, navigation, scroll, eval, and tab mutations; keep reads/debug/session reads non-destructive.
+- [ ] Generate a unique request id per invocation with `crypto.randomUUID()`.
+- [ ] Build `BproxyRequest<Action>` envelopes from shared types with `protocol_version: 1`, global session, deadline from `--timeout`, and destructive classification.
+- [ ] Maintain the destructive-action set in one module. Include writes, navigation, scroll, eval, and tab mutations; keep reads, `debug.*`, and `session.*` non-destructive.
 - [ ] POST to `http://127.0.0.1:{port}/` using Node's built-in `fetch` and `Authorization: Bearer {token}`.
+- [ ] Abort the fetch shortly after the protocol deadline. The daemon still owns protocol timeout semantics; the CLI abort only prevents a stuck one-shot process.
+- [ ] Add a minimal CLI-side response guard for `BproxyResponse` (`protocol_version`, `id`, `ok`, and success/error branch shape). Do not import service schemas.
 - [ ] Treat valid `BproxyResponse` JSON as the stdout payload regardless of `ok`. Treat daemon-unreachable, HTTP auth failure, non-JSON, or malformed response as exit `2` with stderr diagnostics.
 - [ ] Add `--verbose` timing around the HTTP call with request id/action/session and response status/elapsed/error code.
-- [ ] Add contract tests that mock fetch and assert exact request shape, auth header presence without logging token values, deadline behavior, response parsing, and exit-code mapping.
+- [ ] Add contract tests that mock fetch and assert exact request shape, auth header presence without logging token values, deadline/abort behavior, response parsing, malformed-response handling, and exit-code mapping.
 
 **Done when:** action command modules only need to parse args into `ActionParams[A]` and call one client function.
 
@@ -199,7 +245,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 - [ ] Implement `navigate <url>`.
 - [ ] Implement `text [selector]`, `images [selector]`, `elements [--form]`, `outline`, and `dom [selector] [--depth N]`.
 - [ ] Implement `scroll` with `--by`, `--direction up|down`, and `--until-stable` semantics matching shared params.
-- [ ] Implement `screenshot --activate --debugger`; if debugger mode is not wired in Task 1, document that the extension may return `DEBUGGER_DISABLED`.
+- [ ] Implement `screenshot --activate --debugger`; document that `--debugger` currently passes through to the extension and normally returns `DEBUGGER_DISABLED` because no Phase 4 control path enables the extension flag.
 - [ ] Implement `wait --strategy selector|url|navigation --target <value> [--timeout ms]`.
 - [ ] Keep params minimal. Do not add selector heuristics, automatic waits, or domain-specific parsing in the CLI.
 - [ ] Test argument parsing and generated `ActionParams` for every command, including defaults.
@@ -216,12 +262,12 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Purpose:** Provide the explicit actuator surface without hiding strategy in CLI code.
 
-- [ ] Implement a shared target parser that accepts exactly one target strategy: a CSS selector or a JSON `ElementRoute`. Reject ambiguous input with exit `2` before POST.
-- [ ] Implement `fill` requiring `value`, `method: direct|paste|runtime-api`, and `world: isolated|main`. The command should make common selector use easy, but route JSON must be available for shadow-DOM targets.
-- [ ] Implement `fill-form` accepting a JSON array of fields from an argument, file, or stdin. Each field must already contain target, value, method, and world. Validate shape enough to fail fast on malformed JSON; leave semantic target validation to the extension.
-- [ ] Implement `select` with explicit trigger target and option text.
-- [ ] Implement `require-human --reason [--for-attach target]`.
-- [ ] Implement `eval` with a required local guard such as `--allow-eval` plus code from arg/file/stdin. If the daemon/extension policy still disables eval, pass through the resulting `EVAL_DISABLED` protocol response.
+- [ ] Implement a shared target parser that accepts exactly one of `--selector <css>` or `--route-json <json>`. Reject ambiguous input with exit `2` before POST.
+- [ ] Implement `fill` requiring exactly one value source (`--value`, `--value-file`, or `--value-stdin`), `method: direct|paste|runtime-api`, and `world: isolated|main`.
+- [ ] Implement `fill-form` accepting exactly one payload source (`--json`, `--file`, or `--stdin`). The payload must be the shared params object `{ "fields": [...] }`; each field must already contain target, value, method, and world.
+- [ ] Implement `select` with explicit trigger target (`--selector` or `--route-json`) and `--option-text`.
+- [ ] Implement `require-human --reason [--for-attach selector-string]`.
+- [ ] Implement `eval` with required `--allow-eval` plus exactly one code source (`--code`, `--file`, or `--stdin`). If the extension still disables eval, pass through the resulting `EVAL_DISABLED` protocol response.
 - [ ] Tests must assert that `fill`/`fill-form` never invent method/world values and never retry with another method after an error.
 
 **Done when:** the CLI can express all write-related shared params, including shadow routes and runtime-api writes, without adding extension-side or CLI-side method selection.
@@ -236,12 +282,12 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Purpose:** Let users and agents start, stop, restart, and inspect the daemon from the `bproxy` binary.
 
-- [ ] Resolve the service binary for both workspace development and future installed-package layout. Do not import service source.
-- [ ] Implement `bproxy service start [--port N] [--home DIR]` by spawning the service start command with matching environment (`BPROXY_PORT`, `BPROXY_HOME`). Print success JSON containing PID, port, and pairing code fields from Task 1.
-- [ ] Implement `service stop` and `service status`. `status` must not require the daemon token; it is process-liveness, not protocol status.
+- [ ] Resolve the service binary in this order: `BPROXY_SERVICE_BIN`, workspace `service/dist/index.mjs`, then `bproxy-service` on `PATH`. Do not import service source.
+- [ ] Implement `bproxy service start [--port N] [--home DIR]` by spawning the service `start` command with matching environment (`BPROXY_PORT`, `BPROXY_HOME`). Print the service's normalized success JSON containing PID, port, and pairing code fields from Task 1.
+- [ ] Implement `service stop` and `service status`. `status` must not require the daemon token; it is process-liveness, not protocol status. `stop` prints `{"running":false}` on success.
 - [ ] Implement `service restart` as stop followed by start, producing the new start JSON.
-- [ ] Decide and test duplicate-start behavior: it should fail clearly with exit `2`, not hang or start a second daemon in the same `BPROXY_HOME`.
-- [ ] Add integration tests using a temp `BPROXY_HOME` and built service binary. Assert JSON stdout, stderr on failure, stale PID cleanup, and token file mode.
+- [ ] Test duplicate-start behavior: it fails clearly with exit `2`, not hang or start a second daemon in the same `BPROXY_HOME`.
+- [ ] Add integration tests using a temp `BPROXY_HOME` and built service binary. Assert JSON stdout, stderr on failure, stale PID cleanup, token file mode, and `extension-token` preservation.
 
 **Done when:** a developer can run `pnpm --filter @bproxy/cli build` then use the built `bproxy service start/status/stop` against a temp home without manual service commands.
 
@@ -258,8 +304,8 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 - [ ] Implement `session list`, `session bind --tab-id N [--pacing human|fast]`, `session unbind`, and `session resume` as protocol actions.
 - [ ] Implement `tab list`, `tab pin [--tab-id N]`, `tab unpin`, `tab open <url>`, and `tab close [--tab-id N]`.
 - [ ] Implement `debug log [--id ID] [--limit N]`, `debug last [--count N]`, and `debug status`.
-- [ ] Implement top-level `status` as a convenience wrapper around `debug.status` when daemon auth is available. Keep `service status` as the token-free lifecycle view.
-- [ ] Preserve paused-session semantics: if daemon returns `HUMAN_REQUIRED`, print it as protocol JSON and exit `1`; do not convert it to exit `2`.
+- [ ] Implement top-level `status` as an exact protocol-backed alias for `debug.status`. It requires token preflight; `service status` is the token-free lifecycle view.
+- [ ] Preserve paused-session semantics: if daemon returns `HUMAN_REQUIRED`, print it as protocol JSON and exit `1`; do not convert it to exit `2`. Document that current daemon semantics refuse forwarded `debug.log` while paused.
 - [ ] Add tests that local daemon actions (`session.*`, `debug.last`, `debug.status`) do not require a connected extension, while forwarded debug/tab actions surface daemon protocol errors normally.
 
 **Done when:** all non-lifecycle action families in `docs/architecture.md#actions` are reachable from the CLI.
