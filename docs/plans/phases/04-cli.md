@@ -53,7 +53,8 @@ Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 
 
 2. **Detached start must return pairing metadata.**
    - Current service code issues the pairing code inside the foreground daemon and writes it to that process's stdout, while `startDetached` spawns the child with ignored stdio. A real `bproxy service start` therefore cannot fulfill ADR-011 yet.
-   - Implement a pairing metadata file in `BPROXY_HOME` (recommended name: `pairing.json`) written by the foreground daemon immediately after issuing the code. File mode must be `0600` because the code is a temporary auth factor.
+   - Implement a pairing metadata file in `BPROXY_HOME` named `pairing.json`, written atomically by the foreground daemon immediately after issuing the code. File mode must be `0600` because the code is a temporary auth factor.
+   - `pairing.json` is retained until the earliest of successful pairing-code claim, pairing-code expiry cleanup, daemon shutdown, or stale-state cleanup on next start. The detached parent/CLI reads it but does not delete it; parent-read success is not the lifecycle boundary.
    - Successful detached start output is a plain lifecycle object, not a protocol envelope:
      - `{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}`
    - The daemon issues and prints a fresh pairing code on every daemon start. A persisted `extension-token` still allows reconnect without re-pairing; the printed code is for first pair, rotation, or recovery.
@@ -163,10 +164,10 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 **Purpose:** Make daemon lifecycle scriptable by the future CLI without violating the package dependency boundary.
 
 - [ ] Add a detached-start output contract: service binary `start` prints `{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}` after readiness.
-- [ ] Add `BPROXY_HOME/pairing.json` (mode `0600`) written by the foreground daemon after issuing the code and read by the detached parent. Remove or expire it best-effort on shutdown and stale-lock cleanup.
+- [ ] Add `BPROXY_HOME/pairing.json` (mode `0600`) written atomically by the foreground daemon after issuing the code and read by the detached parent. Retain it until the earliest of successful claim, expiry cleanup, daemon shutdown, or stale-state cleanup; parent read must not delete it.
 - [ ] Keep `service status` process-liveness based: `running: true` only means PID alive; stale files do not count.
 - [ ] Keep eval/debugger control-plane wiring deferred: remove `service start --allow-eval` / `--enable-debugger-mode` from Phase 4 CLI docs and tests; pass extension `EVAL_DISABLED` / `DEBUGGER_DISABLED` responses through.
-- [ ] Add service tests for start JSON shape, pairing file mode/contents, duplicate start failure, stale PID recovery, stop JSON, status JSON, and preservation of `extension-token` across stop/start.
+- [ ] Add service tests for start JSON shape, pairing file mode/contents, pairing file retention after parent read, cleanup on successful claim, duplicate start failure, stale PID recovery, stop JSON, status JSON, and preservation of `extension-token` across stop/start.
 - [ ] Reconcile service and CLI solution docs before adding CLI code.
 
 **Done when:** a script can run the service binary's start/status/stop commands in a temp `BPROXY_HOME` and receive stable JSON output, including a pairing code on start, without reading daemon logs or child stdout races.
