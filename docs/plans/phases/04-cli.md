@@ -60,7 +60,8 @@ Phase 2 and Phase 3 left a few CLI-facing seams. Treat the following as Phase 4 
    - The daemon issues and prints a fresh pairing code on every daemon start. A persisted `extension-token` still allows reconnect without re-pairing; the printed code is for first pair, rotation, or recovery.
 
 3. **Lifecycle JSON is separate from protocol JSON.**
-   - Lifecycle success uses plain JSON objects on stdout. Lifecycle failures write diagnostics to stderr; when surfaced through `bproxy`, they exit `2`.
+   - Lifecycle success uses plain JSON objects on stdout. Lifecycle failures write plain human-readable text to stderr and exit `2`.
+   - Agents consume lifecycle results by exit code: `0` means parse stdout JSON; `2` means failure, read stderr for diagnostics or just retry/report.
    - `service status` is token-free and process-liveness based: `{"running":false}` or `{"running":true,"pid":123,"port":9615}`.
    - `service stop` success should produce `{"running":false}`. `service restart` should produce the same success shape as `service start`.
 
