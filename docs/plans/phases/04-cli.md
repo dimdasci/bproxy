@@ -221,7 +221,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 4: Daemon HTTP client and request builder
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/client.ts`, `cli/src/ids.ts`, `cli/src/command-registry.ts`, tests.
 

@@ -179,3 +179,89 @@ import { exitFromResponse, exitUsageError, executeExitPlan } from "./exit.js";
 - The `port` state file contains just the port number as text. Read it with `readFileSync` and parseInt. Missing/unparseable port → exit 2 ("daemon not running").
 - Request IDs: `crypto.randomUUID()` is fine per the plan. No ULID needed.
 - Abort controller: set timeout to `deadline + small buffer` (e.g., 2000ms). The daemon owns protocol timeout; CLI abort just prevents a hung process.
+
+---
+
+## Task 4 → Task 5
+
+### What was done (Task 4)
+
+Centralized HTTP client and request builder — the "one command = one POST" contract is now a single function call.
+
+| File | What |
+|------|------|
+| `cli/src/ids.ts` | `generateRequestId()` — `crypto.randomUUID()` wrapper |
+| `cli/src/command-registry.ts` | `isDestructive(action)`, `allRegisteredActions()` + compile-time exhaustiveness assertion |
+| `cli/src/client.ts` | `sendAction(action, params, globals, opts)` — full pipeline from preflight to exit plan |
+| `cli/src/__tests__/ids.test.ts` | 2 tests (UUID shape, uniqueness) |
+| `cli/src/__tests__/command-registry.test.ts` | 20 tests (classification per action, full coverage assertion) |
+| `cli/src/__tests__/client.test.ts` | 29 tests (preflight failures, request shape, auth, verbose, response handling) |
+
+### API for command implementers
+
+Every action command only needs to:
+1. Parse CLI args into `ActionParams[A]`
+2. Call `sendAction` and return the result
+
+```ts
+import { sendAction, type ClientGlobalArgs } from "../client.js";
+import type { ExitPlan } from "../exit.js";
+
+export async function runNavigate(globals: ClientGlobalArgs, url: string): Promise<ExitPlan> {
+  return sendAction("navigate", { url }, globals);
+}
+```
+
+### `sendAction` pipeline
+
+1. Resolves `BPROXY_HOME` → state paths (port, token)
+2. Token preflight (exists, mode 0600, owner) → exit 2 on failure
+3. Reads port file → exit 2 if daemon not running
+4. Parses `--timeout` → exit 2 if invalid
+5. Builds `BproxyRequest<A>` with `protocol_version: 1`, session, deadline, `destructive` flag
+6. Verbose pre-request stderr entry (no token leaked)
+7. POSTs to `http://127.0.0.1:{port}/` with Bearer auth + abort timeout (deadline + 2s buffer)
+8. Fetch failure → exit 2 (connection refused, abort timeout)
+9. HTTP 401/403 → exit 2
+10. Non-JSON body → exit 2
+11. Validates response shape (`protocol_version`, `id` match, `ok`, branch fields)
+12. Malformed response → exit 2
+13. Valid `ok: true` → exit 0, valid `ok: false` → exit 1
+14. Verbose post-request stderr entry with elapsed/status/error code
+
+### Command registry
+
+```ts
+import { isDestructive } from "./command-registry.js";
+
+isDestructive("navigate");  // true
+isDestructive("text");      // false
+```
+
+Destructive: `navigate`, `scroll`, `fill`, `fill-form`, `select`, `eval`, `tab.pin`, `tab.unpin`, `tab.open`, `tab.close`, `session.bind`, `session.unbind`, `session.resume`, `require-human`.
+
+Non-destructive: `text`, `images`, `elements`, `outline`, `dom`, `screenshot`, `wait`, `tab.list`, `session.list`, `debug.log`, `debug.last`, `debug.status`.
+
+Adding a new `Action` to shared without updating the registry causes a **compile-time error**.
+
+### `SendOptions` for testing
+
+```ts
+interface SendOptions {
+  fetch?: typeof globalThis.fetch;  // mock HTTP
+  stderr?: NodeJS.WritableStream;   // capture verbose
+  env?: NodeJS.ProcessEnv;          // override BPROXY_HOME
+  requestId?: string;               // deterministic IDs
+  readPort?: (path: string) => number | null;  // skip fs
+}
+```
+
+### Notes for Task 5 implementer
+
+- Each command stub in `cli/src/commands/*.ts` currently has an empty `run()`. Replace it with arg parsing → `sendAction` call → `executeExitPlan`.
+- Access parent (global) args via citty's context. The `run({ args })` callback receives merged parent + local args.
+- For commands with no params (e.g., `outline`), pass `{}` as params.
+- Optional params (e.g., `text --selector`) should be omitted from the params object when not provided, not sent as `undefined`.
+- `--timeout` and `--session` are on the global args — pass them through `ClientGlobalArgs`.
+- The `executeExitPlan` call should be at the command boundary (inside `run()`), not deeper.
+- `validateResponse` is exported for direct use in tests but commands should not call it directly — `sendAction` handles it.
