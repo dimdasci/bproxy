@@ -283,7 +283,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 7: Service lifecycle commands
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/service-binary.ts`, `cli/src/commands/service/*.ts`, lifecycle integration tests.
 
@@ -302,7 +302,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 8: Session, tab, debug, and top-level status commands
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/commands/{session,tab,debug,status}.ts`, tests.
 
@@ -321,7 +321,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 9: Command coverage and design assertions
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/command-registry.ts`, CLI tests, root quality configs if needed.
 
@@ -340,7 +340,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 10: CLI integration smoke against daemon + mock extension
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/test/integration/*` or `cli/scripts/smoke/*`, `cli/README.md`.
 
@@ -360,7 +360,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 11: Views and documentation integration
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `docs/views/02-containers.md`, `docs/views/05-scenarios/*.md`, `docs/views/auto/cli-components.svg`, `docs/solution/cli.md`, `docs/solution/service.md`, `cli/README.md`.
 
@@ -380,19 +380,19 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Final verification checklist
 
-- [ ] `pnpm --filter @bproxy/cli build` emits `dist/bproxy.mjs` with executable bin metadata.
-- [ ] `bproxy service start/status/stop` works in a temp `BPROXY_HOME` and `start` prints pairing code JSON.
-- [ ] Token preflight refuses missing, wrong-owner, and non-`0600` token files before making HTTP requests.
-- [ ] Every shared action is reachable through the CLI or intentionally grouped under service/session/tab/debug command families.
-- [ ] Non-lifecycle commands produce one POST and one JSON stdout object.
-- [ ] Protocol `ok:false` responses exit `1`; usage/config/control-plane failures exit `2` without polluted stdout.
-- [ ] `--verbose` writes structured stderr with request id/action/session/elapsed and no token material.
-- [ ] `fill`/`fill-form` require explicit method/world and support route-based targets.
-- [ ] `eval` requires an explicit local CLI opt-in and respects daemon/extension policy errors.
-- [ ] CLI tests cover request shape, command parsing, lifecycle, output cleanliness, and action coverage.
-- [ ] `cli/README.md` and affected solution docs are updated.
-- [ ] Scenario views exist and build; CLI component SVG is regenerated and linked from Container view.
-- [ ] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
+- [x] `pnpm --filter @bproxy/cli build` emits `dist/bproxy.mjs` with executable bin metadata.
+- [x] `bproxy service start/status/stop` works in a temp `BPROXY_HOME` and `start` prints pairing code JSON.
+- [x] Token preflight refuses missing, wrong-owner, and non-`0600` token files before making HTTP requests.
+- [x] Every shared action is reachable through the CLI or intentionally grouped under service/session/tab/debug command families.
+- [x] Non-lifecycle commands produce one POST and one JSON stdout object.
+- [x] Protocol `ok:false` responses exit `1`; usage/config/control-plane failures exit `2` without polluted stdout.
+- [x] `--verbose` writes structured stderr with request id/action/session/elapsed and no token material.
+- [x] `fill`/`fill-form` require explicit method/world and support route-based targets.
+- [x] `eval` requires an explicit local CLI opt-in and respects daemon/extension policy errors.
+- [x] CLI tests cover request shape, command parsing, lifecycle, output cleanliness, and action coverage.
+- [x] `cli/README.md` and affected solution docs are updated.
+- [x] Scenario views exist and build; CLI component SVG is regenerated and linked from Container view.
+- [x] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---
 

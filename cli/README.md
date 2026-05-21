@@ -95,3 +95,36 @@ bproxy service restart
 - CLI imports only from `@bproxy/shared` — never from `service/src/**` or `extension/src/**`.
 - Subcommands are loaded lazily to keep startup fast for tight agent loops.
 - Process exit happens only at the outermost boundary; command modules return exit plans.
+
+## Integration smoke test
+
+The CLI includes an integration test that proves a full round trip against a real daemon:
+
+```bash
+# Build both service and CLI
+pnpm --filter @bproxy/service build
+pnpm --filter @bproxy/cli build
+
+# Run the integration smoke test
+pnpm --filter @bproxy/cli test -- src/__tests__/smoke.integration.test.ts
+```
+
+The smoke test:
+1. Starts a real daemon in a temp `BPROXY_HOME` via `bproxy service start`
+2. Verifies start output (pairing code, PID, port) and token file permissions
+3. Runs `session list`, `session bind`, `session unbind` (daemon-local, no extension)
+4. Runs `debug status` and `debug last` for observability
+5. Connects a mock WebSocket client (claims pairing code → extension token → WS auth)
+6. Binds a tab, sends a forwarded `text` command, verifies mock response
+7. Stops the daemon and verifies clean shutdown
+
+To reproduce manually:
+
+```bash
+export BPROXY_HOME=$(mktemp -d)
+node cli/dist/bproxy.mjs service start --home $BPROXY_HOME
+node cli/dist/bproxy.mjs session list --home $BPROXY_HOME
+node cli/dist/bproxy.mjs status --home $BPROXY_HOME
+node cli/dist/bproxy.mjs service stop --home $BPROXY_HOME
+rm -rf $BPROXY_HOME
+```

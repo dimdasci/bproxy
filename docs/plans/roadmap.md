@@ -21,7 +21,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 1 | Shared types | The domain model | ✅ Done | [phases/01-shared-types.md](./phases/01-shared-types.md) |
 | 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
 | 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
-| 4 | CLI | One-shot agent interface + complete curated views set | Not started | [phases/04-cli.md](./phases/04-cli.md) |
+| 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
 | 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
 | 6 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 5 closes_ |
 
@@ -92,6 +92,8 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 ### Phase 4 — CLI
 
 **Purpose:** one-shot agent interface. Per [docs/solution/cli.md](../solution/cli.md).
+
+**Status note:** Phase 4 is complete. All 11 tasks done: lifecycle contract alignment, CLI package bootstrap, primitives (paths/token/output/exit), HTTP client, read commands, write commands, service lifecycle commands, session/tab/debug commands, design assertions, integration smoke tests, and views/docs integration. 327 CLI tests, 652 total workspace tests pass. `pnpm check`, `pnpm test`, and `pnpm docs:build` all green.
 
 **Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands. Phase 4 also closes the remaining curated architecture-view content so Phase 5 hardening can validate against a complete explanatory set.
 

@@ -4,411 +4,260 @@ title: CLI
 
 Implementation spec for the command-line interface. Built with [citty](https://github.com/unjs/citty).
 
-**Decisions that constrain this:** [ADR-004](../decisions.md#adr-004-cli-framework--citty) (citty), [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript).
+**Decisions that constrain this:** [ADR-004](../decisions.md#adr-004-cli-framework--citty) (citty), [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript), [ADR-007](../decisions.md#adr-007-three-method-write-contract) (explicit fill method), [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint) (request id correlation), [ADR-010](../decisions.md#adr-010-websocket-auth-transport--two-token-model) (CLI uses daemon token only), [ADR-017](../decisions.md#adr-017-sensoractuator-boundary) (CLI forwards explicit choices), [ADR-018](../decisions.md#adr-018-agent-guidance-ownership) (no CLI method selection).
 
 ## Project Layout
 
 ```
 cli/
-├── package.json              # bin: { "bproxy": "./dist/bproxy.mjs" }, deps: citty
+├── package.json              # bin: { "bproxy": "./dist/bproxy.mjs" }
 ├── tsconfig.json
+├── tsup.config.ts
+├── vitest.config.ts
+├── README.md
 └── src/
-    ├── bproxy.ts             # entry: defineCommand + top-level args + lazy subCommands
-    ├── client.ts             # HTTP POST to daemon, JSON parse, exit code logic
-    ├── paths.ts              # cross-platform state directory resolver (~/.bproxy/)
-    ├── output.ts             # JSON stdout formatting
-    └── commands/
-        ├── service.ts        # subCommands: start, stop, restart, status
-        ├── service/
-        │   ├── start.ts
-        │   ├── stop.ts
-        │   ├── restart.ts
-        │   └── status.ts
-        ├── status.ts         # top-level quick status
-        ├── navigate.ts
-        ├── text.ts
-        ├── images.ts
-        ├── elements.ts
-        ├── outline.ts
-        ├── dom.ts
-        ├── scroll.ts
-        ├── screenshot.ts
-        ├── fill.ts
-        ├── fill-form.ts
-        ├── select.ts
-        ├── wait.ts
-        ├── require-human.ts
-        ├── eval.ts
-        ├── tab.ts            # subCommands: list, pin, unpin, open, close
-        ├── session.ts        # subCommands: list, bind, unbind, resume
-        └── debug.ts          # subCommands: log, last, status
+    ├── bproxy.ts             # citty entrypoint, global args, lazy subcommands
+    ├── client.ts             # daemon POST client, response validation, exit-code mapping
+    ├── command-registry.ts   # action coverage + destructive classification
+    ├── exit.ts               # ExitPlan type, exit-code mapper, executeExitPlan
+    ├── globals.ts            # shared global arg definitions + extractGlobals()
+    ├── ids.ts                # crypto.randomUUID() request id generation
+    ├── output.ts             # writeJson (stdout), writeVerbose/writeDiagnostic (stderr)
+    ├── paths.ts              # BPROXY_HOME resolution + state file paths
+    ├── service-binary.ts     # locate + spawn service binary (no source imports)
+    ├── targets.ts            # --selector / --route-json → ElementTarget parser
+    ├── token.ts              # owner/mode preflight (fail closed)
+    ├── types.ts              # re-exports from @bproxy/shared
+    ├── commands/
+    │   ├── navigate.ts       # navigate --url
+    │   ├── text.ts           # text [--selector]
+    │   ├── images.ts         # images [--selector]
+    │   ├── elements.ts       # elements [--form]
+    │   ├── outline.ts        # outline
+    │   ├── dom.ts            # dom [--selector] [--depth N]
+    │   ├── scroll.ts         # scroll [--by] [--direction] [--until-stable]
+    │   ├── screenshot.ts     # screenshot [--activate] [--debugger]
+    │   ├── fill.ts           # fill --selector/--route-json --value --method --world
+    │   ├── fill-form.ts      # fill-form --json/--file/--stdin
+    │   ├── select.ts         # select --selector/--route-json --option-text
+    │   ├── wait.ts           # wait --strategy --target [--timeout]
+    │   ├── require-human.ts  # require-human --reason [--for-attach]
+    │   ├── eval.ts           # eval --allow-eval --code/--file/--stdin
+    │   ├── status.ts         # top-level status (alias for debug.status)
+    │   ├── service/
+    │   │   ├── index.ts      # subCommands: start, stop, status, restart
+    │   │   ├── start.ts      # service start [--port] [--home]
+    │   │   ├── stop.ts       # service stop [--home]
+    │   │   ├── status.ts     # service status [--home] (token-free)
+    │   │   └── restart.ts    # service restart [--port] [--home]
+    │   ├── session/
+    │   │   ├── list.ts       # session list
+    │   │   ├── bind.ts       # session bind --tab-id N [--pacing human|fast]
+    │   │   ├── unbind.ts     # session unbind
+    │   │   └── resume.ts     # session resume
+    │   ├── tab/
+    │   │   ├── list.ts       # tab list
+    │   │   ├── pin.ts        # tab pin [--tab-id N]
+    │   │   ├── unpin.ts      # tab unpin
+    │   │   ├── open.ts       # tab open --url
+    │   │   └── close.ts      # tab close [--tab-id N]
+    │   └── debug/
+    │       ├── log.ts        # debug log [--id] [--limit]
+    │       ├── last.ts       # debug last [--count]
+    │       └── status.ts     # debug status
+    └── __tests__/            # unit + integration tests
 ```
 
-Bundled with `tsup` → `dist/bproxy.mjs`. During Phase 4 it is run from the workspace or built binary; public/global installation is deferred to the Distribution & installation phase after integration hardening.
+Bundled with `tsup` → `dist/bproxy.mjs`. Run from workspace or built binary; public distribution is deferred to Phase 6.
 
-## Entry Point
+## Global Flags
 
-```typescript
-// src/bproxy.ts
-import { defineCommand, runMain } from 'citty';
+Every leaf command defines these via `globalArgs` spread:
 
-const main = defineCommand({
-  meta: {
-    name: 'bproxy',
-    version: '0.1.0',
-    description: 'Browser proxy for code agents',
-  },
-  args: {
-    session: {
-      type: 'string',
-      description: 'Session name',
-      default: 'default',
-      alias: ['s'],
-    },
-  },
-  subCommands: {
-    service:        () => import('./commands/service').then(m => m.default),
-    status:         () => import('./commands/status').then(m => m.default),
-    navigate:       () => import('./commands/navigate').then(m => m.default),
-    text:           () => import('./commands/text').then(m => m.default),
-    images:         () => import('./commands/images').then(m => m.default),
-    elements:       () => import('./commands/elements').then(m => m.default),
-    outline:        () => import('./commands/outline').then(m => m.default),
-    dom:            () => import('./commands/dom').then(m => m.default),
-    scroll:         () => import('./commands/scroll').then(m => m.default),
-    screenshot:     () => import('./commands/screenshot').then(m => m.default),
-    fill:           () => import('./commands/fill').then(m => m.default),
-    'fill-form':    () => import('./commands/fill-form').then(m => m.default),
-    select:         () => import('./commands/select').then(m => m.default),
-    wait:           () => import('./commands/wait').then(m => m.default),
-    'require-human': () => import('./commands/require-human').then(m => m.default),
-    eval:           () => import('./commands/eval').then(m => m.default),
-    tab:            () => import('./commands/tab').then(m => m.default),
-    session:        () => import('./commands/session').then(m => m.default),
-    debug:          () => import('./commands/debug').then(m => m.default),
-  },
-});
-
-runMain(main);
-```
-
-Lazy imports ensure only the invoked command is loaded. Startup is fast for agents calling bproxy in tight loops.
-
-## Command Structure
-
-Every leaf command follows the same pattern:
-
-```typescript
-// src/commands/scroll.ts
-import { defineCommand } from 'citty';
-import { sendCommand } from '../client';
-
-export default defineCommand({
-  meta: { name: 'scroll', description: 'Scroll the page' },
-  args: {
-    by: {
-      type: 'string',
-      description: 'Distance: pixels or "viewport"',
-      default: 'viewport',
-      valueHint: 'px|viewport',
-    },
-    direction: {
-      type: 'enum',
-      options: ['up', 'down'],
-      default: 'down',
-    },
-    'until-stable': {
-      type: 'boolean',
-      description: 'Wait for DOM to settle after scroll',
-      default: true,
-    },
-  },
-  async run({ args }) {
-    await sendCommand('scroll', {
-      by: args.by,
-      direction: args.direction,
-      untilStable: args.untilStable,
-    }, { session: args.session });
-  },
-});
-```
-
-## Client Module
-
-**File:** `src/client.ts`
-
-The core logic shared by all commands: resolve daemon, POST, handle response.
-
-```typescript
-import { resolve as resolvePaths } from './paths';
-import { formatOutput } from './output';
-
-interface SendOptions {
-  session: string;
-  timeout?: number;
-}
-
-export async function sendCommand(action: string, params: Record<string, unknown>, opts: SendOptions): Promise<void> {
-  const { port, token } = await resolveDaemon();
-
-  const request: BproxyRequest = {
-    protocol_version: 1,
-    id: generateId(),    // ULID or similar
-    action,
-    params,
-    session: opts.session,
-    deadline: Date.now() + (opts.timeout ?? 30_000),
-    destructive: isDestructive(action),
-  };
-
-  const response = await fetch(`http://127.0.0.1:${port}/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(request),
-  });
-
-  const result: BproxyResponse = await response.json();
-
-  // Output
-  process.stdout.write(formatOutput(result) + '\n');
-
-  // Exit code
-  if (result.ok) process.exit(0);
-  else process.exit(1);
-}
-
-async function resolveDaemon(): Promise<{ port: number; token: string }> {
-  const paths = resolvePaths();
-  // Read port from ~/.bproxy/port
-  // Read token from ~/.bproxy/token
-  // Preflight token file security before use:
-  // - must exist
-  // - owner must be current user
-  // - mode must be 0600 (owner read/write only)
-  // If preflight fails → exit 2 with explicit fix command
-  // If port/token missing → exit 2 with "daemon not running" message
-}
-```
-
-Uses Node.js built-in `fetch` (available since Node 18). No HTTP library dependency.
-
-## Path Resolution
-
-**File:** `src/paths.ts`
-
-Single state directory on all platforms:
-
-```typescript
-export function resolvePaths() {
-  const base = path.join(os.homedir(), '.bproxy');
-
-  return {
-    base,
-    pid: path.join(base, 'bproxy.pid'),
-    port: path.join(base, 'port'),
-    token: path.join(base, 'token'),
-    logs: path.join(base, 'logs'),
-  };
-}
-```
-
-## Output Formatting
-
-**File:** `src/output.ts`
-
-All output is JSON. One object per invocation on stdout. No color, no progress bars, no interactive prompts — this is consumed by agents.
-
-```typescript
-export function formatOutput(result: BproxyResponse): string {
-  return JSON.stringify(result);
-}
-```
-
-Errors go to stderr only for usage errors (exit code 2). All protocol errors are part of the JSON response on stdout (exit code 1).
+| Flag | Alias | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--session` | `-s` | string | `"default"` | Session ID for the request |
+| `--timeout` | | string (ms) | `30000` | Protocol deadline in milliseconds |
+| `--home` | | string | `~/.bproxy` | Override `BPROXY_HOME` state directory |
+| `--verbose` | `-v` | boolean | `false` | Write structured diagnostics to stderr |
 
 ## Exit Codes
 
 | Code | Meaning |
-|---|---|
-| 0 | `ok: true` — command succeeded |
-| 1 | `ok: false` — command failed (error in JSON on stdout) |
-| 2 | Usage/config error (bad args, daemon not running, missing/insecure token, config missing) |
+|------|---------|
+| `0` | Valid protocol response with `ok: true`, or lifecycle success |
+| `1` | Valid protocol response with `ok: false` (protocol error on stdout) |
+| `2` | CLI/config/control-plane failure (bad args, daemon not running, token invalid) |
 
-## `service` Subcommands
+Commands return an `ExitPlan` object; only the outermost boundary calls `process.exit`.
 
-These are special — they don't POST to the daemon. They manage the daemon lifecycle directly.
+## Output Contract
 
-### `bproxy service start`
+- **stdout** — exactly one JSON object (single-line `JSON.stringify` + `\n`). Protocol commands emit the full `BproxyResponse`. Lifecycle commands emit their own JSON shape.
+- **stderr** — only for exit `2` diagnostics or `--verbose` structured logs. Never on stdout.
+- No color, progress bars, or interactive prompts anywhere.
+- Token values never appear in any output.
+
+## Command Pattern
+
+Every protocol-action leaf command follows the same structure:
 
 ```typescript
-// src/commands/service/start.ts
+import { defineCommand } from "citty";
+import { sendAction } from "../client.js";
+import { executeExitPlan } from "../exit.js";
+import { extractGlobals, globalArgs } from "../globals.js";
+
 export default defineCommand({
-  meta: { name: 'start', description: 'Start the proxy daemon' },
-  args: {
-    port: { type: 'string', description: 'Port number', default: '9615' },
-  },
+  args: { ...globalArgs, /* command-specific args */ },
   async run({ args }) {
-    // 1. Resolve BPROXY_HOME (state directory scope)
-    // 2. If lockfile PID is alive: fail cleanly (non-zero, already running)
-    // 3. If lockfile PID is dead: treat as stale lock and recover
-    // 4. Spawn service/dist/index.mjs as detached child
-    // 5. Wait until daemon readiness boundary (pid alive + valid port file)
-    // 6. Output { running: true, pid, port, pairingCode, pairingExpiresAt }
+    const globals = extractGlobals(args);
+    const params = { /* build from args */ };
+    const plan = await sendAction("action.name", params, globals);
+    executeExitPlan(plan);
   },
 });
 ```
 
-Expected behavior:
-- Same `BPROXY_HOME`: exactly one daemon instance. Second `start` returns non-zero with a clear "already running" style message.
-- Different `BPROXY_HOME`: independent daemon lifecycles.
+## Client Module (`client.ts`)
 
-### `bproxy service stop`
+`sendAction` is the single function all protocol commands call. Its pipeline:
 
-Read PID → if alive send SIGTERM → best-effort cleanup of lock/port/token files.
-If daemon is already gone, return success with `running: false` semantics on next `status`.
+1. Resolve `BPROXY_HOME` → state paths (port, token)
+2. Token preflight (exists, mode `0600`, owner) → exit `2` on failure
+3. Read port file → exit `2` if daemon not running
+4. Parse `--timeout` → exit `2` if invalid
+5. Build `BproxyRequest<A>` with `protocol_version: 1`, session, deadline, destructive flag
+6. Verbose pre-request stderr entry (no token leaked)
+7. POST to `http://127.0.0.1:{port}/` with Bearer auth + abort timeout (deadline + 2s)
+8. Fetch failure → exit `2` (connection refused, abort timeout)
+9. HTTP 401/403 → exit `2`
+10. Non-JSON body → exit `2`
+11. Validate response shape (protocol_version, id match, ok, branch fields)
+12. Malformed response → exit `2`
+13. Valid `ok: true` → exit `0`; valid `ok: false` → exit `1`
+14. Verbose post-request stderr entry with elapsed/status/error code
 
-### `bproxy service status`
+## Token Preflight (Fail Closed)
 
-Read PID → check process liveness → read port.
-`running: true` only when PID exists and process is alive. If PID is missing/invalid/dead, report `running: false` (even when stale files remain).
+Before any POST, the CLI verifies `BPROXY_HOME/token`:
+- File exists and is a regular file
+- Mode is exactly `0600`
+- Owner matches current UID (when `process.getuid()` is available)
 
-## Pairing workflow
+On platforms where POSIX APIs are unavailable (Windows), permission/owner checks are skipped.
 
-Pairing is popup-driven—see [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing).
+## Service Lifecycle Commands
 
-1. CLI prints pairing code in `bproxy service start` output.
-2. User opens extension popup and enters code.
-3. Popup calls `POST /pair/claim`.
-4. Daemon returns bootstrap payload to popup.
-5. Extension stores token.
-6. CLI reads pairing state via `bproxy service status`.
+These do **not** use `sendAction`. They spawn the service binary as a child process.
 
-## Token preflight (fail closed)
+### Binary Resolution
 
-Before any command that reads `~/.bproxy/token`, CLI enforces:
+Order: `BPROXY_SERVICE_BIN` env → workspace `service/dist/index.mjs` → `bproxy-service` on PATH.
 
-- file exists
-- owner is current user
-- permissions are exactly `0600`
+The CLI never imports service source code. Dependency-cruiser enforces `cli -> shared` only.
 
-If any check fails, CLI must not attempt daemon auth and must exit `2` with clear remediation text.
+### `bproxy service start [--port N] [--home DIR]`
 
-Example messages:
-
-- Missing token:
-  - `Token not found: ~/.bproxy/token. Run: bproxy service start`
-- Insecure mode:
-  - `Insecure token permissions (found 0644, expected 0600). Run: chmod 600 ~/.bproxy/token`
-- Wrong owner:
-  - `Token owner mismatch. Run: chown $USER ~/.bproxy/token`
-
-## ID Generation
-
-Each command gets a unique ID for idempotency. Use ULID (time-sortable, no deps needed — implement in ~20 lines) or `crypto.randomUUID()`.
-
-## Destructive Action Classification
-
-```typescript
-const DESTRUCTIVE_ACTIONS = new Set([
-  'navigate', 'fill', 'fill-form', 'select', 'scroll', 'eval',
-  'tab.open', 'tab.close', 'tab.pin', 'tab.unpin',
-]);
-
-function isDestructive(action: string): boolean {
-  return DESTRUCTIVE_ACTIONS.has(action);
-}
+Spawns the service binary's `start` command. Prints lifecycle JSON:
+```json
+{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}
 ```
 
-Read-only actions (`text`, `elements`, `outline`, `dom`, `images`, `screenshot`, `wait`) are not destructive — safe to replay.
+### `bproxy service stop [--home DIR]`
 
-## Observability
-
-The CLI is a one-shot process — it doesn't maintain state between invocations. Its observability role is:
-
-1. **Pass through the `id`** so the user/agent can correlate with daemon log and extension buffer.
-2. **`--verbose` flag** for real-time debugging of a single command.
-3. **`debug` subcommand** for querying the system after the fact.
-
-### `--verbose` flag
-
-Top-level flag inherited by all commands. Prints to **stderr** (stdout stays clean JSON for agents).
-
-```bash
-bproxy --verbose scroll --by viewport
+Spawns the service binary's `stop` command. Prints:
+```json
+{"running":false}
 ```
 
-Stderr output:
+### `bproxy service status [--home DIR]`
+
+Token-free, process-liveness based. Prints:
+```json
+{"running":true,"pid":123,"port":9615}
 ```
-[bproxy] POST http://127.0.0.1:9615/ id=01HZX9C2K8 action=scroll session=default
-[bproxy] Response 200 elapsed=2814ms ok=true
-```
+or `{"running":false}`.
 
-On error:
-```
-[bproxy] POST http://127.0.0.1:9615/ id=01HZX9C2K8 action=scroll session=default
-[bproxy] Response 200 elapsed=5002ms ok=false code=TIMEOUT
-[bproxy] Hint: grep '01HZX9C2K8' ~/.bproxy/logs/2026-05-08.log
-```
+### `bproxy service restart [--port N] [--home DIR]`
 
-The hint line tells the developer exactly how to dig deeper.
+Composition: stop then start. Produces the same JSON as start.
 
-### `debug` subcommand
+## Session Commands
 
-`debug` is protocol-backed (Option 1): CLI sends explicit actions through the daemon.
+Daemon-local (no extension required):
 
-```bash
-bproxy debug log                # action: debug.log
-bproxy debug log --id 01HZX…    # action: debug.log { id }
-bproxy debug log --limit 20     # action: debug.log { limit }
-bproxy debug last [--count N]   # action: debug.last { count }
-bproxy debug status             # action: debug.status
-```
+- `session list` — returns all active sessions
+- `session bind --tab-id N [--pacing human|fast]` — binds session to tab (destructive)
+- `session unbind` — unbinds session from tab (destructive)
+- `session resume` — clears paused state (destructive)
 
-All return JSON on stdout. An agent debugging its own failures can call these programmatically.
+## Tab Commands
 
-### Error responses include `id`
+Forwarded to extension (require connected WS client + bound session):
 
-Every error JSON already includes the `id` field (protocol spec). An agent that receives an error can immediately query:
+- `tab list` — list open tabs (non-destructive)
+- `tab pin [--tab-id N]` — pin a tab (destructive, does NOT bind session)
+- `tab unpin` — unpin current tab (destructive)
+- `tab open --url <url>` — open new tab (destructive)
+- `tab close [--tab-id N]` — close tab (destructive)
 
-```bash
-# Agent's self-debugging flow:
-bproxy debug log --id $FAILED_ID
-```
+## Debug Commands
 
-### Adding `--verbose` to citty
+- `debug log [--id ID] [--limit N]` — forwarded to extension (ring buffer)
+- `debug last [--count N]` — daemon-local request history
+- `debug status` — daemon-local full status
 
-```typescript
-// src/bproxy.ts
-const main = defineCommand({
-  args: {
-    session: { type: 'string', default: 'default', alias: ['s'] },
-    verbose: { type: 'boolean', default: false, alias: ['v'] },
-  },
-  // ...
-});
-```
+## Top-level `status`
 
-The `client.ts` module checks `args.verbose` and emits stderr lines before/after the HTTP call.
+`bproxy status` is a protocol-backed alias for `debug.status`. It requires token preflight. It does **not** fall back to `service status` on auth failure — that's a config/security failure (exit `2`).
+
+## Write Commands
+
+### `fill --selector/--route-json --value/--value-file/--value-stdin --method --world`
+
+- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Value: exactly one of `--value`, `--value-file <path>`, `--value-stdin`
+- Method: required, one of `direct|paste|runtime-api`
+- World: required, one of `isolated|main`
+
+### `fill-form --json/--file/--stdin`
+
+Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `method`, `world`.
+
+### `select --selector/--route-json --option-text`
+
+### `eval --allow-eval --code/--file/--stdin`
+
+`--allow-eval` is a local intent guard. Without it, exit `2` before POST.
+
+## Command Registry
+
+`command-registry.ts` classifies every shared `Action` as destructive or non-destructive. A compile-time exhaustiveness assertion ensures adding a new shared action without updating the registry causes a build failure.
+
+**Destructive:** navigate, scroll, fill, fill-form, select, eval, tab.pin, tab.unpin, tab.open, tab.close, session.bind, session.unbind, session.resume, require-human.
+
+**Non-destructive:** text, images, elements, outline, dom, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
+
+## Verbose Mode (`--verbose`)
+
+Writes structured JSON to stderr. Each entry includes: `requestId`, `action`, `session`, `url`, `elapsed`, `httpStatus`, `errorCode`. Token values are never included.
+
+## Eval/Debugger Policy
+
+The CLI does not add `--allow-eval` or `--enable-debugger-mode` flags to `service start`. Extension policy responses (`EVAL_DISABLED`, `DEBUGGER_DISABLED`) pass through as protocol errors (exit `1`).
 
 ## Testing
 
-Unit tests with Vitest:
-- Path resolution (per-platform)
-- Client module (mock fetch, verify request shape, verify exit codes)
-- ID generation (uniqueness, format)
-- Individual command arg parsing (citty provides `parseArgs` for testing)
-
-Integration tests:
-- Start real daemon → run CLI commands → verify JSON output + exit codes.
+- **Unit tests:** paths, token, output, exit, client, command-registry, targets, individual commands
+- **Integration tests:** real daemon lifecycle (start/stop/status), forwarded action via mock WS client
+- **Design assertions:** action coverage, no direct fetch in commands, import boundaries, stdout cleanliness, exit-code determinism
 
 ## Development
 
 ```bash
-cd cli
-pnpm dev        # tsup --watch
-pnpm build      # tsup → dist/bproxy.mjs
-pnpm test       # vitest
+pnpm --filter @bproxy/cli build      # tsup → dist/bproxy.mjs
+pnpm --filter @bproxy/cli typecheck  # tsc --noEmit
+pnpm --filter @bproxy/cli test       # vitest run
+pnpm check                           # full workspace quality gate
 ```
