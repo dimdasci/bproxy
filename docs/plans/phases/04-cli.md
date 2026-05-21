@@ -243,7 +243,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 5: Read/navigation action commands
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/commands/{navigate,text,images,elements,outline,dom,scroll,screenshot,wait}.ts`, command parsing tests.
 

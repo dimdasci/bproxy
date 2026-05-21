@@ -265,3 +265,79 @@ interface SendOptions {
 - `--timeout` and `--session` are on the global args — pass them through `ClientGlobalArgs`.
 - The `executeExitPlan` call should be at the command boundary (inside `run()`), not deeper.
 - `validateResponse` is exported for direct use in tests but commands should not call it directly — `sendAction` handles it.
+
+---
+
+## Task 5 → Task 6
+
+### What was done (Task 5)
+
+All read/navigation action commands are now wired: args → params → `sendAction` → `executeExitPlan`.
+
+| File | What |
+|------|------|
+| `cli/src/globals.ts` | `globalArgs` definitions + `extractGlobals(args)` helper |
+| `cli/src/commands/navigate.ts` | `navigate --url <url>` (destructive) |
+| `cli/src/commands/text.ts` | `text [--selector]` |
+| `cli/src/commands/images.ts` | `images [--selector]` |
+| `cli/src/commands/elements.ts` | `elements [--form]` |
+| `cli/src/commands/outline.ts` | `outline` (empty params) |
+| `cli/src/commands/dom.ts` | `dom [--selector] [--depth N]` with depth validation |
+| `cli/src/commands/scroll.ts` | `scroll [--by] [--direction up|down] [--until-stable]` (destructive) |
+| `cli/src/commands/screenshot.ts` | `screenshot [--activate] [--debugger]` |
+| `cli/src/commands/wait.ts` | `wait --strategy --target [--timeout ms]` with strategy/timeout validation |
+| `cli/src/__tests__/commands-read.test.ts` | 34 tests (request envelopes, param shapes, destructive flags, response pass-through) |
+| `cli/src/__tests__/commands-read-parsing.test.ts` | 23 tests (globals extraction, validation logic, optional param omission) |
+
+### Key design decision: global args on subcommands
+
+Citty does not pass parent args to subcommands — `runCommand(subCommand, { rawArgs: rawArgs.slice(i+1) })` only forwards the remaining raw argv. Each leaf command must define the global flags it needs.
+
+**Solution:** `cli/src/globals.ts` exports a `globalArgs` object that commands spread into their `args` definition, plus `extractGlobals(args)` to pull `ClientGlobalArgs` from the parsed result.
+
+```ts
+import { extractGlobals, globalArgs } from "../globals.js";
+
+export default defineCommand({
+  args: { ...globalArgs, url: { type: "string", required: true } },
+  async run({ args }) {
+    const globals = extractGlobals(args);
+    const plan = await sendAction("navigate", { url: args.url }, globals);
+    executeExitPlan(plan);
+  },
+});
+```
+
+### Command implementation pattern
+
+1. Spread `globalArgs` into command `args`
+2. Define command-specific args
+3. In `run()`: `extractGlobals(args)` → parse/validate local args → build params → `sendAction` → `executeExitPlan`
+4. Optional params: conditionally add to params object (never send `undefined`)
+5. Validation failures: `executeExitPlan(exitUsageError(...)); return;`
+
+### Param omission convention
+
+Optional params are only set on the params object when provided:
+
+```ts
+const params: ActionParams["text"] = {};
+if (typeof args.selector === "string") {
+  params.selector = args.selector;
+}
+```
+
+This keeps the wire format minimal and avoids sending `"selector": undefined`.
+
+### Notes for Task 6 implementer
+
+- Use the same pattern: `globalArgs` spread + `extractGlobals` + `sendAction` + `executeExitPlan`.
+- Create `cli/src/targets.ts` for the shared target parser (`--selector` XOR `--route-json` → `ElementTarget`).
+- `fill` and `fill-form` must validate method/world values before calling `sendAction` — exit `2` for invalid values.
+- `fill --value-file <path>` and `--value-stdin` need filesystem/stdin reading before the `sendAction` call.
+- `fill-form --stdin` / `--file` similarly need pre-read + JSON parse + shape validation.
+- `eval --allow-eval` is a boolean gate: if not provided, exit `2` before POST (it's a local intent guard, not server policy).
+- The `select` command uses the target parser for its trigger element.
+- The `--route-json` flag accepts a JSON string that must parse to an `ElementRoute` shape.
+- Keep the same test pattern: mock fetch via `SendOptions`, assert request body shape, verify exit codes.
+- `wait` command's `--timeout` flag intentionally shadows the global `--timeout` — this is correct because the wait-specific timeout is the meaningful value for that command, and both the CLI deadline and the param timeout use the same user-provided value.
