@@ -182,7 +182,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 2: Bootstrap the CLI package
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/package.json`, `cli/tsconfig.json`, `cli/tsup.config.ts`, `cli/vitest.config.ts`, `cli/src/bproxy.ts`, `cli/README.md`.
 
