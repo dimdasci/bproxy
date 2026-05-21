@@ -116,3 +116,66 @@ function cliEnv(): NodeJS.ProcessEnv {
 - The `--home` override from global args threads through to `paths.ts`. In citty, parent args are accessible to subcommands — use `context.args.home` at call sites.
 - Token values must never appear in verbose or diagnostic output.
 - Unit-test with injected stat data (mode, uid) rather than creating real files where possible.
+
+---
+
+## Task 3 → Task 4
+
+### What was done (Task 3)
+
+Core CLI primitives that every command depends on are implemented and tested.
+
+| File | What |
+|------|------|
+| `cli/src/paths.ts` | `resolveStateDir(homeFlag, env)`, `stateFile(dir, name)`, `logDir(dir)`, `resolveStatePaths(homeFlag, env)` |
+| `cli/src/token.ts` | `preflightToken(tokenPath, deps)` with injectable stat/read/getuid; `formatMode(n)` |
+| `cli/src/output.ts` | `writeJson(data, stream)`, `writeVerbose(entry, stream)`, `writeDiagnostic(msg, stream)` |
+| `cli/src/exit.ts` | `ExitPlan` type, `exitFromResponse`, `exitSuccess`, `exitProtocolError`, `exitUsageError`, `executeExitPlan` |
+| `cli/src/__tests__/paths.test.ts` | 15 tests |
+| `cli/src/__tests__/token.test.ts` | 18 tests |
+| `cli/src/__tests__/output.test.ts` | 11 tests |
+| `cli/src/__tests__/exit.test.ts` | 11 tests |
+
+### API contracts for Task 4
+
+**Path resolution:**
+```ts
+import { resolveStatePaths } from "./paths.js";
+const paths = resolveStatePaths(args.home, process.env);
+// paths.stateDir, paths.token, paths.port, paths.pid, paths.logs
+```
+
+**Token preflight (call before any POST):**
+```ts
+import { preflightToken } from "./token.js";
+const result = preflightToken(paths.token);
+if (!result.ok) return exitUsageError(result.reason); // exit 2
+// result.token is the bearer value
+```
+
+**Output (stdout is JSON only):**
+```ts
+import { writeJson, writeVerbose, writeDiagnostic } from "./output.js";
+writeJson(responseData);                      // stdout: single-line JSON + \n
+writeVerbose({ requestId, action, elapsed }); // stderr: structured JSON (--verbose)
+writeDiagnostic("daemon not running");        // stderr: plain text (exit 2)
+```
+
+**Exit plan (commands return, boundary executes):**
+```ts
+import { exitFromResponse, exitUsageError, executeExitPlan } from "./exit.js";
+// In command: return exitFromResponse(response);  // 0 or 1
+// In command: return exitUsageError("bad args");  // 2
+// At boundary: executeExitPlan(plan);
+```
+
+### Design notes for Task 4 implementer
+
+- The HTTP client should call `preflightToken` early, before constructing the request or opening a connection.
+- `exitFromResponse` maps the full `BproxyResponse` to stdout JSON + exit code. The client should use this for all valid protocol responses regardless of `ok`.
+- Non-protocol failures (fetch error, non-JSON response, auth rejection) are `exitUsageError` (exit 2) with a diagnostic on stderr.
+- `writeVerbose` accepts a `VerboseEntry` object: `{ requestId, action, session, url, elapsed, httpStatus, errorCode }`. Emit one before the request (without elapsed/status) and one after.
+- All stream parameters default to `process.stdout`/`process.stderr` but accept injection for testing.
+- The `port` state file contains just the port number as text. Read it with `readFileSync` and parseInt. Missing/unparseable port → exit 2 ("daemon not running").
+- Request IDs: `crypto.randomUUID()` is fine per the plan. No ULID needed.
+- Abort controller: set timeout to `deadline + small buffer` (e.g., 2000ms). The daemon owns protocol timeout; CLI abort just prevents a hung process.

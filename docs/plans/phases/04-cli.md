@@ -201,7 +201,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 3: Paths, token preflight, output, and exit-code primitives
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/paths.ts`, `cli/src/token.ts`, `cli/src/output.ts`, `cli/src/exit.ts`, tests.
 
