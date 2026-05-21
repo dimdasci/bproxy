@@ -249,8 +249,6 @@ export default defineCommand({
   meta: { name: 'start', description: 'Start the proxy daemon' },
   args: {
     port: { type: 'string', description: 'Port number', default: '9615' },
-    'allow-eval': { type: 'boolean', description: 'Enable eval command', default: false },
-    'enable-debugger-mode': { type: 'boolean', description: 'Allow chrome.debugger attachment', default: false },
   },
   async run({ args }) {
     // 1. Resolve BPROXY_HOME (state directory scope)
@@ -258,7 +256,7 @@ export default defineCommand({
     // 3. If lockfile PID is dead: treat as stale lock and recover
     // 4. Spawn service/dist/index.mjs as detached child
     // 5. Wait until daemon readiness boundary (pid alive + valid port file)
-    // 6. Output { ok: true, data: { pid, port, pairingCode, pairingExpiresAt } }
+    // 6. Output { running: true, pid, port, pairingCode, pairingExpiresAt }
   },
 });
 ```

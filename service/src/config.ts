@@ -25,7 +25,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
 
 export function stateFile(
 	stateDir: string,
-	name: "bproxy.pid" | "port" | "token" | "extension-token",
+	name: "bproxy.pid" | "port" | "token" | "extension-token" | "pairing.json",
 ): string {
 	return resolve(stateDir, name);
 }

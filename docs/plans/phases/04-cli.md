@@ -163,7 +163,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 1: Lifecycle and config contract alignment
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `service/src/lifecycle.ts`, `service/src/index.ts`, service lifecycle tests, `docs/solution/service.md`, `docs/solution/cli.md`.
 

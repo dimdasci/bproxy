@@ -382,6 +382,10 @@ Lifecycle is scoped to the selected state directory (`BPROXY_HOME`, default `~/.
 
 At startup CLI prints machine-readable output including `pairingCode`. Extension popup claims the code when first pairing or when rotating/recovering extension auth. See [extension.md](../solution/extension.md) § Pairing.
 
+The daemon writes `pairing.json` (mode `0600`) atomically before the port file, containing `{pairingCode, pairingExpiresAt, issuedAt}`. The detached parent reads this file after readiness to build the start output JSON. The daemon removes `pairing.json` when the code is claimed or on shutdown.
+
+Eval/debugger control-plane wiring is deferred. The service binary does **not** accept `--allow-eval` or `--enable-debugger-mode` flags. Extension policy responses (`EVAL_DISABLED`, `DEBUGGER_DISABLED`) are passed through to the CLI unchanged.
+
 ### Shutdown (`bproxy service stop`)
 
 1. Read PID from lockfile.
@@ -403,11 +407,53 @@ Day-rotated to `~/.bproxy/logs/YYYY-MM-DD.log`. Fastify's built-in pino logger, 
 ├── port                # port number (for CLI to find)
 ├── token               # daemon bearer token for CLI HTTP auth (mode 0600)
 ├── extension-token     # active extension WS auth token (mode 0600)
+├── pairing.json        # pairing metadata for detached start (mode 0600, transient)
 └── logs/
     └── 2026-05-08.log
 ```
 
 Canonical path on all platforms: `~/.bproxy`.
+
+### Lifecycle JSON output contract
+
+The service binary emits stable JSON on stdout for each lifecycle command:
+
+**`start`** — success:
+```json
+{"running":true,"pid":123,"port":9615,"pairingCode":"ABCD-EFGH","pairingExpiresAt":1714000300000}
+```
+
+**`stop`** — success:
+```json
+{"running":false}
+```
+
+**`status`** — daemon running:
+```json
+{"running":true,"pid":123,"port":9615}
+```
+
+**`status`** — daemon not running:
+```json
+{"running":false}
+```
+
+Lifecycle failures write plain text to stderr and exit non-zero.
+
+### Pairing metadata file (`pairing.json`)
+
+Written atomically by the foreground daemon (mode `0600`) immediately after issuing a pairing code. The detached parent reads it to include pairing info in the `start` output.
+
+**Retention:** removed on the earliest of:
+- Successful pairing-code claim (extension token activated)
+- Daemon shutdown (SIGTERM/SIGINT cleanup)
+- Stale-state cleanup on next start
+
+The parent process reading the file does **not** delete it. The daemon owns the lifecycle of this file.
+
+### Extension-token preservation
+
+`stop` removes transient daemon state (`bproxy.pid`, `port`, `token`, `pairing.json`) but preserves `extension-token` for transparent extension reconnect after restart.
 
 ## Error Responses
 
