@@ -341,3 +341,62 @@ This keeps the wire format minimal and avoids sending `"selector": undefined`.
 - The `--route-json` flag accepts a JSON string that must parse to an `ElementRoute` shape.
 - Keep the same test pattern: mock fetch via `SendOptions`, assert request body shape, verify exit codes.
 - `wait` command's `--timeout` flag intentionally shadows the global `--timeout` — this is correct because the wait-specific timeout is the meaningful value for that command, and both the CLI deadline and the param timeout use the same user-provided value.
+
+---
+
+## Task 6 → Task 7
+
+### What was done (Task 6)
+
+All write, select, human-handoff, and eval commands are now wired with full argument validation.
+
+| File | What |
+|------|------|
+| `cli/src/targets.ts` | `parseTarget(selector, routeJson)` — exactly-one-of validator producing `ElementTarget` |
+| `cli/src/commands/fill.ts` | `fill --selector/--route-json --value/--value-file/--value-stdin --method --world` |
+| `cli/src/commands/fill-form.ts` | `fill-form --json/--file/--stdin` with full payload validation |
+| `cli/src/commands/select.ts` | `select --selector/--route-json --option-text` |
+| `cli/src/commands/require-human.ts` | `require-human --reason [--for-attach]` |
+| `cli/src/commands/eval.ts` | `eval --allow-eval --code/--file/--stdin` with safety guard |
+| `cli/src/types.ts` | Added `ElementRoute`, `ElementTarget`, `ExecutionWorld`, `FillMethod` re-exports |
+| `cli/src/__tests__/targets.test.ts` | 13 tests (selector/route exclusivity, route shape validation) |
+| `cli/src/__tests__/commands-write.test.ts` | 21 tests (request params, destructive flags, no method invention) |
+| `cli/src/__tests__/commands-write-validation.test.ts` | 30 tests (source exclusivity, method/world enum, payload shape, eval guard) |
+
+### Key design patterns introduced
+
+**Target parsing (`targets.ts`):**
+```ts
+import { parseTarget } from "../targets.js";
+
+const result = parseTarget(args.selector, args["route-json"]);
+if (!result.ok) { executeExitPlan(exitUsageError(result.reason)); return; }
+// result.target is ElementTarget
+```
+
+**Value source resolution (fill, eval):**
+- Exactly one of `--value`/`--value-file`/`--value-stdin` (fill) or `--code`/`--file`/`--stdin` (eval)
+- Count sources, reject 0 or >1 before any I/O
+- File read via `readFileSync(path, "utf8")`; stdin via `readFileSync(0, "utf8")`
+
+**fill-form payload validation:**
+- Accepts raw JSON string from `--json`, `--file`, or `--stdin`
+- Validates: is JSON object, has `fields` array, each field has valid `target`, `value`, `method`, `world`
+- Route targets in fields get minimal shape validation (has `hosts` array and `target` string)
+
+**Eval safety guard:**
+- `--allow-eval` must be explicitly `true`; exit `2` before POST otherwise
+- Extension-side `EVAL_DISABLED` responses pass through as exit `1`
+
+### Notes for Task 7 implementer
+
+- Task 7 is service lifecycle commands: `service start|stop|status|restart`.
+- These commands do NOT use `sendAction` — they spawn/interact with the service binary directly.
+- Create `cli/src/service-binary.ts` for binary resolution: `BPROXY_SERVICE_BIN` → workspace `service/dist/index.mjs` → `bproxy-service` on PATH.
+- `service start` spawns the binary, captures its stdout JSON, prints it to CLI stdout, exits 0.
+- `service stop` sends SIGTERM to PID from state file, waits, prints `{"running":false}`.
+- `service status` reads PID file, checks process liveness (signal 0), prints JSON. Token-free.
+- `service restart` = stop then start (composition in CLI).
+- Use `exitSuccess(json)` / `exitUsageError(msg)` from exit.ts — same pattern as action commands.
+- DO NOT import from `service/src/**` — dependency-cruiser enforces `cli -> shared` only.
+- Integration tests should use a real temp `BPROXY_HOME` with the built service binary.

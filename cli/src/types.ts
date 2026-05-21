@@ -3,4 +3,13 @@
  * This module exists so command implementations can import from a
  * single CLI-local path without reaching into shared internals.
  */
-export type { Action, ActionParams, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+export type {
+	Action,
+	ActionParams,
+	BproxyRequest,
+	BproxyResponse,
+	ElementRoute,
+	ElementTarget,
+	ExecutionWorld,
+	FillMethod,
+} from "@bproxy/shared";

@@ -263,7 +263,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 ## Task 6: Write, select, human-handoff, and eval commands
 
-**Status:** Not started.
+**Status:** Done.
 
 **Files:** `cli/src/targets.ts`, `cli/src/commands/{fill,fill-form,select,require-human,eval}.ts`, fixtures/tests.
 

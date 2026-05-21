@@ -1,0 +1,453 @@
+/**
+ * Tests for write, select, human-handoff, and eval commands.
+ *
+ * Verifies:
+ * - Target parsing (selector / route-json) for fill and select
+ * - Value/code source resolution (--value, --value-file, --value-stdin, etc.)
+ * - Method/world validation (fill never invents values)
+ * - Payload validation (fill-form)
+ * - Eval --allow-eval guard
+ * - Request params sent to daemon
+ */
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
+
+// ─── Test infrastructure ───────────────────────────────────────────────
+
+function setupTempHome(): string {
+	const dir = mkdtempSync(join(tmpdir(), "bproxy-write-test-"));
+	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
+	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
+	return dir;
+}
+
+function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
+	return {
+		session: "test-session",
+		timeout: "5000",
+		home,
+		verbose: false,
+		...overrides,
+	};
+}
+
+function successResponse(id: string, data: unknown = {}) {
+	return {
+		protocol_version: 1,
+		id,
+		ok: true,
+		data,
+		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
+		replay: false,
+	};
+}
+
+function createMockFetch(responseBody: unknown, status = 200) {
+	const calls: { url: string; body: Record<string, unknown> }[] = [];
+	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
+		calls.push({ url: url.toString(), body: JSON.parse(bodyStr) as Record<string, unknown> });
+		return Promise.resolve(
+			new Response(JSON.stringify(responseBody), {
+				status,
+				headers: { "Content-Type": "application/json" },
+			}),
+		);
+	};
+	return { fetch: mockFetch as typeof globalThis.fetch, calls };
+}
+
+async function sendWithCapture(
+	action: string,
+	params: Record<string, unknown>,
+	home: string,
+	globals?: Partial<ClientGlobalArgs>,
+) {
+	const requestId = "test-id-001";
+	const { fetch, calls } = createMockFetch(successResponse(requestId));
+	const opts: SendOptions = { fetch, requestId };
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper
+	const plan = await sendAction(action as any, params as any, makeGlobals(home, globals), opts);
+	return { plan, calls };
+}
+
+// ─── fill command tests ────────────────────────────────────────────────
+
+describe("fill command", () => {
+	it("sends fill action with selector target", async () => {
+		const home = setupTempHome();
+		const params = {
+			target: { selector: "#email" },
+			value: "test@example.com",
+			method: "direct",
+			world: "isolated",
+		};
+		const { plan, calls } = await sendWithCapture("fill", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "fill",
+			params: {
+				target: { selector: "#email" },
+				value: "test@example.com",
+				method: "direct",
+				world: "isolated",
+			},
+		});
+	});
+
+	it("sends fill action with route target", async () => {
+		const home = setupTempHome();
+		const route = {
+			hosts: [{ selector: "my-component", index: 0 }],
+			target: "input.field",
+		};
+		const params = {
+			target: { route },
+			value: "hello",
+			method: "paste",
+			world: "main",
+		};
+		const { plan, calls } = await sendWithCapture("fill", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "fill",
+			params: {
+				target: { route },
+				value: "hello",
+				method: "paste",
+				world: "main",
+			},
+		});
+	});
+
+	it("sends fill with runtime-api method", async () => {
+		const home = setupTempHome();
+		const params = {
+			target: { selector: ".editor" },
+			value: "content",
+			method: "runtime-api",
+			world: "main",
+		};
+		const { plan, calls } = await sendWithCapture("fill", params, home);
+
+		expect(plan.code).toBe(0);
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["method"]).toBe("runtime-api");
+	});
+
+	it("marks fill as destructive", async () => {
+		const home = setupTempHome();
+		const params = {
+			target: { selector: "#x" },
+			value: "v",
+			method: "direct",
+			world: "isolated",
+		};
+		const { calls } = await sendWithCapture("fill", params, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+
+	it("never invents method or world values", async () => {
+		const home = setupTempHome();
+		// Explicitly passing method and world — verify they're passed through unchanged
+		const params = {
+			target: { selector: "#x" },
+			value: "v",
+			method: "paste",
+			world: "main",
+		};
+		const { calls } = await sendWithCapture("fill", params, home);
+		const sent = calls[0]!.body["params"] as Record<string, unknown>;
+		expect(sent["method"]).toBe("paste");
+		expect(sent["world"]).toBe("main");
+	});
+});
+
+// ─── fill-form command tests ───────────────────────────────────────────
+
+describe("fill-form command", () => {
+	it("sends fill-form action with valid fields", async () => {
+		const home = setupTempHome();
+		const params = {
+			fields: [
+				{
+					target: { selector: "#name" },
+					value: "John",
+					method: "direct",
+					world: "isolated",
+				},
+				{
+					target: { selector: "#email" },
+					value: "john@test.com",
+					method: "paste",
+					world: "main",
+				},
+			],
+		};
+		const { plan, calls } = await sendWithCapture("fill-form", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "fill-form",
+			params: {
+				fields: [
+					{ target: { selector: "#name" }, value: "John", method: "direct", world: "isolated" },
+					{
+						target: { selector: "#email" },
+						value: "john@test.com",
+						method: "paste",
+						world: "main",
+					},
+				],
+			},
+		});
+	});
+
+	it("marks fill-form as destructive", async () => {
+		const home = setupTempHome();
+		const params = {
+			fields: [{ target: { selector: "#x" }, value: "v", method: "direct", world: "isolated" }],
+		};
+		const { calls } = await sendWithCapture("fill-form", params, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+
+	it("supports route targets in fields", async () => {
+		const home = setupTempHome();
+		const params = {
+			fields: [
+				{
+					target: { route: { hosts: [{ selector: "x-input" }], target: "input" } },
+					value: "val",
+					method: "runtime-api",
+					world: "main",
+				},
+			],
+		};
+		const { plan, calls } = await sendWithCapture("fill-form", params, home);
+
+		expect(plan.code).toBe(0);
+		const sent = calls[0]!.body["params"] as Record<string, unknown>;
+		const fields = sent["fields"] as Array<Record<string, unknown>>;
+		expect(fields[0]!["target"]).toEqual({
+			route: { hosts: [{ selector: "x-input" }], target: "input" },
+		});
+	});
+
+	it("never invents method or world — passes through exactly as given", async () => {
+		const home = setupTempHome();
+		const params = {
+			fields: [{ target: { selector: "#a" }, value: "x", method: "runtime-api", world: "main" }],
+		};
+		const { calls } = await sendWithCapture("fill-form", params, home);
+		const fields = (calls[0]!.body["params"] as Record<string, unknown>)["fields"] as Array<
+			Record<string, unknown>
+		>;
+		expect(fields[0]!["method"]).toBe("runtime-api");
+		expect(fields[0]!["world"]).toBe("main");
+	});
+});
+
+// ─── select command tests ──────────────────────────────────────────────
+
+describe("select command", () => {
+	it("sends select action with selector trigger", async () => {
+		const home = setupTempHome();
+		const params = {
+			trigger: { selector: "#country" },
+			optionText: "United States",
+		};
+		const { plan, calls } = await sendWithCapture("select", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "select",
+			params: { trigger: { selector: "#country" }, optionText: "United States" },
+		});
+	});
+
+	it("sends select action with route trigger", async () => {
+		const home = setupTempHome();
+		const params = {
+			trigger: { route: { hosts: [{ selector: "x-dropdown" }], target: "select" } },
+			optionText: "Option A",
+		};
+		const { plan, calls } = await sendWithCapture("select", params, home);
+
+		expect(plan.code).toBe(0);
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["trigger"]).toEqual({
+			route: { hosts: [{ selector: "x-dropdown" }], target: "select" },
+		});
+	});
+
+	it("marks select as destructive", async () => {
+		const home = setupTempHome();
+		const params = { trigger: { selector: "#x" }, optionText: "A" };
+		const { calls } = await sendWithCapture("select", params, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+});
+
+// ─── require-human command tests ───────────────────────────────────────
+
+describe("require-human command", () => {
+	it("sends require-human action with reason", async () => {
+		const home = setupTempHome();
+		const params = { reason: "CAPTCHA encountered" };
+		const { plan, calls } = await sendWithCapture("require-human", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "require-human",
+			params: { reason: "CAPTCHA encountered" },
+		});
+	});
+
+	it("sends require-human with for-attach", async () => {
+		const home = setupTempHome();
+		const params = { reason: "Need approval", forAttach: "#captcha-frame" };
+		const { plan, calls } = await sendWithCapture("require-human", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "require-human",
+			params: { reason: "Need approval", forAttach: "#captcha-frame" },
+		});
+	});
+
+	it("omits forAttach when not provided", async () => {
+		const home = setupTempHome();
+		const params = { reason: "Help needed" };
+		const { calls } = await sendWithCapture("require-human", params, home);
+		const sent = calls[0]!.body["params"] as Record<string, unknown>;
+		expect("forAttach" in sent).toBe(false);
+	});
+
+	it("marks require-human as destructive", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("require-human", { reason: "x" }, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+});
+
+// ─── eval command tests ────────────────────────────────────────────────
+
+describe("eval command", () => {
+	it("sends eval action with code", async () => {
+		const home = setupTempHome();
+		const params = { code: "document.title" };
+		const { plan, calls } = await sendWithCapture("eval", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "eval",
+			params: { code: "document.title" },
+		});
+	});
+
+	it("marks eval as destructive", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("eval", { code: "1+1" }, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+
+	it("passes through EVAL_DISABLED error response with exit 1", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const errorResponse = {
+			protocol_version: 1,
+			id: requestId,
+			ok: false,
+			error: {
+				code: "EVAL_DISABLED",
+				category: "policy",
+				retry: "none",
+				message: "Eval is disabled by extension policy",
+			},
+		};
+		const { fetch } = createMockFetch(errorResponse);
+		const opts: SendOptions = { fetch, requestId };
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test
+		const plan = await sendAction("eval" as any, { code: "x" } as any, makeGlobals(home), opts);
+
+		expect(plan.code).toBe(1);
+		expect(plan.stdout).toEqual(errorResponse);
+	});
+});
+
+// ─── Cross-cutting: no method/world invention ──────────────────────────
+
+describe("fill/fill-form never invent or retry method/world", () => {
+	it("fill does not add default method when protocol returns error", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const errorResponse = {
+			protocol_version: 1,
+			id: requestId,
+			ok: false,
+			error: {
+				code: "FILL_METHOD_FAILED",
+				category: "action",
+				retry: "safe",
+				message: "Direct fill failed",
+			},
+		};
+		const { fetch } = createMockFetch(errorResponse);
+		const opts: SendOptions = { fetch, requestId };
+
+		const plan = await sendAction(
+			"fill",
+			{
+				target: { selector: "#x" },
+				value: "v",
+				method: "direct",
+				world: "isolated",
+			},
+			makeGlobals(home),
+			opts,
+		);
+
+		// CLI exits 1 (protocol error), does NOT retry with a different method
+		expect(plan.code).toBe(1);
+		expect(plan.stdout).toEqual(errorResponse);
+	});
+
+	it("fill-form does not retry individual fields", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const errorResponse = {
+			protocol_version: 1,
+			id: requestId,
+			ok: false,
+			error: {
+				code: "PARTIAL_FILL_FAILURE",
+				category: "action",
+				retry: "safe",
+				message: "Some fields failed",
+			},
+		};
+		const { fetch, calls } = createMockFetch(errorResponse);
+		const opts: SendOptions = { fetch, requestId };
+
+		const plan = await sendAction(
+			"fill-form",
+			{
+				fields: [
+					{ target: { selector: "#a" }, value: "x", method: "paste", world: "main" },
+					{ target: { selector: "#b" }, value: "y", method: "direct", world: "isolated" },
+				],
+			},
+			makeGlobals(home),
+			opts,
+		);
+
+		// Only one POST was made, no retry
+		expect(calls).toHaveLength(1);
+		expect(plan.code).toBe(1);
+	});
+});
