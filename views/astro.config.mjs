@@ -2,6 +2,7 @@ import { dirname, relative, resolve } from "node:path";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import { slug as githubSlug } from "github-slugger";
+import rehypeExternalLinks from "rehype-external-links";
 
 /**
  * Rewrites relative .md links to absolute route URLs.
@@ -110,6 +111,7 @@ function remarkMermaid() {
 export default defineConfig({
 	markdown: {
 		remarkPlugins: [remarkRewriteMdLinks, remarkMermaid],
+		rehypePlugins: [[rehypeExternalLinks, { target: "_blank", rel: ["noopener", "noreferrer"] }]],
 		syntaxHighlight: { excludeLangs: ["mermaid"] },
 	},
 	integrations: [
