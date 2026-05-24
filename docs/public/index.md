@@ -2,44 +2,64 @@
 title: bproxy
 ---
 
-Coding agents need browser access to automate web tasks — research, data extraction, form filling. Playwright-based solutions get blocked by Cloudflare, Datadome, and similar anti-bot systems because they run in detectable automated browser contexts. Even well-disguised headless browsers leak signals through JavaScript APIs, TLS fingerprints, and missing user state.
+## Why this exists
 
-bproxy takes a different approach. A Chrome extension running in a real user browser is controlled by agents through a CLI and a localhost proxy daemon. The extension operates in the user's actual browsing context — real cookies, real session, real fingerprint — which closes the easy detection paths. The agent issues shell commands; the daemon forwards them over WebSocket to the extension; the extension reads or writes the page and returns results.
+Most of my work is information research, analysis, and synthesis. Agents are good at the routine part — collecting data, transforming it, distilling patterns — but they need browser access to do it, and the services I use (Google, LinkedIn, Medium) actively detect automation.
+
+I have two options:
+
+1. **Connect Playwright to my browser, or use an [alternative that bypasses detection today](https://ianlpaterson.com/blog/anti-detect-browser-benchmark-patchright-nodriver-curl-cffi/).** The agent gets full access, it works on most sites, but it has no guardrails and its control protocol is fragile — what passes today may not pass tomorrow. And I can't easily partition my browser across several agents working in parallel.
+
+2. **Put a proxy between the agent and my browser.** A Chrome extension executes commands inside my real session. A daemon paces and scopes what the agent can do. A CLI gives the agent a clean, narrow interface. No automation protocol touches the page.
+
+I chose option 2 because of how I actually work: I provide the direction, the agent handles the mechanical collection. I'm in the loop — I don't need the agent to have unrestricted browser access. I need it to read pages, fill forms, and scroll through results on my behalf, in my browser, without tripping the services I'm already logged into.
+
+bproxy is that proxy. It's not the only way to give an agent a browser — but for human-in-the-loop research workflows against real services, an extension with a constrained command set is a better fit than handing over a raw automation handle.
 
 ```
-Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page
+You ←→ Agent ──CLI──▶ Daemon ◀──WebSocket──▶ Extension (your browser)
 ```
 
 ## What agents do with it
 
-The user is in front of the browser. The agent handles data reads, copy-paste relief, and bounded autonomous batch work. Login, CAPTCHA, and consent screens are handed back to the human.
+You stay in front of the browser. The agent handles data reads, copy-paste relief, and bounded batch work. Login, CAPTCHA, and consent screens stay yours.
 
 Three scenarios drive the design:
 
-**Topic research.** The agent navigates search engines by URL, reads rendered page text, paginates by rewriting query parameters, and compiles a structured shortlist. No clicks, no synthetic events — the entire flow is URL-driven navigation plus text extraction. What anti-bot systems see is a real browser with a real account loading pages at a reasonable pace.
+**Topic research.** The agent navigates search engines by URL, reads rendered page text, paginates by rewriting query parameters, and compiles a structured shortlist. No clicks, no synthetic events — the entire flow is URL-driven navigation plus text extraction. The services see a real browser with a real account loading pages at a reasonable pace.
 
-**Feed snapshot.** The agent scrolls a social feed to load lazy content, reads each post's text, and assembles a digest. Scroll pacing is daemon-enforced with jittered intervals so the signal resembles human browsing rather than a metronomic crawler.
+**Feed snapshot.** The agent scrolls a social feed to load lazy content, reads each post's text, and assembles a digest. Scroll pacing is daemon-enforced with jittered intervals so the behaviour resembles your normal browsing rather than a metronomic crawler.
 
-**Form fill.** The agent fills application forms using data the user provides in conversation. It prepares fields but does not submit — the user reviews and clicks submit themselves, so any CAPTCHA challenge fires on a genuine user interaction. Write operations use an explicit method chosen per field: direct DOM assignment for simple inputs, paste-event simulation for framework-controlled fields, or one-shot page API calls for rich editors.
+**Form fill.** The agent fills application forms using data you provide in conversation. It prepares fields but does not submit — you review and click submit yourself, so any CAPTCHA challenge fires on a genuine user interaction. Write operations use an explicit method chosen per field: direct DOM assignment for simple inputs, paste-event simulation for framework-controlled fields, or one-shot page API calls for rich editors.
 
-## How it is shaped
+## Design principles
 
-A few principles define the system's boundaries and keep the design from drifting toward a general-purpose browser automation framework.
+A few principles keep bproxy from drifting toward a general-purpose automation framework.
 
-Read mode is the default and covers most useful work. The extension reads pages via isolated-world DOM access and navigates by URL. In this mode it has no presence in the page's JavaScript world — no wrapped globals, no mutation observers, no persistent scripts. The page cannot detect the extension exists.
+**Read mode is the default.** The extension reads pages via isolated-world DOM access and navigates by URL. In this mode it has no presence in the page's JavaScript world — no wrapped globals, no mutation observers, no persistent scripts. The page cannot distinguish the extension from normal browsing.
 
-The extension is a thin sensor and actuator. It exposes read and write primitives honestly but never decides strategy. The agent owns all choices: which selector to target, which write method to use, whether to escalate to a richer world. This keeps the extension simple and the agent's behaviour auditable from outside.
+**The agent has a narrow, explicit interface.** It can read, scroll, fill, and navigate — but not execute arbitrary code by default. Three write methods (direct DOM, paste simulation, runtime API) are chosen per field; there is no auto-selection. The extension never decides strategy; the agent owns its choices and they're auditable from outside.
 
-Write operations are explicit. Three methods — direct DOM assignment, paste simulation, and runtime API calls — are chosen per field by the agent. There is no automatic method selection, because each method has different detection characteristics and the right choice depends on the page framework and the context.
+**Pacing is enforced, not requested.** The daemon applies human-realistic timing to navigations, scrolls, and fills. The agent cannot burst requests regardless of how it's prompted. Multiple agents can work in parallel on separate sessions without interfering.
 
-Pacing is enforced by the daemon, not by the agent or the extension. Every session carries timing parameters applied to navigations, scrolls, and fill delays. The agent cannot accidentally burst requests, and the pacing behaviour is consistent regardless of which agent or prompt drives the session.
+**You stay in the loop.** CAPTCHAs, logins, and consent screens are surfaced to you via a dedicated signal. Form submissions are left for you to trigger. The system prepares; you commit.
 
-The user stays in the loop for anything sensitive. CAPTCHAs, login screens, and consent dialogs are surfaced to the human via a dedicated signal. Form submissions are left for the user to trigger. The system prepares; the user commits.
-
-Observability is structural. Every request carries a unique identifier that correlates CLI invocation, daemon routing, and extension execution. Components are independently debuggable without special tooling.
+**Observability is structural.** Every request carries a unique identifier that correlates CLI invocation, daemon routing, and extension execution. You can see exactly what any agent did, when, and on which tab.
 
 ## Reading further
 
 The [Containers](./views/02-containers.md) view is the canonical diagram — it shows the three runtime processes and the protocols between them. The remaining views drill into deployment, session behaviour, and security. The [solution specs](./solution/cli.md) document each component's implementation contract.
 
 The source repository contains the project's full decision history and design rationale for contributors who want the audit trail.
+
+## Alternatives
+
+If you need full autonomous browser control rather than human-in-the-loop collaboration, these tools address bot detection directly:
+
+- [nodriver](https://github.com/ultrafunkamsterdam/nodriver) — drives system Chrome over raw CDP without Playwright's startup fingerprint. Zero blocked targets in the 2026 benchmark. Python, async, AGPL-3.0.
+- [Patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright) — Playwright fork that patches CDP-leak signals and supports `channel=chrome` for real Chrome TLS. Drop-in Playwright API. Apache-2.0.
+- [Camoufox](https://github.com/daijro/camoufox) — Firefox fork with C-level fingerprint spoofing. Different TLS shape than Chromium, which helps on some targets and hurts on others. MPL-2.0.
+- [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium fork with 49 source-level modifications. Playwright-compatible API. MIT.
+- [curl_cffi](https://github.com/lexiforest/curl_cffi) — HTTP-only (no JS engine) with Chrome-shaped TLS. Ties CloakBrowser on 26/31 targets in a 21-line wrapper. MIT.
+
+For a detailed comparison, see [Ian Paterson's anti-detect browser benchmark (2026)](https://ianlpaterson.com/blog/anti-detect-browser-benchmark-patchright-nodriver-curl-cffi/) — 7 tools, 31 targets, 651 verdicts.
