@@ -48,7 +48,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind` changes `tabId`, the next forwarded command uses the new tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
 
-Implementation: [solution/service.md](./solution/service.md)
+Implementation: `docs/public/solution/service.md`
 
 ### Browser Extension
 
@@ -64,13 +64,13 @@ Chrome Manifest V3 extension. Three runtime layers:
 
 **Shadow-aware discovery** — targeting supports element routes beyond plain selectors, traversing open shadow roots scoped to active modal/intent.
 
-Implementation: [solution/extension.md](./solution/extension.md)
+Implementation: `docs/public/solution/extension.md`
 
 ### CLI
 
 One invocation = one command = one HTTP POST to the daemon = one JSON response on stdout. Accepts `--session <name>` on every command. Exits 0/1/2.
 
-Implementation: [solution/cli.md](./solution/cli.md)
+Implementation: `docs/public/solution/cli.md`
 
 ## Extension Token Bootstrap (Pairing)
 
@@ -160,7 +160,7 @@ Errors use a single RFC 9457-aligned envelope:
 | `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
 | `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
 
-Routing details and contract: [solution/service.md#action-routing-and-session-contract](./solution/service.md#action-routing-and-session-contract).
+Routing details and contract: `docs/public/solution/service.md` § Action routing and session contract.
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon log view (last N request lifecycles).                                     |
 | `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |
@@ -175,5 +175,5 @@ Routing details and contract: [solution/service.md#action-routing-and-session-co
 
 - [decisions.md](./decisions.md) - Architecture Decision Records (why we chose X over Y)
 - [scenarios.md](./scenarios.md) - Driving use cases and bot-signal accounting
-- [solution/](./solution/) - Implementation specs (how to build each component)
 - [journal/](./journal/) - Raw design thinking and pivot notes
+- Implementation specs (public tier): `docs/public/solution/`

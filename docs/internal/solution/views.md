@@ -351,7 +351,7 @@ pnpm test         # vitest on schema + audit logic
 
 ## Out of Scope (v1)
 
-- Live/runtime introspection of the daemon or extension. The artifact is design-time documentation; observability of the running system is covered by `debug.*` actions (see [service.md](../../public/solution/service.md) and [architecture.md](../architecture.md)).
+- Live/runtime introspection of the daemon or extension. The artifact is design-time documentation; observability of the running system is covered by `debug.*` actions (see `service.md` and [architecture.md](../architecture.md)).
 - Likec4, Structurizr, or any DSL-driven multi-view system. Considered and rejected: a single-source-of-truth DSL fights the "render markdown" framing; Likec4's static export goes through headless Chromium with Playwright (no native vector renderer), and its embed path requires React + PandaCSS as peer dependencies. The MCP-queryable benefit is mostly achievable by parsing Mermaid sources or a small manifest, without inheriting the toolchain.
 - Visual editing inside the browser. The artifact is git-versioned text.
 - Auto-generation of intent diagrams (Context / Container / Deployment / Session State / Threat Model). These encode decisions, not code shape.
@@ -359,9 +359,10 @@ pnpm test         # vitest on schema + audit logic
 
 ## Related
 
-- [architecture.md](../architecture.md) — system shape and protocol (internal artifact; informs public-tier prose)
-- [decisions.md](../decisions.md) — ADRs (internal artifact)
-- [scenarios.md](../scenarios.md) — driving use cases (internal artifact; informs `index.md`'s use-cases section)
-- [solution/cli.md](../../public/solution/cli.md), [solution/service.md](../../public/solution/service.md), [solution/extension.md](../../public/solution/extension.md), [solution/shared.md](../../public/solution/shared.md) — sibling component specs (published)
+Internal artifacts (sibling docs read by bproxy developers):
+
+- [architecture.md](../architecture.md) — system shape and protocol; informs public-tier prose
+- [decisions.md](../decisions.md) — ADRs
+- [scenarios.md](../scenarios.md) — driving use cases; informs `index.md`'s use-cases section
 - [quality-gates.md](../quality-gates.md) — defines `pnpm check`; the views audit/regen scripts are independent of it (advisory, not blocking)
 - [journal/2026-05-24-docs-publication-split.md](../journal/2026-05-24-docs-publication-split.md) — rationale for the public/internal tier split

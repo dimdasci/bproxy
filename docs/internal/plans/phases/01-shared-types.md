@@ -6,7 +6,7 @@ title: Phase 1 — Shared Types & Workspace Scaffold
 
 **Strategy:** Scaffold first, types second, tooling third, views integration last. Each task is ≤1 day. The workspace skeleton and quality-gate tooling are delivered alongside the types because Phase 2 (Daemon) needs both from day one — shipping them separately would create a start-of-phase scramble.
 
-**Spec:** [`docs/solution/shared.md`](../../solution/shared.md) (types), [`docs/quality-gates.md`](../../quality-gates.md) (tooling).
+**Spec:** `docs/public/solution/shared.md` (types), [docs/quality-gates.md](../../quality-gates.md) (tooling).
 **Roadmap entry:** [Phase 1 in roadmap.md](../roadmap.md#phase-1--shared-types-and-workspace-scaffold).
 
 ---
@@ -21,7 +21,7 @@ title: Phase 1 — Shared Types & Workspace Scaffold
 
 ## Inputs
 
-- Types spec: [`docs/solution/shared.md`](../../solution/shared.md)
+- Types spec: `docs/public/solution/shared.md`
 - Quality gates: [`docs/quality-gates.md`](../../quality-gates.md)
 - Views spec: [`docs/solution/views.md`](../../solution/views.md) — `views:regen` execution backend
 - Phase 0.7 regen stub: `views/scripts/regen.ts` — `runDependencyCruiser` to implement

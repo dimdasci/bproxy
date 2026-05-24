@@ -4,7 +4,7 @@ title: Shared Types
 
 The `shared/` package defines the TypeScript types that form the contract between CLI, daemon, and extension. All three components import from this package. No runtime code — types only (plus a few const enums/objects that inline at compile time).
 
-**Decisions that constrain this:** [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript).
+**Decisions that constrain this:** ADR-005 (TypeScript).
 
 ## Project Layout
 

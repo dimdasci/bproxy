@@ -3,7 +3,7 @@ title: Implementation Roadmap
 ---
 
 > **Status:** Active. Owns the day-to-day shape of how bproxy gets built.
-> **Companion docs:** [`docs/architecture.md`](../architecture.md) (system shape), [`docs/decisions.md`](../decisions.md) (ADRs), [`docs/solution/`](../solution/) (per-component specs), [`docs/scenarios.md`](../scenarios.md) (driving use cases).
+> **Companion docs:** [`docs/internal/architecture.md`](../architecture.md) (system shape), [`docs/internal/decisions.md`](../decisions.md) (ADRs), `docs/public/solution/` (per-component specs), [`docs/internal/scenarios.md`](../scenarios.md) (driving use cases).
 
 ## Strategy
 
@@ -61,7 +61,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 ### Phase 1 — Shared types (and workspace scaffold) ✅ Done
 
-**Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per [docs/solution/shared.md](../solution/shared.md) and [docs/quality-gates.md](../quality-gates.md).
+**Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per `docs/public/solution/shared.md` and [docs/quality-gates.md](../quality-gates.md).
 
 **Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types. **Phase 1 explicitly includes wiring the dependency-cruiser execution backend used by `views:regen` (Phase 0.7 ships only the planner/CLI contract).**
 
@@ -69,7 +69,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 ### Phase 2 — Daemon ✅ Done
 
-**Purpose:** routing, auth, pacing, and lifecycle. Per [docs/solution/service.md](../solution/service.md).
+**Purpose:** routing, auth, pacing, and lifecycle. Per `docs/public/solution/service.md`.
 
 **Output:** `service` binary running on `127.0.0.1:9615`, scriptable end-to-end via a mock WS client driven by the protocol's actions.
 
@@ -79,7 +79,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 ### Phase 3 — Extension ✅ Done
 
-**Purpose:** browser-side execution. Per [docs/solution/extension.md](../solution/extension.md).
+**Purpose:** browser-side execution. Per `docs/public/solution/extension.md`.
 
 **Status note:** Phase 3 is complete. Task 17 closed the extension-specific docs integration pass and the follow-up structural docs pass added `docs/views/01-context.md` and `docs/views/03-deployment.md`. The remaining curated views work is now the Phase 4 scenario-view completion described below.
 
@@ -91,7 +91,7 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 ### Phase 4 — CLI
 
-**Purpose:** one-shot agent interface. Per [docs/solution/cli.md](../solution/cli.md).
+**Purpose:** one-shot agent interface. Per `docs/public/solution/cli.md`.
 
 **Status note:** Phase 4 is complete. All 11 tasks done: lifecycle contract alignment, CLI package bootstrap, primitives (paths/token/output/exit), HTTP client, read commands, write commands, service lifecycle commands, session/tab/debug commands, design assertions, integration smoke tests, and views/docs integration. 327 CLI tests, 652 total workspace tests pass. `pnpm check`, `pnpm test`, and `pnpm docs:build` all green.
 
@@ -167,10 +167,10 @@ Treated as a non-functional requirement. Practical rules, enforced during review
 
 | Doc | Role |
 |---|---|
-| [`docs/architecture.md`](../architecture.md) | What the system is and how its components connect |
-| [`docs/decisions.md`](../decisions.md) | Why we chose what we chose (ADRs) |
-| [`docs/solution/`](../solution/) | Per-component implementation specs |
-| [`docs/scenarios.md`](../scenarios.md) | Driving use cases the system must support |
-| [`docs/quality-gates.md`](../quality-gates.md) | Static analysis policy: tools, thresholds, commands |
-| [`docs/journal/`](../journal/) | Raw design thinking; PoC findings land here |
+| [`docs/internal/architecture.md`](../architecture.md) | What the system is and how its components connect |
+| [`docs/internal/decisions.md`](../decisions.md) | Why we chose what we chose (ADRs) |
+| `docs/public/solution/` | Per-component implementation specs (public tier) |
+| [`docs/internal/scenarios.md`](../scenarios.md) | Driving use cases the system must support |
+| [`docs/internal/quality-gates.md`](../quality-gates.md) | Static analysis policy: tools, thresholds, commands |
+| [`docs/internal/journal/`](../journal/) | Raw design thinking; PoC findings land here |
 | **this doc** | **How and in what order we build it** |

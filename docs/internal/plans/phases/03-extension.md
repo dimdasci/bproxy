@@ -8,9 +8,9 @@ title: Phase 3 — Extension
 
 **Strategy:** Close the daemon↔extension contract gaps first, then build the extension in three layers: background service worker transport, content-script DOM primitives, and browser API actions. Design assertions are as important as happy-path behaviour: read mode must stay quiet, writes must use the selected method exactly, MAIN-world execution must be one-shot, and the bundle must not introduce MutationObserver or default web-accessible resources.
 
-**Spec:** [`docs/solution/extension.md`](../../solution/extension.md).
+**Spec:** `docs/public/solution/extension.md`.
 **Roadmap entry:** [Phase 3 in roadmap.md](../roadmap.md#phase-3--extension).
-**Current system context:** [`docs/views/02-containers.md`](../../views/02-containers.md), [`docs/views/04-session-state.md`](../../views/04-session-state.md), [`docs/views/06-threat-model.md`](../../views/06-threat-model.md).
+**Current system context:** `docs/public/views/02-containers.md`, `docs/public/views/04-session-state.md`, `docs/public/views/06-threat-model.md`.
 
 **Decisions that constrain this phase:**
 

@@ -4,7 +4,7 @@ title: Browser Extension
 
 Implementation spec for the Chrome Manifest V3 extension. Built with [WXT](https://wxt.dev).
 
-**Decisions that constrain this:** [ADR-001](../decisions.md#adr-001-default-instrumentation-strategy--read-mode) (programmatic injection only), [ADR-002](../decisions.md#adr-002-extension-framework--wxt) (WXT), [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver) (jittered polling), [ADR-007](../decisions.md#adr-007-three-method-write-contract) (three write methods), [ADR-013](../decisions.md#adr-013-main-world-runtime-api-writes) (MAIN world on demand), [ADR-014](../decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting) (shadow-DOM targeting), [ADR-015](../decisions.md#adr-015-main-world-hygiene-contract) (MAIN-world hygiene), [ADR-016](../decisions.md#adr-016-web_accessible_resources-default-deny) (WAR default-deny).
+**Decisions that constrain this:** ADR-001 (programmatic injection only), ADR-002 (WXT), ADR-006 (jittered polling), ADR-007 (three write methods), ADR-013 (MAIN world on demand), ADR-014 (shadow-DOM targeting), ADR-015 (MAIN-world hygiene), ADR-016 (WAR default-deny).
 
 ---
 
@@ -122,11 +122,11 @@ export default defineConfig({
 
 Locked implications:
 
-- no declarative `content_scripts` ([ADR-001](../decisions.md#adr-001-default-instrumentation-strategy--read-mode));
-- no `web_accessible_resources` by default ([ADR-016](../decisions.md#adr-016-web_accessible_resources-default-deny));
+- no declarative `content_scripts` (ADR-001);
+- no `web_accessible_resources` by default (ADR-016);
 - no `debugger` permission in the shipped manifest; debugger-backed screenshots remain future opt-in only;
 - source maps are preserved in production output to keep service-worker and content-script failures diagnosable;
-- Vite's modulepreload polyfill is disabled because it injects `MutationObserver`, which would violate [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver).
+- Vite's modulepreload polyfill is disabled because it injects `MutationObserver`, which would violate ADR-006.
 
 ---
 
@@ -283,7 +283,7 @@ Handled in `src/background/browser-actions.ts`.
 
 ## Targeting and discovery
 
-`src/content/targeting.ts` and `src/content/discovery.ts` implement the route-based targeting contract from [ADR-014](../decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting).
+`src/content/targeting.ts` and `src/content/discovery.ts` implement the route-based targeting contract from ADR-014.
 
 ```ts
 interface ElementRoute {
@@ -408,4 +408,4 @@ pnpm --filter @bproxy/extension typecheck
 pnpm --filter @bproxy/extension test
 ```
 
-See [`extension/README.md`](../../extension/README.md) for the end-to-end smoke workflow and local loading instructions.
+See [`extension/README.md`](../../../extension/README.md) for the end-to-end smoke workflow and local loading instructions.

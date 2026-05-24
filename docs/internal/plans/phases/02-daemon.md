@@ -8,7 +8,7 @@ title: Phase 2 — Daemon
 
 **Strategy:** Bottom-up inside the service workspace. Pure logic (pacing, pending, dispatch, sessions) first with deterministic TDD using injected clocks. Boundary code (auth, routes, server bootstrap) layered on top. Lifecycle scripts and the mock-client integration test close the phase. The daemon is the first consumer of `@bproxy/shared` — runtime validation (Zod) lands here, not in `shared/`, per `docs/solution/shared.md` § Out of scope.
 
-**Spec:** [`docs/solution/service.md`](../../solution/service.md).
+**Spec:** `docs/public/solution/service.md`.
 **Roadmap entry:** [Phase 2 in roadmap.md](../roadmap.md#phase-2--daemon).
 **Decisions that constrain this phase:**
 - [ADR-003](../../decisions.md#adr-003-service-framework--fastify) — Fastify.
@@ -44,12 +44,12 @@ title: Phase 2 — Daemon
 
 ## Inputs
 
-- Service spec: [`docs/solution/service.md`](../../solution/service.md)
+- Service spec: `docs/public/solution/service.md`
 - Shared types (already shipped): `shared/src/*` — `BproxyRequest`, `BproxyResponse`, `Action`, `ActionParams`, `ActionResult`, `BproxyError`, `PacingMode`, `PACING_PRESETS`, `SessionInfo`.
 - Architecture protocol: [`docs/architecture.md` § Protocol](../../architecture.md#protocol)
 - Quality gates: [`docs/quality-gates.md`](../../quality-gates.md)
-- Views regen entry: [`views/scripts/regen.ts`](../../../views/scripts/regen.ts) — `service` already listed in `KNOWN_WORKSPACES`.
-- Containers diagram: [`docs/views/02-containers.md`](../../views/02-containers.md) — `click Daemon` directive to add.
+- Views regen entry: `views/scripts/regen.ts` — `service` already listed in `KNOWN_WORKSPACES`.
+- Containers diagram: `docs/public/views/02-containers.md` — `click Daemon` directive to add.
 
 ---
 

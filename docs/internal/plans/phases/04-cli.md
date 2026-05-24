@@ -8,9 +8,9 @@ title: Phase 4 — CLI
 
 **Strategy:** Close the lifecycle contract seams first, then build the CLI from the boundary inward: state/token resolution, daemon HTTP client, command argument surfaces, lifecycle commands, integration tests, and docs/views. The CLI must not become a strategy layer. It translates explicit user/agent intent into shared `ActionParams`; method choice, target choice, and escalation remain agent-owned.
 
-**Spec:** [`docs/solution/cli.md`](../../solution/cli.md).
+**Spec:** `docs/public/solution/cli.md`.
 **Roadmap entry:** [Phase 4 in roadmap.md](../roadmap.md#phase-4--cli).
-**Current system context:** [`docs/views/01-context.md`](../../views/01-context.md), [`docs/views/02-containers.md`](../../views/02-containers.md), [`docs/views/03-deployment.md`](../../views/03-deployment.md), [`docs/views/04-session-state.md`](../../views/04-session-state.md), [`docs/views/06-threat-model.md`](../../views/06-threat-model.md).
+**Current system context:** `docs/public/views/01-context.md`, `docs/public/views/02-containers.md`, `docs/public/views/03-deployment.md`, `docs/public/views/04-session-state.md`, `docs/public/views/06-threat-model.md`.
 
 **Decisions that constrain this phase:**
 

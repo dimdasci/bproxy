@@ -81,4 +81,4 @@ The agent's view of the web is always indirect. The Content Script is the only p
 - [Session state](./04-session-state.md) — the state machine the daemon uses to gate every forwarded action.
 - [Threat model](./06-threat-model.md) — DFD and STRIDE notes for these containers and the wires between them.
 
-To drill inside any container, click its node in the diagram above; the auto-generated component graphs live under [`docs/views/auto/`](../auto/) and are refreshed by `pnpm views:regen`.
+To drill inside any container, click its node in the diagram above; the auto-generated component graphs live under [`views/auto/`](./auto/) and are refreshed by `pnpm views:regen`.

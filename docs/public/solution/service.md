@@ -4,7 +4,7 @@ title: Proxy Daemon
 
 Implementation spec for the localhost proxy daemon. Built with [Fastify](https://fastify.dev) + [`@fastify/websocket`](https://github.com/fastify/fastify-websocket).
 
-**Decisions that constrain this:** [ADR-003](../decisions.md#adr-003-service-framework--fastify) (Fastify), [ADR-008](../decisions.md#adr-008-websocket-over-native-messaging) (WebSocket).
+**Decisions that constrain this:** ADR-003 (Fastify), ADR-008 (WebSocket).
 
 ## Project Layout
 

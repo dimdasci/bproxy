@@ -4,7 +4,7 @@ title: CLI
 
 Implementation spec for the command-line interface. Built with [citty](https://github.com/unjs/citty).
 
-**Decisions that constrain this:** [ADR-004](../decisions.md#adr-004-cli-framework--citty) (citty), [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript), [ADR-007](../decisions.md#adr-007-three-method-write-contract) (explicit fill method), [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint) (request id correlation), [ADR-010](../decisions.md#adr-010-websocket-auth-transport--two-token-model) (CLI uses daemon token only), [ADR-017](../decisions.md#adr-017-sensoractuator-boundary) (CLI forwards explicit choices), [ADR-018](../decisions.md#adr-018-agent-guidance-ownership) (no CLI method selection).
+**Decisions that constrain this:** ADR-004 (citty), ADR-005 (TypeScript), ADR-007 (explicit fill method), ADR-009 (request id correlation), ADR-010 (CLI uses daemon token only), ADR-017 (CLI forwards explicit choices), ADR-018 (no CLI method selection).
 
 ## Project Layout
 
