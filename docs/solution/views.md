@@ -4,12 +4,23 @@ title: Architecture Views
 
 Implementation spec for the visual architecture artifact and its rendering wrapper. A small static site built with [Astro Starlight](https://starlight.astro.build) renders a curated set of [Mermaid](https://mermaid.js.org) diagrams plus the existing prose docs. Two helper scripts keep the artifact discoverable when code or decisions change.
 
-**Decisions that constrain this:** [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript), [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint) (every artifact independently inspectable), [ADR-012](../decisions.md#adr-012-static-analysis-stack) (dep-cruiser already in the stack — reused for auto-derived component graphs).
+**Decisions that constrain this:** [ADR-005](../decisions.md#adr-005-typescript-as-project-language) (TypeScript), [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint) (every artifact independently inspectable), [ADR-012](../decisions.md#adr-012-static-analysis-stack) (dep-cruiser already in the stack — reused for auto-derived component graphs), [ADR-019](../decisions.md#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers) (toolchain), [ADR-020](../decisions.md#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia) (layering).
 
-**Follow-up ADRs (this spec implies, to be appended to `decisions.md`):**
-- Site generator — Astro Starlight (rationale: typed content collections align with sync helpers; TS-native; Mermaid rendered via inline remark plugin + CDN, no Playwright)
-- Diagram notation — Mermaid in markdown, with `flowchart` + subgraphs used in place of the experimental `C4Container` syntax
-- Layering spine — C4 model (Context / Container / Component / Code), with Diátaxis as the broader site IA
+## Documentation tiers
+
+`docs/` is split into two sibling tiers:
+
+- **`docs/public/`** — rendered by this site. Read by bproxy users and by developers wanting the big-picture overview. Layered C4 narrative, plain prose, no project-side jargon.
+- **`docs/internal/`** — project artifacts. Read by bproxy developers only. ADRs, plans, journal, architecture detail, scenarios, quality gates, and this spec. Internal cross-links between artifacts are preserved verbatim.
+
+The Astro site reads only `docs/public/`. The filesystem boundary, not a sidebar filter, enforces the split. Rules:
+
+- **No cross-tier links in rendered pages.** A public page must not link to an internal-tier file; the link would bounce readers into project-only documentation.
+- **No cross-tier coupling in public source files.** Public-tier frontmatter does not reference internal-tier identifiers or paths — no `relatedAdrs:` listing ADR numbers, no `sources:` entries pointing into `docs/internal/`.
+- **Internal → public links are fine.** This spec lives in `docs/internal/solution/views.md` and freely references the public surfaces it shapes.
+- **Internal → internal links unchanged.** ADRs, plans, journal, and quality-gates retain their existing cross-references.
+
+Background and rationale: [`journal/2026-05-24-docs-publication-split.md`](../journal/2026-05-24-docs-publication-split.md).
 
 ## Purpose
 
@@ -20,60 +31,72 @@ The artifact exists to:
 3. Be an **onboarding entry point** — one navigable path that lands a new contributor on the right page in five minutes.
 4. Stay **discoverable when code or decisions evolve** — helper scripts surface the views whose declared sources changed in a branch, so the author updates the right ones before merging.
 
-The artifact is a wrapper. The existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) remain the source of truth for narrative; the views site renders both, leading with the visual layer.
+The site is a wrapper around the public tier. The published surface is the curated views, the solution specs, and the landing page (`index.md`). The internal narrative sources — `architecture.md`, `decisions.md`, `scenarios.md` — stay in `docs/internal/` and are not rendered. Authors of public pages draw on the internal sources but write standalone explanation for the public reader.
 
 ## Project Layout
 
 ```
-views/                              # new workspace (TS, Astro Starlight)
+views/                              # Astro Starlight workspace (TS)
 ├── package.json                    # deps: astro, @astrojs/starlight, zod
-├── astro.config.mjs                # Starlight config; content sourced from ../docs
+├── astro.config.mjs                # Starlight config; content sourced from ../docs/public/
 ├── tsconfig.json
 ├── src/
 │   ├── content.config.ts           # Astro content collections (docs + views)
 │   ├── lib/
 │   │   └── view-schema.ts          # Zod schema for view frontmatter (load-bearing; imports raw `zod`)
-│   ├── components/                 # Starlight overrides (breadcrumb hook, ADR footer)
+│   ├── components/                 # Starlight overrides (page frame, etc.)
 │   └── styles/                     # minimal theme tweaks
 └── scripts/
     ├── audit.ts                    # `pnpm views:audit` — drift detection
     └── regen.ts                    # `pnpm views:regen` — component-graph regeneration
 
-docs/views/                         # content: the six curated views
-├── 01-context.md                   # C4 L1
-├── 02-containers.md                # C4 L2 — the canonical bproxy diagram
-├── 03-deployment.md                # C4 deployment + trust boundaries
-├── 04-session-state.md             # behavior: daemon session lifecycle
-├── 05-scenarios/                   # one sequence diagram per scenario
-│   ├── google-research.md
-│   ├── linkedin-snapshot.md
-│   └── form-fill.md
-├── 06-threat-model.md              # DFD + STRIDE notes
-└── auto/                           # generated SVGs (component graphs)
-    ├── daemon-components.svg       # via dependency-cruiser
-    ├── extension-components.svg
-    └── cli-components.svg
+docs/
+├── public/                         # rendered by the site
+│   ├── index.md                    # landing — motivation, use cases, design principles
+│   ├── views/                      # curated views (C4 + behaviour + threat)
+│   │   ├── 01-context.md
+│   │   ├── 02-containers.md
+│   │   ├── 03-deployment.md
+│   │   ├── 04-session-state.md
+│   │   ├── 06-threat-model.md
+│   │   └── auto/                   # generated SVGs (component graphs)
+│   │       ├── daemon-components.svg
+│   │       ├── extension-components.svg
+│   │       └── cli-components.svg
+│   └── solution/                   # implementation specs (reference tier)
+│       ├── cli.md
+│       ├── service.md
+│       ├── extension.md
+│       └── shared.md
+└── internal/                       # project artifacts (not rendered)
+    ├── architecture.md
+    ├── decisions.md                # ADRs
+    ├── scenarios.md
+    ├── quality-gates.md
+    ├── plans/
+    ├── journal/
+    └── solution/
+        └── views.md                # this file
 ```
 
-The Astro app reads `../docs/` so the existing markdown structure stays the canonical source. No duplication, no re-export step.
+The Astro app reads `../docs/public/`. Files under `docs/internal/` are project artifacts and not part of the rendered site.
 
 ## Diagram Set
 
-The artifact maintains exactly **six curated diagrams** plus an auto-derived component layer. The ceiling is intentional — if a candidate seventh diagram duplicates prose, the prose stays and the diagram is dropped.
+The artifact maintains **five curated diagrams** plus an auto-derived component layer. The ceiling is intentional — if a candidate sixth diagram duplicates prose, the prose stays and the diagram is dropped. (A round-trip scenario sequence diagram occupied slot 05 in an earlier scope; it was dropped during the publication split and may return later as a separate appendix if it earns its keep.)
 
 | # | File | Diagram | Notation | Source-of-truth |
 |---|---|---|---|---|
-| 01 | `docs/views/01-context.md` | C4 System Context | Mermaid `flowchart` | Intent (hand-edited) |
-| 02 | `docs/views/02-containers.md` | C4 Container view | Mermaid `flowchart` w/ subgraphs | Intent (hand-edited) |
-| 03 | `docs/views/03-deployment.md` | C4 Deployment | Mermaid `flowchart` w/ subgraphs | Intent (hand-edited) |
-| 04 | `docs/views/04-session-state.md` | Daemon session state | Mermaid `stateDiagram-v2` | Intent (hand-edited) |
-| 05 | `docs/views/05-scenarios/*.md` | Round-trip sequence per scenario | Mermaid `sequenceDiagram` | Intent (hand-edited) |
-| 06 | `docs/views/06-threat-model.md` | DFD + STRIDE annotations | Mermaid `flowchart` w/ trust-boundary subgraph | Intent (hand-edited) |
-| — | `docs/views/auto/*.svg` | Per-workspace component dep graphs | SVG from `dependency-cruiser` | Code (regenerated) |
+| 01 | `docs/public/views/01-context.md` | C4 System Context | Mermaid `flowchart` | Intent (hand-edited) |
+| 02 | `docs/public/views/02-containers.md` | C4 Container view | Mermaid `flowchart` w/ subgraphs | Intent (hand-edited) |
+| 03 | `docs/public/views/03-deployment.md` | C4 Deployment | Mermaid `flowchart` w/ subgraphs | Intent (hand-edited) |
+| 04 | `docs/public/views/04-session-state.md` | Daemon session state | Mermaid `stateDiagram-v2` | Intent (hand-edited) |
+| 06 | `docs/public/views/06-threat-model.md` | DFD + STRIDE annotations | Mermaid `flowchart` w/ trust-boundary subgraph | Intent (hand-edited) |
+| — | `docs/public/views/auto/*.svg` | Per-workspace component dep graphs | SVG from `dependency-cruiser` | Code (regenerated) |
+
+Numbering preserves historical slot order; slot 05 is intentionally absent.
 
 The Container diagram (02) is the canonical artifact. Most navigation flows through it: its nodes are clickable and drill into the auto-derived component graphs.
-
-**Implementation status:** the table above is the target end-state. Phase 0.7 requires only `02-containers.md`; the other five curated intent diagrams are added incrementally in follow-up PRs.
 
 ## Layering Model
 
@@ -84,13 +107,13 @@ C4 as the spine, populated for bproxy:
 - **C3 (Components)** — Daemon internals (auth, pacing, ws-hub, pending-map, sessions), Extension internals (tab-router, frame-table, dispatch, read primitives, write methods)
 - **C4 (Code)** — file-level dependency graphs per workspace, generated, not hand-drawn
 
-Cross-cutting indexes (not layers, linked from layers): Protocol envelope (in `architecture.md`), Actions catalog (in `architecture.md`), ADRs (in `decisions.md`), Scenarios (in `scenarios.md`).
+Cross-cutting indexes (not layers): Protocol envelope, Actions catalog, ADRs, and Scenarios all live in `docs/internal/`. They inform the public views without being rendered. Public-tier rationale is named in view prose; the internal sources are the maintainer's reference.
 
-Diátaxis applied to the site IA at large:
-- `docs/views/` + `architecture.md` → **explanation**
-- `solution/*.md` → **reference**
-- `scenarios.md` + `docs/views/05-scenarios/` → **how-to**
-- _(gap)_ → **tutorial** — added once the daemon exists and a first end-to-end walkthrough is real
+Diátaxis applied to the public-tier IA:
+- `docs/public/views/` + `docs/public/index.md` → **explanation**
+- `docs/public/solution/*.md` → **reference**
+- _(how-to)_ — `index.md`'s use-cases section gestures at it; deferred until concrete walkthroughs exist
+- _(tutorial)_ — deferred until the daemon exists and a first end-to-end walkthrough is real
 
 ## Content Collection Schema
 
@@ -106,8 +129,7 @@ import { z } from 'zod';
 
 export const viewSchema = z.object({
   layer: z.enum(['c1', 'c2', 'c3', 'c4', 'behavior', 'threat']),
-  sources: z.array(z.string()).min(1),  // glob patterns vs repo root
-  relatedAdrs: z.array(z.string().regex(/^ADR-\d{3}$/)).optional(),
+  sources: z.array(z.string()).min(1),  // code globs vs repo root; must not point into docs/internal/
   related: z.array(z.string()).optional(),  // sibling view slugs
 });
 
@@ -125,17 +147,17 @@ import { viewSchema } from './lib/view-schema';
 
 export const collections = {
   docs: defineCollection({
-    loader: glob({ pattern: ['**/*.{md,mdx}', '!views/**'], base: '../docs' }),
+    loader: glob({ pattern: ['**/*.{md,mdx}', '!views/**'], base: '../docs/public' }),
     schema: docsSchema(),
   }),
   views: defineCollection({
-    loader: glob({ pattern: '**/*.md', base: '../docs/views' }),
+    loader: glob({ pattern: '**/*.md', base: '../docs/public/views' }),
     schema: docsSchema({ extend: viewSchema }),
   }),
 };
 ```
 
-Example frontmatter (`docs/views/02-containers.md`):
+Example frontmatter (`docs/public/views/02-containers.md`):
 
 ```markdown
 ---
@@ -146,12 +168,11 @@ sources:
   - service/src/**
   - extension/src/**
   - cli/src/**
-relatedAdrs: [ADR-003, ADR-008, ADR-010, ADR-013, ADR-017]
 related: [01-context, 03-deployment]
 ---
 ```
 
-Build fails on malformed frontmatter — typos in `sourcse:` or invalid ADR refs are caught before merge.
+Build fails on malformed frontmatter — typos like `sourcse:` are caught before merge.
 
 ## Diagram Conventions
 
@@ -210,6 +231,8 @@ Rules distilled from rework. Each view page follows the same rhythm:
 Editorial style:
 
 - **Audience first.** Readers can follow diagrams logically but are not fluent in C4 vocabulary. Avoid notation jargon (`stereotype`, `system under design`, `discriminated union`) in prose; let the diagram carry the notation and let the prose translate it.
+- **Decisions are named in prose, not linked.** Where a view depends on a project-side decision that shapes its content, name the principle in plain English (*"the extension is a thin sensor+actuator, exposing capabilities but not strategizing"*) rather than referencing an ADR identifier. The public reader has no internal context; ADR numbers are jargon. The ADR ledger remains in `docs/internal/decisions.md` for developer trace.
+- **No links into `docs/internal/`.** Public pages stand alone. If a decision deserves more depth than the prose carries, expand the prose; do not bounce the reader to an artifact. Pointers from `index.md` to the repository on GitHub for readers who want the audit trail are the documented exception.
 - **One emphasis device per element.** Bold or italic, never both. Do not bold the first words of every bullet — alternating weight reads as a zebra, not as emphasis.
 - **Edges describe purpose, not protocol.** Labels say what the relationship is for (*controls browser session*), not how it is implemented (*via localhost daemon + extension*). Implementation belongs to the next layer.
 - **Each layer answers its own question and defers the others.** Internal structure, technology choices, deployment, and security consequences each have their own page; do not borrow content from the next layer down to "complete" the picture.
@@ -264,9 +287,9 @@ Runs `dependency-cruiser` per workspace (`cli`, `service`, `extension`) and emit
 $ pnpm views:regen
 
 Regenerating component graphs:
-  cli         → docs/views/auto/cli-components.svg          (12 modules)
-  service     → docs/views/auto/service-components.svg      (28 modules)
-  extension   → docs/views/auto/extension-components.svg    (19 modules)
+  cli         → docs/public/views/auto/cli-components.svg          (12 modules)
+  service     → docs/public/views/auto/service-components.svg      (28 modules)
+  extension   → docs/public/views/auto/extension-components.svg    (19 modules)
 
 Done. Commit the SVGs if they changed.
 ```
@@ -280,10 +303,9 @@ Stock Starlight features plus Mermaid native — no custom widgets in v1.
 | Mechanism | Provided by | Behavior |
 |---|---|---|
 | Sidebar navigation | Starlight | Auto-generated from content collection, ordered by filename prefix (`01-`, `02-`, …). The sidebar **is** the layer ladder. |
-| Clickable diagram nodes | Mermaid `click` syntax | Container nodes link to component sub-graphs; component-graph nodes link to ADRs where relevant. |
+| Clickable diagram nodes | Mermaid `click` syntax | Container nodes link to their component sub-graphs under `auto/`. No cross-tier links from diagrams. |
 | Breadcrumbs | Starlight built-in | Shows layer path at top of each view. |
 | Prev / next | Starlight built-in | Footer arrows traverse the sidebar order. |
-| ADR cross-links | Custom Starlight component | A small `<RelatedAdrs />` component reads `relatedAdrs` from frontmatter and renders "Decisions behind this view: ADR-007, ADR-013…" as live links to `decisions.md`. |
 
 Not in v1: pan/zoom on diagrams, fullscreen overlay, search-within-diagram, per-view dark/light theming overrides. All add weight; none required by the goals.
 
@@ -302,7 +324,7 @@ Not in v1: pan/zoom on diagrams, fullscreen overlay, search-within-diagram, per-
 |---|---|
 | Mermaid syntax error in a view | Page renders with Mermaid runtime error in `docs:dev` / preview. CI build may still pass in `pre-mermaid` mode. |
 | Malformed view frontmatter (missing field, wrong type) | Build fails via Zod with field path. |
-| `relatedAdrs` references a non-existent ADR | _(not enforced in v1)_ — add a custom integration if it becomes a real problem. |
+| Public-tier file references `docs/internal/*` (rendered link, frontmatter `sources:` entry) | _(not enforced in v1)_ — caught in review. A future audit-rule extension could flag this automatically. |
 | `views:audit` reports nothing changed but author knows otherwise | The `sources` glob is wrong. Update the frontmatter — that's the maintenance loop. |
 | Auto-generated component graph differs from committed SVG | _(not enforced in v1)_ — the user runs `views:regen` and commits the result. |
 
@@ -329,16 +351,17 @@ pnpm test         # vitest on schema + audit logic
 
 ## Out of Scope (v1)
 
-- Live/runtime introspection of the daemon or extension. The artifact is design-time documentation; observability of the running system is covered by `debug.*` actions (see [service.md](./service.md) and [architecture.md](../architecture.md)).
+- Live/runtime introspection of the daemon or extension. The artifact is design-time documentation; observability of the running system is covered by `debug.*` actions (see [service.md](../../public/solution/service.md) and [architecture.md](../architecture.md)).
 - Likec4, Structurizr, or any DSL-driven multi-view system. Considered and rejected: a single-source-of-truth DSL fights the "render markdown" framing; Likec4's static export goes through headless Chromium with Playwright (no native vector renderer), and its embed path requires React + PandaCSS as peer dependencies. The MCP-queryable benefit is mostly achievable by parsing Mermaid sources or a small manifest, without inheriting the toolchain.
 - Visual editing inside the browser. The artifact is git-versioned text.
-- Auto-generation of intent diagrams (Context / Container / Deployment / Session State / Sequences / Threat Model). These encode decisions, not code shape.
+- Auto-generation of intent diagrams (Context / Container / Deployment / Session State / Threat Model). These encode decisions, not code shape.
 - Public hosting. The site builds in CI as a correctness gate; deployment is deferred.
 
 ## Related
 
-- [architecture.md](../architecture.md) — system shape and protocol (rendered by this site)
-- [decisions.md](../decisions.md) — ADRs (cross-linked from each view's footer)
-- [scenarios.md](../scenarios.md) — driving use cases (one sequence diagram per scenario lives under `docs/views/05-scenarios/`)
-- [solution/extension.md](./extension.md), [solution/service.md](./service.md), [solution/cli.md](./cli.md), [solution/shared.md](./shared.md) — sibling component specs (rendered by this site)
+- [architecture.md](../architecture.md) — system shape and protocol (internal artifact; informs public-tier prose)
+- [decisions.md](../decisions.md) — ADRs (internal artifact)
+- [scenarios.md](../scenarios.md) — driving use cases (internal artifact; informs `index.md`'s use-cases section)
+- [solution/cli.md](../../public/solution/cli.md), [solution/service.md](../../public/solution/service.md), [solution/extension.md](../../public/solution/extension.md), [solution/shared.md](../../public/solution/shared.md) — sibling component specs (published)
 - [quality-gates.md](../quality-gates.md) — defines `pnpm check`; the views audit/regen scripts are independent of it (advisory, not blocking)
+- [journal/2026-05-24-docs-publication-split.md](../journal/2026-05-24-docs-publication-split.md) — rationale for the public/internal tier split
