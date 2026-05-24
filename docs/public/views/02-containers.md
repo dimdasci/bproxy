@@ -6,8 +6,6 @@ sources:
   - service/src/**
   - extension/src/**
   - cli/src/**
-  - docs/architecture.md
-relatedAdrs: [ADR-003, ADR-008, ADR-010, ADR-013, ADR-017]
 related: [01-context, 03-deployment]
 ---
 

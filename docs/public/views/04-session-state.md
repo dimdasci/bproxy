@@ -8,7 +8,6 @@ sources:
   - service/src/pacing.ts
   - shared/src/sessions.ts
   - shared/src/actions.ts
-relatedAdrs: [ADR-009]
 related: [02-containers, 06-threat-model]
 ---
 

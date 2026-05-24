@@ -10,7 +10,7 @@ describe("planRegen", () => {
 		];
 		const plan = planRegen(workspaces);
 		expect(plan.tasks).toHaveLength(3);
-		expect(plan.tasks[0]?.output).toBe("docs/views/auto/service-components.svg");
+		expect(plan.tasks[0]?.output).toBe("docs/public/views/auto/service-components.svg");
 		expect(plan.skipped).toEqual([]);
 	});
 

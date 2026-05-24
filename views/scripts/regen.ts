@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { execSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,7 +45,7 @@ export function planRegen(
 		tasks.push({
 			workspace: ws.name,
 			sourceDir: ws.sourceDir,
-			output: `docs/views/auto/${ws.name}-components.svg`,
+			output: `docs/public/views/auto/${ws.name}-components.svg`,
 		});
 	}
 
@@ -58,7 +58,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 // Workspaces scanned by views:regen. Update when Phase 1 adds shared/, service/, etc.
 // shared/ is types-only (no runtime components) — excluded from component graphs.
-// See docs/solution/views.md § Diagram Set: auto/*.svg covers runtime workspaces only.
+// See docs/internal/solution/views.md § Diagram Set: auto/*.svg covers runtime workspaces only.
 export const KNOWN_WORKSPACES = ["service", "extension", "cli"] as const;
 
 function hasAnySourceFiles(dir: string): boolean {
@@ -114,15 +114,6 @@ function runDependencyCruiser(task: RegenTask): void {
 	}
 }
 
-function copyToPublic(task: RegenTask): void {
-	const src = resolve(repoRoot, task.output);
-	if (!existsSync(src)) return;
-	const publicDir = resolve(repoRoot, "views/public/views/auto");
-	mkdirSync(publicDir, { recursive: true });
-	const dest = join(publicDir, `${task.workspace}-components.svg`);
-	copyFileSync(src, dest);
-}
-
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
 	const workspaces = discoverWorkspaces();
@@ -140,7 +131,6 @@ if (isMain) {
 	for (const task of plan.tasks) {
 		process.stdout.write(`  · ${task.workspace} → ${task.output}\n`);
 		runDependencyCruiser(task);
-		copyToPublic(task);
 	}
 	process.stdout.write("Done. Commit any SVGs that changed.\n");
 }

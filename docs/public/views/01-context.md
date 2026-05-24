@@ -6,9 +6,6 @@ sources:
   - service/src/**
   - extension/src/**
   - cli/src/**
-  - docs/architecture.md
-  - docs/scenarios.md
-relatedAdrs: [ADR-008, ADR-010, ADR-011, ADR-017]
 related: [02-containers, 03-deployment]
 ---
 

@@ -7,7 +7,6 @@ export type ViewLayer = z.infer<typeof viewLayer>;
 export const viewSchema = z.object({
 	layer: viewLayer,
 	sources: z.array(z.string()).min(1),
-	relatedAdrs: z.array(z.string().regex(/^ADR-\d{3}$/)).optional(),
 	related: z.array(z.string()).min(1).optional(),
 });
 

@@ -19,7 +19,6 @@ sources:
   - extension/src/entrypoints/content.ts
   - extension/src/entrypoints/popup/*.ts
   - extension/src/entrypoints/popup/*.html
-relatedAdrs: [ADR-001, ADR-010, ADR-011, ADR-013, ADR-015, ADR-016]
 related: [02-containers, 04-session-state]
 ---
 

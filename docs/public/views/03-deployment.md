@@ -4,10 +4,6 @@ layer: deployment
 sources:
   - service/src/**
   - extension/src/**
-  - docs/architecture.md
-  - docs/solution/service.md
-  - docs/solution/extension.md
-relatedAdrs: [ADR-001, ADR-010, ADR-011, ADR-016]
 related: [02-containers, 06-threat-model]
 ---
 
