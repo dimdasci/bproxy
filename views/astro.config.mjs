@@ -122,7 +122,7 @@ export default defineConfig({
 					items: [{ label: "Introduction", link: "/" }],
 				},
 				{
-					label: "Views",
+					label: "Architecture",
 					collapsed: false,
 					items: [{ autogenerate: { directory: "views" } }],
 				},
