@@ -108,7 +108,10 @@ describe("auditViews", () => {
 	});
 
 	it("marks the view as touched when the diff also includes the view file", () => {
-		const report = auditViews(views, ["service/src/auth.ts", "docs/public/views/06-threat-model.md"]);
+		const report = auditViews(views, [
+			"service/src/auth.ts",
+			"docs/public/views/06-threat-model.md",
+		]);
 		const threat = report.affected.find((a) => a.view.slug === "06-threat-model");
 		expect(threat?.viewTouched).toBe(true);
 	});
