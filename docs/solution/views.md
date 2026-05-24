@@ -198,9 +198,22 @@ flowchart LR
 
 Mermaid's `click NodeID "url" "tooltip"` syntax makes diagram nodes navigable. Container nodes link to their component sub-graphs in `docs/views/auto/`. No custom code; no glue.
 
-### Caption convention
+## Writing a View Page
 
-Every non-trivial diagram is followed by a 2-3 sentence prose caption naming the entities and key relationships. The caption is what a reader (human or agent) gets without rendering the diagram — important for agents reading raw markdown.
+Rules distilled from rework. Each view page follows the same rhythm:
+
+1. **Lead paragraph** above the diagram. One short paragraph in plain English. Names what the page shows and what it deliberately doesn't; points further questions to the linked pages at the bottom. No bold.
+2. **Self-contained diagram.** Title in the Mermaid `---title---` frontmatter; legend subgraph at the bottom; colour and shape encoding consistent with the legend. The SVG must still make sense if extracted on its own.
+3. **Numbered figure caption** immediately beneath the diagram, in regular-weight prose. Form: `Figure N. [what the figure shows] — [notation note if any].` This is what a reader (human or agent) gets without rendering the diagram.
+4. **Closing paragraphs** naming what the reader should walk away with. Connected thoughts read as paragraphs, not bullets. Emphasis comes from being the first sentence of a paragraph, not from typography.
+
+Editorial style:
+
+- **Audience first.** Readers can follow diagrams logically but are not fluent in C4 vocabulary. Avoid notation jargon (`stereotype`, `system under design`, `discriminated union`) in prose; let the diagram carry the notation and let the prose translate it.
+- **One emphasis device per element.** Bold or italic, never both. Do not bold the first words of every bullet — alternating weight reads as a zebra, not as emphasis.
+- **Edges describe purpose, not protocol.** Labels say what the relationship is for (*controls browser session*), not how it is implemented (*via localhost daemon + extension*). Implementation belongs to the next layer.
+- **Each layer answers its own question and defers the others.** Internal structure, technology choices, deployment, and security consequences each have their own page; do not borrow content from the next layer down to "complete" the picture.
+- **Cross-page links use the target's title, not its file slug.** Write `[Containers](./02-containers.md)`, not `[02-containers](./02-containers.md)`. The slug is a filesystem detail; the reader sees the title in the sidebar, breadcrumbs, and browser tab, and the link text must match.
 
 ## Sync Helpers
 

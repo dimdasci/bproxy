@@ -12,32 +12,54 @@ relatedAdrs: [ADR-008, ADR-010, ADR-011, ADR-017]
 related: [02-containers, 03-deployment]
 ---
 
-The system boundary around bproxy. This view answers one question only: **who interacts with bproxy, and through what broad relationship?**
+This page shows where bproxy sits in its surroundings. The diagram draws the system as a single box and surrounds it with the people who use it and the other systems it talks to. How bproxy works on the inside — the parts it is built from, the technologies, the run-time setup — belongs to the other pages linked at the bottom.
 
 ```mermaid
-flowchart LR
-  Agent([Code Agent])
-  User([Developer])
-  Bproxy[[bproxy]]
-  Browser[(User Browser / Chrome Profile)]
-  Site[(Web Page / Website)]
+---
+title: bproxy — System Context
+---
+flowchart TB
+  Agent["<b>Code Agent</b><br/><i>[External Software System]</i><br/>Automates tasks via bproxy commands"]
+  Operator(["<b>Operator</b><br/><i>[Person]</i><br/>Owns the browser session and runs bproxy"])
+  Bproxy["<b>bproxy</b><br/><i>[Software System]</i><br/>Localhost control surface around a user-owned browser"]
+  Browser["<b>User Browser / Chrome Profile</b><br/><i>[External Software System]</i>"]
+  Site["<b>Target Web Sites</b><br/><i>[External Software System]</i>"]
 
-  Agent -- "shell commands" --> Bproxy
-  User -- "starts service, pairs extension, reviews handoff" --> Bproxy
-  Bproxy -- "controls via localhost daemon + extension" --> Browser
-  Browser -- "normal user web traffic" --> Site
-  User -- "owns session, cookies, identity" --> Browser
+  Agent -- "issues commands to" --> Bproxy
+  Operator -- "operates" --> Bproxy
+  Bproxy -- "hands off to" --> Operator
+  Bproxy -- "controls browser session" --> Browser
+  Operator -. "«owns»" .-> Browser
+  Browser -- "browses" --> Site
+
+  Site ~~~ Legend
+
+  subgraph Legend["Legend"]
+    direction LR
+    LP(["Person"]):::person
+    LS["System under<br/>design"]:::system
+    LE["External<br/>system"]:::external
+    LP ~~~ LS ~~~ LE
+  end
+
+  classDef person fill:#08427b,color:#fff,stroke:#052e56;
+  classDef system fill:#1168bd,color:#fff,stroke:#0b4884;
+  classDef external fill:#999999,color:#fff,stroke:#6b6b6b;
+  class Operator person;
+  class Bproxy system;
+  class Agent,Browser,Site external;
 ```
+
+Figure 1. System context for bproxy — the people and external systems that interact with the tool, and the broad nature of each relationship. Dashed edges denote static ownership rather than active interaction.
 
 ## What this picture tells you
 
-- **bproxy is not a browser.** It is a control surface around a real user browser session.
-- **The browser stays user-owned.** Cookies, login state, extensions, and fingerprint all remain in the developer's real Chrome profile rather than a Playwright-style automated context.
-- **The agent interacts indirectly.** The code agent never talks to websites itself; it issues CLI commands into bproxy, which relays them through the daemon and extension.
-- **The user remains in the loop.** Pairing, browser setup, and `HUMAN_REQUIRED` handoff are explicit user touchpoints rather than hidden automation.
+bproxy is not a browser of its own. It runs on the operator's machine and drives an existing Chrome session. The code agent never touches a web page directly — every action goes through bproxy, which translates it into work inside the real browser. The agent's window into the web is always the operator's browser, never a separate automated context.
+
+The operator owns everything on the browser side: the Chrome profile, the cookies, the saved logins, the browser fingerprint. They also stay in the loop while bproxy runs — starting the service, pairing the extension when it first connects, and stepping in whenever bproxy asks for human help. Ownership and supervision are part of the design, not hidden behind automation.
 
 ## See also
 
-- [02-containers](./02-containers.md) — the runtime processes inside bproxy.
-- [03-deployment](./03-deployment.md) — where those processes run and which trust boundaries separate them.
-- [06-threat-model](./06-threat-model.md) — the security consequences of those boundaries.
+- [Containers](./02-containers.md) — the runtime processes inside bproxy.
+- [Deployment](./03-deployment.md) — where those processes run and which trust boundaries separate them.
+- [Threat model](./06-threat-model.md) — the security consequences of those boundaries.
