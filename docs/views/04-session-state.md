@@ -12,9 +12,12 @@ relatedAdrs: [ADR-009]
 related: [02-containers, 06-threat-model]
 ---
 
-How a session moves between *unbound*, *bound* and *paused*, and which action causes each transition. The daemon is the source of truth for this state ([service spec § Session authority](../solution/service.md#action-routing-and-session-contract)); state lives in memory only and resets on daemon restart.
+This page describes what a session does inside the daemon over time — the three states it can occupy and which action moves it from one to the next. How the daemon fits among the other runtime processes, and the security gates that protect each transition, live in the other pages linked at the bottom.
 
 ```mermaid
+---
+title: bproxy — Session state
+---
 stateDiagram-v2
   [*] --> unbound : first command with<br/>--session NAME
 
@@ -27,22 +30,24 @@ stateDiagram-v2
   paused --> unbound : session.unbind
 
   note right of paused
-    forwarded actions return HUMAN_REQUIRED
-    daemon-local actions still available
-    (session.*, debug.last, debug.status)
+    forwarded actions return
+    HUMAN_REQUIRED
   end note
 ```
 
+Figure 4. State machine the daemon maintains for each session — the three states a session can occupy and the actions that transition between them.
+
 ## What this picture tells you
 
-- **The daemon owns the FSM.** No state is kept on the CLI side; agents cannot fabricate a "bound" session by sending different headers. Every observable transition above corresponds to a daemon-side mutation in `sessions.ts`.
-- **`session.bind` is the chicken-and-egg unblocker.** It works from `unbound` — sessions don't have to be created any other way first. This is asserted by the Gap A contract test *"session.bind works from unbound session and updates pacing"* and by the Gap B workflow *"unbound session → session.bind → forwarded action"*.
-- **Pause is sticky and exit-only via `session.resume`.** A paused session refuses every forwarded action (`HUMAN_REQUIRED`); daemon-local actions (`session.*`, `debug.last`, `debug.status`) remain available so an operator can introspect or rebind without resuming. `session.unbind` is allowed from `paused` too — it both clears the tab and (per `sessions.ts`) drops the pause flag.
-- **Rebinding is immediate.** Calling `session.bind` again with a different `tabId` (or just a new `pacing`) is a self-loop in the bound state — the very next forwarded command picks up the new target. Gap B workflow *"tab reassignment updates routing target"* anchors this.
-- **Restart resets everything.** Session state is in-memory by design ([service spec § Session authority](../solution/service.md#action-routing-and-session-contract)). After `bproxy-service stop && start`, all sessions are gone; the daemon does not persist them. The daemon bearer token *is* persisted (file mode `0600`, owner-checked); session state is not. See [06-threat-model](./06-threat-model.md) for the file-mode invariants.
+The daemon is the only place this state lives. Nothing on the CLI side carries a "session is bound" flag — an agent cannot fabricate a bound session by sending different headers. Every transition above is a daemon-side mutation, and every session is forgotten when the daemon stops. Restarting the service clears all sessions; only the daemon's bearer token survives across restarts.
+
+A session starts in `unbound` as soon as any command first references a `--session NAME` — there is no separate "create session" call. `session.bind(tabId)` moves it to `bound` and tells the daemon which browser tab to forward subsequent actions into. Calling `session.bind` again with a different tab id (or just a new pacing setting) is the self-loop on `bound`: the very next forwarded action picks up the new target.
+
+The session moves to `paused` when the extension reports that the page needs human help — for example, a CAPTCHA or a login wall — and the daemon refuses every forwarded action in that state with `HUMAN_REQUIRED`, so the agent stops looping into an unresponsive page. Daemon-local actions still work: the operator can run `session.*` or `debug.last` to inspect, or rebind to another tab. Either `session.resume` (back to `bound`) or `session.unbind` (back to `unbound`, also clearing pause) leaves the state.
 
 ## See also
 
-- [02-containers](./02-containers.md) — where the daemon sits relative to the CLI and extension.
-- [06-threat-model](./06-threat-model.md) — the auth gate that protects every transition above.
-- [service spec § Action Routing and Session Contract](../solution/service.md#action-routing-and-session-contract) — normative source.
+- [Containers](./02-containers.md) — where the daemon sits relative to the CLI and the extension.
+- [Threat model](./06-threat-model.md) — the auth gate that protects every transition above.
+
+For normative implementation details, see [Proxy Daemon](../solution/service.md#action-routing-and-session-contract) — *Action Routing and Session Contract*.
