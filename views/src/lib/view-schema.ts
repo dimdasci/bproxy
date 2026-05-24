@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const viewLayer = z.enum(["c1", "c2", "c3", "c4", "behavior", "threat"]);
+export const viewLayer = z.enum(["c1", "c2", "c3", "c4", "deployment", "behavior", "threat"]);
 /** @public */
 export type ViewLayer = z.infer<typeof viewLayer>;
 
