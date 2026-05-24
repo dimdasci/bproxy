@@ -119,11 +119,7 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: "Overview",
-					items: [
-						{ label: "README", link: "/" },
-						{ label: "Architecture", link: "/architecture/" },
-						{ label: "Scenarios", link: "/scenarios/" },
-					],
+					items: [{ label: "Introduction", link: "/" }],
 				},
 				{
 					label: "Views",
@@ -133,24 +129,6 @@ export default defineConfig({
 				{
 					label: "Solution Specs",
 					items: [{ autogenerate: { directory: "solution" } }],
-				},
-				{
-					label: "Reference",
-					items: [
-						{ label: "Decisions (ADRs)", link: "/decisions/" },
-						{ label: "Quality Gates", link: "/quality-gates/" },
-					],
-				},
-				{
-					label: "Plans",
-					collapsed: true,
-					items: [
-						{ label: "Roadmap", link: "/plans/roadmap/" },
-						{
-							label: "Phases",
-							items: [{ autogenerate: { directory: "plans/phases" } }],
-						},
-					],
 				},
 			],
 			components: {
