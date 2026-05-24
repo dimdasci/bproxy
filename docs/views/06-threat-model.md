@@ -23,9 +23,12 @@ relatedAdrs: [ADR-001, ADR-010, ADR-011, ADR-013, ADR-015, ADR-016]
 related: [02-containers, 04-session-state]
 ---
 
-Trust boundaries and STRIDE notes for the daemon **and the shipped Phase 3 extension surface**. This view documents current code and configuration, not future intent.
+This page describes the security shape of bproxy as it ships today — the trust boundaries between processes and files, the credentials that cross each boundary, and the STRIDE-class threats each boundary mitigates. The view documents current code and configuration; speculative changes and out-of-scope hardening are listed near the bottom.
 
 ```mermaid
+---
+title: bproxy — Threat model
+---
 flowchart TB
   subgraph fs ["File-system boundary (user, mode 0600)"]
     Token["~/.bproxy/token<br/>daemon bearer"]
@@ -47,11 +50,11 @@ flowchart TB
     Bootstrap["chrome.storage.local<br/>bootstrap + config flags"]
   end
 
-  Page[("Web page")]
+  Page["Web page"]
 
-  CLI -- "(1) POST /<br/>Authorization: Bearer <daemon-token>" --> Daemon
+  CLI -- "(1) POST /<br/>Authorization: Bearer {daemon-token}" --> Daemon
   Popup -- "(2) POST /pair/claim<br/>one-time code · Origin: chrome-extension://" --> Daemon
-  BG <-- "(3) GET /ws<br/>Sec-WebSocket-Protocol: bproxy.v1, auth.<ext-token>" --> Daemon
+  BG <-- "(3) GET /ws<br/>Sec-WebSocket-Protocol: bproxy.v1, auth.{extension-token}" --> Daemon
   BG -- "(4) chrome.scripting.executeScript" --> CS
   CS -- "(5) DOM read/write" --> Page
 
@@ -67,6 +70,8 @@ flowchart TB
   classDef boundary stroke:#dc2626,stroke-width:2px,stroke-dasharray:4 2;
   class fs,host,extOrigin boundary;
 ```
+
+Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclosures (filesystem, localhost, extension origin) bound material that the daemon and extension protect; numbered edges (1)–(5) anchor the STRIDE entries below.
 
 ## STRIDE — daemon and transport
 
@@ -86,7 +91,7 @@ flowchart TB
 | **E**levation of privilege | Extension token grants command issuance | Two-token model: bearer auth only valid on `POST /`; subprotocol auth only valid on `GET /ws`; tokens never cross routes | `auth.ts:checkCommandAuth/checkWsAuth` |
 | **E**levation of privilege | Pairing endpoint accepts CLI bearer | `POST /pair/claim` is body-auth only (pairing code) and requires `chrome-extension://` Origin | [service spec § Auth Gate](../solution/service.md#auth-gate) |
 
-## Phase 3 extension surface
+## Extension surface
 
 | Surface | Risk | Shipped mitigation |
 |---|---|---|
@@ -110,7 +115,8 @@ flowchart TB
 
 ## See also
 
-- [02-containers](./02-containers.md) — runtime processes and wire protocols.
-- [04-session-state](./04-session-state.md) — daemon pause/bind gating that sits behind the transport.
-- [service spec](../solution/service.md) and [extension spec](../solution/extension.md) — normative behavior.
-- [ADR-010](../decisions.md#adr-010-websocket-auth-transport--two-token-model), [ADR-011](../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing), [ADR-013](../decisions.md#adr-013-main-world-runtime-api-writes), [ADR-015](../decisions.md#adr-015-main-world-hygiene-contract), [ADR-016](../decisions.md#adr-016-web_accessible_resources-default-deny).
+- [Containers](./02-containers.md) — the runtime processes and wire protocols whose boundaries this view analyses.
+- [Deployment](./03-deployment.md) — where each process and state file lives on the operator's machine.
+- [Session state](./04-session-state.md) — daemon pause/bind gating that sits behind the transport.
+
+For normative implementation details, see [Proxy Daemon](../solution/service.md) and [Browser Extension](../solution/extension.md).
