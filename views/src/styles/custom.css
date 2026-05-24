@@ -1,1 +1,9 @@
-/* Theme tweaks land here as needed. Empty by intent — Starlight defaults are good. */
+/* Logo in the site header */
+.site-title {
+	gap: 0.5rem !important;
+}
+
+.site-title img {
+	width: 1.5rem;
+	height: 1.5rem;
+}

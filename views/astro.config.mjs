@@ -114,8 +114,12 @@ export default defineConfig({
 	},
 	integrations: [
 		starlight({
-			title: "bproxy — Design",
+			title: "bproxy",
 			description: "Architecture views and design docs for bproxy.",
+			logo: {
+				src: "./src/assets/cable.svg",
+			},
+			favicon: "/favicon.svg",
 			sidebar: [
 				{
 					label: "Overview",
