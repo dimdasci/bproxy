@@ -77,19 +77,19 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 
 | Class | Threat | Mitigation | Anchor |
 |---|---|---|---|
-| **S**poofing | Another process binds the daemon port for the same user | PID lockfile per `BPROXY_HOME`; `start` exits non-zero when the lock points at a live PID | `lifecycle.ts:startDetached`; Gap E *"start fails cleanly when daemon already running"* |
-| **S**poofing | Other-user process reads the daemon token | Token file mode `0600` + owner UID check; daemon refuses to start (and CLI must refuse to use) any token with wrong mode/owner | `lifecycle.ts:assertOwnerMode600` (`INSECURE_TOKEN_FILE`); Gap E *"token file is created and readable only by owner"* |
-| **S**poofing | Cross-site fetch from a malicious page reaches the daemon | Three-layer header gate at `onRequest`: Host pinned to `127.0.0.1:port` / `localhost:port`; Origin must be absent (CLI) or `chrome-extension://*` (popup/WS); `Sec-Fetch-Site` rejected unless `none` / `same-origin` | `auth.ts:checkHost/checkOrigin/checkFetchSite`; Gap C negative tests |
-| **S**poofing | Wrong extension instance claims the pairing code | One-time consumption + 5-min TTL + constant-time compare + `chrome-extension://` Origin required; single-active-token policy invalidates previously claimed extension tokens | `pairing.ts`; `auth.ts:checkOrigin('pair')`; [service spec § Pairing bootstrap route](../solution/service.md#pairing-bootstrap-route-post-pairclaim) |
-| **T**ampering | Daemon token file is replaced by another user | Owner check rejects tokens whose `st.uid` differs from `process.getuid()` | `lifecycle.ts:assertOwnerMode600` |
-| **R**epudiation | "Did command X run? When? Through which client?" | Every lifecycle event carries request `id`: `received` → `pacing_wait?` → `forwarded` → `response` (or `timeout` / `replay`) | daemon observability suites |
-| **I**nformation disclosure | Daemon API exposed beyond localhost | Bind host fixed to `127.0.0.1`; Host header verified at the auth gate even if a proxy rewrites it | `config.ts`; `auth.ts:checkHost` |
-| **I**nformation disclosure | Token leaks via insecure file mode | Read-side preflight on every token load fails closed with `INSECURE_TOKEN_FILE` / `INSECURE_EXTENSION_TOKEN_FILE` | `lifecycle.ts:assertOwnerMode600`; Gap E file-semantics tests |
-| **D**enial of service | Unbounded pending-request map | Hard cap of 100 in-flight requests → `OVERLOADED` | `pending.ts`; `pending.test.ts` |
-| **D**enial of service | Head-of-line blocking across tabs | Per-tab FIFO queue, parallel across tabs | `dispatch.ts:withTabLock`; `dispatch.test.ts` |
-| **D**enial of service | Pairing-code brute force | One-time consumption + 5-min TTL + constant-time compare; full per-source limiter is deferred | `pairing.ts` |
-| **E**levation of privilege | Extension token grants command issuance | Two-token model: bearer auth only valid on `POST /`; subprotocol auth only valid on `GET /ws`; tokens never cross routes | `auth.ts:checkCommandAuth/checkWsAuth` |
-| **E**levation of privilege | Pairing endpoint accepts CLI bearer | `POST /pair/claim` is body-auth only (pairing code) and requires `chrome-extension://` Origin | [service spec § Auth Gate](../solution/service.md#auth-gate) |
+| Spoofing | Another process binds the daemon port for the same user | PID lockfile per `BPROXY_HOME`; `start` exits non-zero when the lock points at a live PID | `lifecycle.ts:startDetached`; Gap E *"start fails cleanly when daemon already running"* |
+| Spoofing | Other-user process reads the daemon token | Token file mode `0600` + owner UID check; daemon refuses to start (and CLI must refuse to use) any token with wrong mode/owner | `lifecycle.ts:assertOwnerMode600` (`INSECURE_TOKEN_FILE`); Gap E *"token file is created and readable only by owner"* |
+| Spoofing | Cross-site fetch from a malicious page reaches the daemon | Three-layer header gate at `onRequest`: Host pinned to `127.0.0.1:port` / `localhost:port`; Origin must be absent (CLI) or `chrome-extension://*` (popup/WS); `Sec-Fetch-Site` rejected unless `none` / `same-origin` | `auth.ts:checkHost/checkOrigin/checkFetchSite`; Gap C negative tests |
+| Spoofing | Wrong extension instance claims the pairing code | One-time consumption + 5-min TTL + constant-time compare + `chrome-extension://` Origin required; single-active-token policy invalidates previously claimed extension tokens | `pairing.ts`; `auth.ts:checkOrigin('pair')`; [service spec § Pairing bootstrap route](../solution/service.md#pairing-bootstrap-route-post-pairclaim) |
+| Tampering | Daemon token file is replaced by another user | Owner check rejects tokens whose `st.uid` differs from `process.getuid()` | `lifecycle.ts:assertOwnerMode600` |
+| Repudiation | "Did command X run? When? Through which client?" | Every lifecycle event carries request `id`: `received` → `pacing_wait?` → `forwarded` → `response` (or `timeout` / `replay`) | daemon observability suites |
+| Information disclosure | Daemon API exposed beyond localhost | Bind host fixed to `127.0.0.1`; Host header verified at the auth gate even if a proxy rewrites it | `config.ts`; `auth.ts:checkHost` |
+| Information disclosure | Token leaks via insecure file mode | Read-side preflight on every token load fails closed with `INSECURE_TOKEN_FILE` / `INSECURE_EXTENSION_TOKEN_FILE` | `lifecycle.ts:assertOwnerMode600`; Gap E file-semantics tests |
+| Denial of service | Unbounded pending-request map | Hard cap of 100 in-flight requests → `OVERLOADED` | `pending.ts`; `pending.test.ts` |
+| Denial of service | Head-of-line blocking across tabs | Per-tab FIFO queue, parallel across tabs | `dispatch.ts:withTabLock`; `dispatch.test.ts` |
+| Denial of service | Pairing-code brute force | One-time consumption + 5-min TTL + constant-time compare; full per-source limiter is deferred | `pairing.ts` |
+| Elevation of privilege | Extension token grants command issuance | Two-token model: bearer auth only valid on `POST /`; subprotocol auth only valid on `GET /ws`; tokens never cross routes | `auth.ts:checkCommandAuth/checkWsAuth` |
+| Elevation of privilege | Pairing endpoint accepts CLI bearer | `POST /pair/claim` is body-auth only (pairing code) and requires `chrome-extension://` Origin | [service spec § Auth Gate](../solution/service.md#auth-gate) |
 
 ## Extension surface
 
