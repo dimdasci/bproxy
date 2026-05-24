@@ -1,0 +1,521 @@
+/**
+ * Tests for read/navigation action commands.
+ *
+ * Verifies that each command correctly:
+ * - Parses CLI args into ActionParams
+ * - Sends the correct action to the client
+ * - Handles optional params (omits undefined values)
+ * - Validates arg values where applicable
+ */
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
+
+// ─── Test infrastructure ───────────────────────────────────────────────
+
+function setupTempHome(): string {
+	const dir = mkdtempSync(join(tmpdir(), "bproxy-cmd-test-"));
+	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
+	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
+	return dir;
+}
+
+function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
+	return {
+		session: "test-session",
+		timeout: "5000",
+		home,
+		verbose: false,
+		...overrides,
+	};
+}
+
+function successResponse(id: string, data: unknown = {}) {
+	return {
+		protocol_version: 1,
+		id,
+		ok: true,
+		data,
+		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
+		replay: false,
+	};
+}
+
+function createMockFetch(responseBody: unknown, _status = 200) {
+	const calls: { url: string; body: Record<string, unknown> }[] = [];
+	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
+		calls.push({ url: url.toString(), body: JSON.parse(bodyStr) as Record<string, unknown> });
+		return Promise.resolve(
+			new Response(JSON.stringify(responseBody), {
+				status: _status,
+				headers: { "Content-Type": "application/json" },
+			}),
+		);
+	};
+	return { fetch: mockFetch as typeof globalThis.fetch, calls };
+}
+
+/**
+ * Send an action through the client with a mock fetch and capture the request.
+ */
+async function sendWithCapture(
+	action: string,
+	params: Record<string, unknown>,
+	home: string,
+	globals?: Partial<ClientGlobalArgs>,
+) {
+	const requestId = "test-id-001";
+	const { fetch, calls } = createMockFetch(successResponse(requestId));
+	const opts: SendOptions = { fetch, requestId };
+
+	const plan = await sendAction(
+		action as Parameters<typeof sendAction>[0],
+		params as Parameters<typeof sendAction>[1],
+		makeGlobals(home, globals),
+		opts,
+	);
+
+	return { plan, calls };
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────────
+
+describe("navigate command", () => {
+	it("sends navigate action with url param", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("navigate", { url: "https://example.com" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]!.body).toMatchObject({
+			action: "navigate",
+			params: { url: "https://example.com" },
+		});
+	});
+});
+
+describe("text command", () => {
+	it("sends text action without selector", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("text", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "text",
+			params: {},
+		});
+	});
+
+	it("sends text action with selector", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("text", { selector: "#content" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "text",
+			params: { selector: "#content" },
+		});
+	});
+});
+
+describe("images command", () => {
+	it("sends images action without selector", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("images", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "images",
+			params: {},
+		});
+	});
+
+	it("sends images action with selector", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("images", { selector: ".gallery" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "images",
+			params: { selector: ".gallery" },
+		});
+	});
+});
+
+describe("elements command", () => {
+	it("sends elements action without form flag", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("elements", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "elements",
+			params: {},
+		});
+	});
+
+	it("sends elements action with form flag", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("elements", { form: true }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "elements",
+			params: { form: true },
+		});
+	});
+});
+
+describe("outline command", () => {
+	it("sends outline action with empty params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("outline", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "outline",
+			params: {},
+		});
+	});
+});
+
+describe("dom command", () => {
+	it("sends dom action without params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("dom", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "dom",
+			params: {},
+		});
+	});
+
+	it("sends dom action with selector", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("dom", { selector: "main" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "dom",
+			params: { selector: "main" },
+		});
+	});
+
+	it("sends dom action with selector and depth", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("dom", { selector: "main", depth: 3 }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "dom",
+			params: { selector: "main", depth: 3 },
+		});
+	});
+});
+
+describe("scroll command", () => {
+	it("sends scroll action with no params (defaults)", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("scroll", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params: {},
+		});
+	});
+
+	it("sends scroll action with by", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("scroll", { by: "page" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params: { by: "page" },
+		});
+	});
+
+	it("sends scroll action with direction", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("scroll", { direction: "up" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params: { direction: "up" },
+		});
+	});
+
+	it("sends scroll action with untilStable", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("scroll", { untilStable: true }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params: { untilStable: true },
+		});
+	});
+
+	it("sends scroll with all params combined", async () => {
+		const home = setupTempHome();
+		const params = { by: "500px", direction: "down", untilStable: true };
+		const { plan, calls } = await sendWithCapture("scroll", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params: { by: "500px", direction: "down", untilStable: true },
+		});
+	});
+});
+
+describe("screenshot command", () => {
+	it("sends screenshot action with no params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("screenshot", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "screenshot",
+			params: {},
+		});
+	});
+
+	it("sends screenshot action with activate flag", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("screenshot", { activate: true }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "screenshot",
+			params: { activate: true },
+		});
+	});
+
+	it("sends screenshot action with debugger flag", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("screenshot", { debugger: true }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "screenshot",
+			params: { debugger: true },
+		});
+	});
+
+	it("sends screenshot action with both flags", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture(
+			"screenshot",
+			{ activate: true, debugger: true },
+			home,
+		);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "screenshot",
+			params: { activate: true, debugger: true },
+		});
+	});
+});
+
+describe("wait command", () => {
+	it("sends wait action with selector strategy", async () => {
+		const home = setupTempHome();
+		const params = { strategy: "selector", target: "#loaded" };
+		const { plan, calls } = await sendWithCapture("wait", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "wait",
+			params: { strategy: "selector", target: "#loaded" },
+		});
+	});
+
+	it("sends wait action with url strategy", async () => {
+		const home = setupTempHome();
+		const params = { strategy: "url", target: "https://example.com/done" };
+		const { plan, calls } = await sendWithCapture("wait", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "wait",
+			params: { strategy: "url", target: "https://example.com/done" },
+		});
+	});
+
+	it("sends wait action with navigation strategy", async () => {
+		const home = setupTempHome();
+		const params = { strategy: "navigation", target: "complete" };
+		const { plan, calls } = await sendWithCapture("wait", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "wait",
+			params: { strategy: "navigation", target: "complete" },
+		});
+	});
+
+	it("sends wait action with timeout", async () => {
+		const home = setupTempHome();
+		const params = { strategy: "selector", target: ".item", timeout: 10000 };
+		const { plan, calls } = await sendWithCapture("wait", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "wait",
+			params: { strategy: "selector", target: ".item", timeout: 10000 },
+		});
+	});
+});
+
+describe("request envelope structure", () => {
+	it("includes protocol_version, id, session, deadline, and destructive flag", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		await sendAction("text", {}, makeGlobals(home), opts);
+
+		const body = calls[0]!.body;
+		expect(body["protocol_version"]).toBe(1);
+		expect(body["id"]).toBe(requestId);
+		expect(body["session"]).toBe("test-session");
+		expect(body["deadline"]).toBeGreaterThan(Date.now() - 10000);
+		expect(body["destructive"]).toBe(false);
+	});
+
+	it("marks navigate as destructive", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		await sendAction("navigate", { url: "https://example.com" }, makeGlobals(home), opts);
+
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+
+	it("marks scroll as destructive", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		await sendAction("scroll", {}, makeGlobals(home), opts);
+
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+
+	it("marks read commands as non-destructive", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+
+		const readActions = [
+			"text",
+			"images",
+			"elements",
+			"outline",
+			"dom",
+			"screenshot",
+			"wait",
+		] as const;
+		for (const action of readActions) {
+			const { fetch, calls } = createMockFetch(successResponse(requestId));
+			const opts: SendOptions = { fetch, requestId };
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test: empty params are valid for all read actions
+			await sendAction(action, {} as any, makeGlobals(home), opts);
+
+			expect(calls[0]!.body["destructive"]).toBe(false);
+		}
+	});
+
+	it("uses global session in envelope", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		await sendAction("text", {}, makeGlobals(home, { session: "my-session" }), opts);
+
+		expect(calls[0]!.body["session"]).toBe("my-session");
+	});
+
+	it("defaults session to 'default' when not provided", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		await sendAction("text", {}, makeGlobals(home, { session: undefined }), opts);
+
+		expect(calls[0]!.body["session"]).toBe("default");
+	});
+});
+
+describe("command arg validation", () => {
+	it("dom accepts valid depth params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("dom", { selector: "body", depth: 5 }, home);
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "dom",
+			params: { selector: "body", depth: 5 },
+		});
+	});
+
+	it("optional params are omitted when not provided (not sent as undefined)", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("text", {}, home);
+		const params = calls[0]!.body["params"] as Record<string, unknown>;
+		expect(params).toEqual({});
+		expect("selector" in params).toBe(false);
+	});
+});
+
+describe("response pass-through", () => {
+	it("passes daemon response as stdout unchanged on success (exit 0)", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const data = { text: "Page content here" };
+		const responseBody = successResponse(requestId, data);
+		const { fetch } = createMockFetch(responseBody);
+		const opts: SendOptions = { fetch, requestId };
+
+		const plan = await sendAction("text", {}, makeGlobals(home), opts);
+
+		expect(plan.code).toBe(0);
+		expect(plan.stdout).toEqual(responseBody);
+	});
+
+	it("passes daemon error response as stdout with exit 1", async () => {
+		const home = setupTempHome();
+		const requestId = "test-id-001";
+		const responseBody = {
+			protocol_version: 1,
+			id: requestId,
+			ok: false,
+			error: {
+				code: "ELEMENT_NOT_FOUND",
+				category: "target",
+				retry: "safe",
+				message: "Not found",
+			},
+		};
+		const { fetch } = createMockFetch(responseBody);
+		const opts: SendOptions = { fetch, requestId };
+
+		const plan = await sendAction("text", { selector: "#missing" }, makeGlobals(home), opts);
+
+		expect(plan.code).toBe(1);
+		expect(plan.stdout).toEqual(responseBody);
+	});
+});

@@ -1,0 +1,176 @@
+---
+title: Implementation Roadmap
+---
+
+> **Status:** Active. Owns the day-to-day shape of how bproxy gets built.
+> **Companion docs:** [`docs/internal/architecture.md`](../architecture.md) (system shape), [`docs/internal/decisions.md`](../decisions.md) (ADRs), `docs/public/solution/` (per-component specs), [`docs/internal/scenarios.md`](../scenarios.md) (driving use cases).
+
+## Strategy
+
+Layered bottom-up, with a preliminary PoC phase. Domain model first, then each consumer layer in dependency order. Three load-bearing PoCs precede production work and produce updated documentation; a doc-reconciliation gate sits between PoC phase and Layer 1 so we never build on stale assumptions. Each layer's "done" definition includes both functional completeness and design-constraint assertions, so checkpoints validate adherence to the design — not just to a feature list. Code-as-documentation is treated as a non-functional requirement enforced through a small set of practical rules.
+
+The team is solo execution by a single mid-level developer; tasks are sized to one day or less so progress stays visible and reviewable.
+
+## Phase order
+
+| # | Phase | Purpose | Status | Detail |
+|---|---|---|---|---|
+| 0 | PoC | De-risk three load-bearing technical assumptions | ✅ Done | [phases/00-poc.md](./phases/00-poc.md) |
+| 0.5 | Doc reconciliation | Update docs to match PoC verdicts before any production code | ✅ Done | [phases/00.5-doc-reconciliation.md](./phases/00.5-doc-reconciliation.md) |
+| 0.7 | Architecture viewer (v1) | Stand up the views site + sync helpers before production code lands | ✅ Done | [phases/00.7-arch-views.md](./phases/00.7-arch-views.md) |
+| 1 | Shared types | The domain model | ✅ Done | [phases/01-shared-types.md](./phases/01-shared-types.md) |
+| 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
+| 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
+| 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
+| 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
+| 6 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 5 closes_ |
+
+Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
+
+**Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing all seven plans up front would lock in assumptions before they've been tested.
+
+## Per-phase summary
+
+### Phase 0 — PoC
+
+**Purpose:** validate three load-bearing technical assumptions before they're baked into production code.
+
+**Three PoCs:**
+
+1. **MV3 SW + WebSocket + protocol envelope round-trip** (~1 day) — smallest viable Fastify WS server plus minimal MV3 extension. Validates subprotocol auth, SW lifecycle under forced suspend, reconnect+replay pattern, and envelope shape.
+2. **CLI → extension pairing transport** (~½–1 day) — confirms whether `chrome.runtime.onMessageExternal` accepts native processes; if not, evaluates alternatives (CLI-opened companion page, in-band pairing through the daemon WS).
+3. **Explicit write methods on real frameworks** (~½ day) — manual test against a real React/Vue application form. Validates [ADR-007](../decisions.md#adr-007-three-method-write-contract): `direct` for DOM, `paste` for frameworks, `runtime-api` for editor instances.
+
+**Done when:** all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/journal/`, and any ADR amendments under `docs/decisions.md`. Each PoC closes with a verdict (*confirms / modifies / invalidates the design*).
+
+### Phase 0.5 — Doc reconciliation gate
+
+**Purpose:** propagate PoC verdicts into the design docs before Layer 1 starts.
+
+**Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/architecture.md`, `docs/decisions.md`, or `docs/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
+
+### Phase 0.7 — Architecture viewer (v1)
+
+**Purpose:** stand up the architecture views site so the rest of the build has a visual onboarding and presentation surface from day one, and so the sync helpers are wired before any production code lands. Per [docs/solution/views.md](../solution/views.md).
+
+**Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
+
+**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on `viewSchema` violations or site-build regressions.
+
+**Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
+
+### Phase 1 — Shared types (and workspace scaffold) ✅ Done
+
+**Purpose:** the domain model, plus the workspace skeleton and tooling that hosts every later layer. Per `docs/public/solution/shared.md` and [docs/quality-gates.md](../quality-gates.md).
+
+**Output:** pnpm workspace configured (`shared/`, `service/`, `extension/`, `cli/`); root tooling installed and wired (`tsc`, Biome, ESLint v9, dependency-cruiser, knip); CI running `pnpm check` on every push; `@bproxy/shared` package compiling with the full `Action` discriminated union, `BproxyRequest` / `BproxyResponse` envelope, error taxonomy, and pacing config types. **Phase 1 explicitly includes wiring the dependency-cruiser execution backend used by `views:regen` (Phase 0.7 ships only the planner/CLI contract).**
+
+**Done when:** `pnpm check` passes from a clean checkout; every action in the [actions table](../architecture.md#actions) appears in the union with `ActionParams` and `ActionResult` entries; tests assert that the discriminated union is exhaustive.
+
+### Phase 2 — Daemon ✅ Done
+
+**Purpose:** routing, auth, pacing, and lifecycle. Per `docs/public/solution/service.md`.
+
+**Output:** `service` binary running on `127.0.0.1:9615`, scriptable end-to-end via a mock WS client driven by the protocol's actions.
+
+**Done when:** all routes (`POST /`, `POST /pair/claim`, `GET /ws`) implemented with the four-layer auth gate; pacing engine enforces per-session delays; pending map handles timeout, replay-on-reconnect, dedupe; lifecycle scripts (start, stop, status) work; daemon log is structured with the request `id` per [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint).
+
+**Views integration:** `service` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/service-components.svg`; Container diagram in `02-containers.md` gets a `click Daemon` directive linking to the generated SVG.
+
+### Phase 3 — Extension ✅ Done
+
+**Purpose:** browser-side execution. Per `docs/public/solution/extension.md`.
+
+**Status note:** Phase 3 is complete. Task 17 closed the extension-specific docs integration pass and the follow-up structural docs pass added `docs/views/01-context.md` and `docs/views/03-deployment.md`. The remaining curated views work is now the Phase 4 scenario-view completion described below.
+
+**Output:** `extension/.output/chrome-mv3/` loadable in Chrome, with all action handlers, ring buffer, pairing receiver, and connection-state badge.
+
+**Done when:** background SW maintains WS connection across SW restart with replay; content script injection is programmatic per-tab; all action handlers from the [actions table](../architecture.md#actions) execute correctly; ring buffer queryable via `debug.log`; design-constraint assertions hold (no `MutationObserver` in bundle, `fill` dispatches `insertFromPaste`, no MAIN-world script registered by default).
+
+**Views integration:** `extension` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/extension-components.svg`; Container diagram in `02-containers.md` gets a `click Ext` directive linking to the generated SVG.
+
+### Phase 4 — CLI
+
+**Purpose:** one-shot agent interface. Per `docs/public/solution/cli.md`.
+
+**Status note:** Phase 4 is complete. All 11 tasks done: lifecycle contract alignment, CLI package bootstrap, primitives (paths/token/output/exit), HTTP client, read commands, write commands, service lifecycle commands, session/tab/debug commands, design assertions, integration smoke tests, and views/docs integration. 327 CLI tests, 652 total workspace tests pass. `pnpm check`, `pnpm test`, and `pnpm docs:build` all green.
+
+**Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands. Phase 4 also closes the remaining curated architecture-view content so Phase 5 hardening can validate against a complete explanatory set.
+
+**Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens. The remaining curated views are authored against the real shipped system — specifically `docs/views/05-scenarios/*.md` is present, accurate, and builds cleanly alongside the now-existing `01-context.md` and `03-deployment.md`.
+
+**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG. Phase 4 is also the explicit home for finishing the remaining curated scenario views left intentionally incomplete by Phase 0.7.
+
+### Phase 5 — Integration & hardening
+
+**Purpose:** validate the system against documented scenarios end-to-end and harden the rough edges.
+
+**Output:** Scenarios 1–3 from [docs/scenarios.md](../scenarios.md) pass against real sites; deadline timeouts behave correctly; error envelope is complete across all error codes; observability covers all lifecycle events; pre-commit hooks (Husky + lint-staged or equivalent) installed and wired to a fast subset of `pnpm check` per [docs/quality-gates.md](../quality-gates.md).
+
+**Done when:** Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles `HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step; pre-commit hooks block commits that fail format, lint, or per-file type-check on changed files.
+
+**Out of scope:** public npm packaging, release artifacts, extension distribution, and installer/update flows. Phase 5 hardens behavior; Phase 6 packages it.
+
+### Phase 6 — Distribution & installation
+
+**Purpose:** make the hardened system installable and updatable outside the monorepo.
+
+**Output:** a documented distribution shape for CLI + daemon + extension artifacts. The likely direction is one user-facing `bproxy` distribution that bundles or installs the CLI and daemon while preserving separate internal workspaces; the exact package shape is decided at Phase 6 start, after Phase 5 proves the workflow.
+
+**Done when:** a user can install bproxy from published/release artifacts, load or install the extension, start the daemon, pair the extension, run a smoke command, and upgrade without breaking existing `BPROXY_HOME` token/state semantics.
+
+**Candidate scope:** package shape decision; CLI/service version compatibility checks; extension build zip or store path; install docs; upgrade/re-pair recovery; optional Homebrew/GitHub Release automation.
+
+## Cross-cutting rules
+
+### PoC structure
+
+Every PoC has:
+
+- **One question** — yes/no or a measurement.
+- **Hard timebox** — ½ or 1 day. If the timebox is hit without an answer, the PoC reports "inconclusive" and we decide what to do next; PoCs never silently grow. If a PoC reveals a deeper problem, it spawns a follow-up PoC rather than expanding in place.
+- **Three outputs:**
+  1. Working-but-throwaway code under `poc/<short-name>/` — committed (not gitignored), so it remains referenceable, but never imported by production packages.
+  2. A 1-page memo at `docs/journal/YYYY-MM-DD-poc-<topic>.md` capturing: question, method, finding, implication.
+  3. ADR amendment in `docs/decisions.md` if the finding modifies or invalidates a decision.
+- **A verdict** — each PoC closes with one of: *confirms the design / modifies it / invalidates it.*
+
+### Layer pattern (definition of done)
+
+Every layer (1–5) follows the same structure:
+
+1. **Decomposed into ≤1-day work units** — each unit is a named task with clear input and output. Captured in the phase detail file.
+2. **Definition of done = the checkpoint.** Four criteria, all required:
+   - **Functional** — every interface consumed by later layers is implemented.
+   - **Design-asserted** — at least one test or static check confirms a design constraint. Examples: extension bundle contains no `MutationObserver` reference; daemon's `onRequest` auth hook runs before any route handler; `fill` action handler dispatches `InputEvent` with `inputType: "insertFromPaste"`.
+   - **Documented** — package `README.md` and any updates to `docs/solution/*.md` are committed.
+   - **Static gates pass** — `pnpm check` succeeds (type checking, format, lint with complexity and size limits, architecture rules, dead-code and dependency hygiene). Per [docs/quality-gates.md](../quality-gates.md).
+3. **Layer scope is locked at start** — the phase detail file enumerates what's in scope; anything else is out of scope for that phase.
+
+### Scope discipline
+
+A layer builds only what later layers consume — nothing more. Concrete check at layer review: walk the protocol's `Action` union and confirm each action is supported only as far as that layer's job demands. Features that look "obviously needed" but have no consumer in this codebase are out.
+
+This rule counters bottom-up's natural tendency to over-engineer the foundation.
+
+### Code-as-documentation
+
+Treated as a non-functional requirement. Practical rules, enforced during review:
+
+- **Public API is explicit.** Each package has a single entry point exposing its public surface; internals stay unexported. A consumer can read the entry point alone and know how to use the package.
+- **File names mirror architecture.** Layout in each package matches what's described in `docs/solution/*.md`. If reality diverges, the doc gets updated, not the other way round.
+- **Names carry meaning; comments are rare.** No comments explaining *what* the code does — names are the explanation. Comments only where the *why* is non-obvious (constraint, invariant, workaround). No TODOs or commented-out code in committed work.
+- **Tests read as specifications.** Test names describe behaviour in domain terms. A reader scanning test files should understand what the package does without reading the implementation.
+- **Per-package `README.md`** — purpose (1 paragraph), public API (link to entry point), how to develop locally, how to test. One file per package, kept short.
+
+## Relationship to other docs
+
+| Doc | Role |
+|---|---|
+| [`docs/internal/architecture.md`](../architecture.md) | What the system is and how its components connect |
+| [`docs/internal/decisions.md`](../decisions.md) | Why we chose what we chose (ADRs) |
+| `docs/public/solution/` | Per-component implementation specs (public tier) |
+| [`docs/internal/scenarios.md`](../scenarios.md) | Driving use cases the system must support |
+| [`docs/internal/quality-gates.md`](../quality-gates.md) | Static analysis policy: tools, thresholds, commands |
+| [`docs/internal/journal/`](../journal/) | Raw design thinking; PoC findings land here |
+| **this doc** | **How and in what order we build it** |

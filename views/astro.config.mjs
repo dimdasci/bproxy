@@ -2,6 +2,7 @@ import { dirname, relative, resolve } from "node:path";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import { slug as githubSlug } from "github-slugger";
+import rehypeExternalLinks from "rehype-external-links";
 
 /**
  * Rewrites relative .md links to absolute route URLs.
@@ -110,47 +111,30 @@ function remarkMermaid() {
 export default defineConfig({
 	markdown: {
 		remarkPlugins: [remarkRewriteMdLinks, remarkMermaid],
+		rehypePlugins: [[rehypeExternalLinks, { target: "_blank", rel: ["noopener", "noreferrer"] }]],
 		syntaxHighlight: { excludeLangs: ["mermaid"] },
 	},
 	integrations: [
 		starlight({
-			title: "bproxy — Design",
+			title: "bproxy",
 			description: "Architecture views and design docs for bproxy.",
+			logo: {
+				src: "./src/assets/cable.svg",
+			},
+			favicon: "/favicon.svg",
 			sidebar: [
 				{
 					label: "Overview",
-					items: [
-						{ label: "README", link: "/" },
-						{ label: "Architecture", link: "/architecture/" },
-						{ label: "Scenarios", link: "/scenarios/" },
-					],
+					items: [{ label: "Introduction", link: "/" }],
 				},
 				{
-					label: "Views",
+					label: "Architecture",
 					collapsed: false,
 					items: [{ autogenerate: { directory: "views" } }],
 				},
 				{
 					label: "Solution Specs",
 					items: [{ autogenerate: { directory: "solution" } }],
-				},
-				{
-					label: "Reference",
-					items: [
-						{ label: "Decisions (ADRs)", link: "/decisions/" },
-						{ label: "Quality Gates", link: "/quality-gates/" },
-					],
-				},
-				{
-					label: "Plans",
-					collapsed: true,
-					items: [
-						{ label: "Roadmap", link: "/plans/roadmap/" },
-						{
-							label: "Phases",
-							items: [{ autogenerate: { directory: "plans/phases" } }],
-						},
-					],
 				},
 			],
 			components: {

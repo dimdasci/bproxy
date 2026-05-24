@@ -1,4 +1,5 @@
 import { loadConfig } from "./config";
+import type { LifecycleStartResult, LifecycleStatusResult, LifecycleStopResult } from "./lifecycle";
 import { startDetached, startForeground, status, stop } from "./lifecycle";
 
 async function main(): Promise<number> {
@@ -6,7 +7,8 @@ async function main(): Promise<number> {
 	const config = loadConfig();
 	switch (cmd) {
 		case "start": {
-			await startDetached(config);
+			const result: LifecycleStartResult = await startDetached(config);
+			process.stdout.write(`${JSON.stringify(result)}\n`);
 			return 0;
 		}
 		case "daemonize": {
@@ -14,11 +16,12 @@ async function main(): Promise<number> {
 			return 0;
 		}
 		case "stop": {
-			await stop(config);
+			const result: LifecycleStopResult = await stop(config);
+			process.stdout.write(`${JSON.stringify(result)}\n`);
 			return 0;
 		}
 		case "status": {
-			const s = status(config);
+			const s: LifecycleStatusResult = status(config);
 			process.stdout.write(`${JSON.stringify(s)}\n`);
 			return 0;
 		}

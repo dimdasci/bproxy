@@ -153,7 +153,7 @@ function formatReport(report: AuditReport, errors: readonly LoadError[]): string
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
 	const base = process.argv[2] ?? "origin/main";
-	const viewsDir = join(repoRoot, "docs/views");
+	const viewsDir = join(repoRoot, "docs/public/views");
 	const { views, errors } = discoverViews(viewsDir);
 	const changed = getChangedFiles(base);
 	const report = auditViews(views, changed);

@@ -1,4 +1,5 @@
 {
+	"ignoreBinaries": ["build"],
 	"workspaces": {
 		"shared": {
 			"project": ["src/**/*.ts"]

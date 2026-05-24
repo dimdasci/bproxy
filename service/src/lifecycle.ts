@@ -5,8 +5,18 @@ import type { ServiceConfig } from "./config";
 import { stateFile } from "./config";
 import { buildLogger } from "./logger";
 import { createPairingStore } from "./pairing";
+import type {
+	LifecycleStartResult,
+	LifecycleStatusResult,
+	LifecycleStopResult,
+	PairingMetadata,
+} from "./pairing-file";
+import { readPairingFile, removePairingFile, writePairingFile } from "./pairing-file";
 import { buildServer } from "./server";
 import { createSessionRegistry } from "./sessions";
+
+export type { LifecycleStartResult, LifecycleStatusResult, LifecycleStopResult, PairingMetadata };
+export { readPairingFile, removePairingFile, writePairingFile };
 
 const STARTUP_TIMEOUT_MS = 5_000;
 const STOP_TIMEOUT_MS = 5_000;
@@ -71,7 +81,7 @@ function assertOwnerMode600(
 
 function removeStateFiles(
 	config: ServiceConfig,
-	names: readonly ("bproxy.pid" | "port" | "token")[],
+	names: readonly ("bproxy.pid" | "port" | "token" | "pairing.json")[],
 ): void {
 	for (const name of names) {
 		try {
@@ -83,7 +93,7 @@ function removeStateFiles(
 }
 
 function cleanupRuntimeState(config: ServiceConfig): void {
-	removeStateFiles(config, ["bproxy.pid", "port"]);
+	removeStateFiles(config, ["bproxy.pid", "port", "pairing.json"]);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -164,6 +174,15 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 	const extensionToken = readExtensionToken(config) ?? "";
 	const pairing = createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const issued = pairing.issue();
+
+	// Write pairing metadata atomically for the detached parent to read
+	const pairingMeta: PairingMetadata = {
+		pairingCode: issued.code,
+		pairingExpiresAt: issued.expiresAt,
+		issuedAt: Date.now(),
+	};
+	writePairingFile(config, pairingMeta);
+
 	const built = await buildServer({
 		port: config.port,
 		daemonToken,
@@ -171,7 +190,11 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 		logger,
 		pairing,
 		sessions: createSessionRegistry(),
-		onExtensionTokenChanged: (token) => writeExtensionToken(config, token),
+		onExtensionTokenChanged: (token) => {
+			writeExtensionToken(config, token);
+			// Pairing claim succeeded — remove pairing.json
+			removePairingFile(config);
+		},
 	});
 	let resolveShutdown!: () => void;
 	const shutdownPromise = new Promise<void>((resolve) => {
@@ -208,7 +231,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 	await shutdownPromise;
 }
 
-export async function startDetached(config: ServiceConfig): Promise<void> {
+export async function startDetached(config: ServiceConfig): Promise<LifecycleStartResult> {
 	ensureStateDir(config);
 	const pidState = readPidState(config);
 	if (pidState.pid !== null && isAlive(pidState.pid)) {
@@ -221,6 +244,7 @@ export async function startDetached(config: ServiceConfig): Promise<void> {
 	const child = spawn(process.execPath, [bin, "daemonize"], {
 		detached: true,
 		stdio: "ignore",
+		env: { ...process.env, BPROXY_HOME: config.stateDir, BPROXY_PORT: String(config.port) },
 	});
 	child.unref();
 	if (child.pid === undefined) {
@@ -241,9 +265,28 @@ export async function startDetached(config: ServiceConfig): Promise<void> {
 		cleanupRuntimeState(config);
 		throw error;
 	}
+
+	const port = readPort(config);
+	if (port === undefined) {
+		throw new Error("daemon started but port file is missing");
+	}
+
+	// Read pairing metadata written by the foreground daemon
+	const pairingMeta = readPairingFile(config);
+	if (!pairingMeta) {
+		throw new Error("daemon started but pairing metadata is missing");
+	}
+
+	return {
+		running: true,
+		pid: child.pid,
+		port,
+		pairingCode: pairingMeta.pairingCode,
+		pairingExpiresAt: pairingMeta.pairingExpiresAt,
+	};
 }
 
-export async function stop(config: ServiceConfig): Promise<void> {
+export async function stop(config: ServiceConfig): Promise<LifecycleStopResult> {
 	const pid = readPid(config);
 	if (pid !== null && isAlive(pid)) {
 		try {
@@ -253,11 +296,13 @@ export async function stop(config: ServiceConfig): Promise<void> {
 		}
 		await waitForProcessExit(pid, STOP_TIMEOUT_MS);
 	}
+	// Remove transient state but preserve extension-token for transparent reconnect
 	clearToken(config);
 	cleanupRuntimeState(config);
+	return { running: false };
 }
 
-export function status(config: ServiceConfig): { running: boolean; pid?: number; port?: number } {
+export function status(config: ServiceConfig): LifecycleStatusResult {
 	const pidState = readPidState(config);
 	if (!pidState.exists || pidState.pid === null) {
 		cleanupRuntimeState(config);
