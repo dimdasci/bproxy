@@ -95,12 +95,12 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Put all locked decisions on paper and rewrite scenario command flows to Phase 5 syntax, so every subsequent task has a concrete reference to build against. This is pure documentation — zero code.
 
-- [ ] Amend or add ADRs for: daemon-generated sessions (id format, no prefix, 6-char base32), logical tab handles, `session close` closes tabs, `tab open` as sole bootstrap path, normal tab privacy, extension-control wire shape (`tabId: null` + action-name routing), and first-class `links` extraction with shadow-root traversal.
-- [ ] Decide new error codes needed beyond the existing taxonomy: `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `TAB_NOT_IN_SESSION`. Document in decisions.md.
-- [ ] Rewrite Scenario 1 command transcript using Phase 5 syntax: `tab open -s <generated> --url ...` → `text -s ... --selector main` → `links -s ...` → `session close -s ...`.
-- [ ] Rewrite Scenario 2 command transcript: `tab open` bootstrap → `scroll` → `text` → `links` → `session close`. Replace all `--tab-id` and user-chosen session names.
-- [ ] Rewrite Scenario 3 command transcript: `tab open` → `elements --form` → `fill-form` → `elements --form` (verify) → `session close`. Replace all `--tab-id` and user-chosen session names.
-- [ ] Keep public solution docs unchanged until code lands.
+- [X] Amend or add ADRs for: daemon-generated sessions (id format, no prefix, 6-char base32), logical tab handles, `session close` closes tabs, `tab open` as sole bootstrap path, normal tab privacy, extension-control wire shape (`tabId: null` + action-name routing), and first-class `links` extraction with shadow-root traversal.
+- [X] Decide new error codes needed beyond the existing taxonomy: `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `TAB_NOT_IN_SESSION`. Document in decisions.md.
+- [X] Rewrite Scenario 1 command transcript using Phase 5 syntax: `tab open -s <generated> --url ...` → `text -s ... --selector main` → `links -s ...` → `session close -s ...`.
+- [X] Rewrite Scenario 2 command transcript: `tab open` bootstrap → `scroll` → `text` → `links` → `session close`. Replace all `--tab-id` and user-chosen session names.
+- [X] Rewrite Scenario 3 command transcript: `tab open` → `elements --form` → `fill-form` → `elements --form` (verify) → `session close`. Replace all `--tab-id` and user-chosen session names.
+- [X] Keep public solution docs unchanged until code lands.
 
 **Done when:** implementers can read the scenario transcripts and ADRs to know exactly what every command should accept and return, without guessing. The scenarios serve as acceptance-test scripts for Task 8.
 
@@ -112,14 +112,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Make the desired Phase 5 contract compile-time visible to every package.
 
-- [ ] Add session lifecycle actions, likely `session.create` and `session.close`.
-- [ ] Change `session.bind` params from raw `{ tabId: number }` to logical `{ tab: string, pacing?: PacingMode }`.
-- [ ] Change `tab.open` result to return `{ session, tab, bound, url }` and avoid exposing Chrome ids.
-- [ ] Change `tab.list` result to return session-scoped logical tab info.
-- [ ] Add `links` action params/results with `selector?`, `visibleOnly?`, and `limit?`.
-- [ ] Update `SessionInfo` and `TabInfo` to use logical handles and labels; raw Chrome ids must not appear in normal shared response types.
-- [ ] Add any new error codes chosen in Task 1.
-- [ ] Preserve compile-time exhaustiveness guards so all downstream packages fail until they handle the new model.
+- [X] Add session lifecycle actions, likely `session.create` and `session.close`.
+- [X] Change `session.bind` params from raw `{ tabId: number }` to logical `{ tab: string, pacing?: PacingMode }`.
+- [X] Change `tab.open` result to return `{ session, tab, bound, url }` and avoid exposing Chrome ids.
+- [X] Change `tab.list` result to return session-scoped logical tab info.
+- [X] Add `links` action params/results with `selector?`, `visibleOnly?`, and `limit?`.
+- [X] Update `SessionInfo` and `TabInfo` to use logical handles and labels; raw Chrome ids must not appear in normal shared response types.
+- [X] Add any new error codes chosen in Task 1.
+- [X] Preserve compile-time exhaustiveness guards so all downstream packages fail until they handle the new model.
 
 **Done when:** `@bproxy/shared` typecheck fails in consumers for every place that still assumes friendly session names, raw tab ids, or no `links` action.
 

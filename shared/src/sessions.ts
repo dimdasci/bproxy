@@ -1,5 +1,11 @@
 export type PacingMode = "human" | "fast";
 
+declare const sessionIdBrand: unique symbol;
+declare const tabHandleBrand: unique symbol;
+
+export type SessionId = string & { readonly [sessionIdBrand]: "SessionId" };
+export type TabHandle = `t${number}` & { readonly [tabHandleBrand]: "TabHandle" };
+
 export interface PacingConfig {
 	navigate: { min: number; max: number };
 	scroll: { min: number; max: number };
@@ -20,17 +26,17 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
 };
 
 export interface SessionInfo {
-	name: string;
-	tabId: number | null;
+	id: SessionId;
+	label?: string;
+	tab: TabHandle | null;
 	pacing: PacingMode;
 	paused: boolean;
 	pauseReason?: string;
 }
 
 export interface TabInfo {
-	id: number;
+	tab: TabHandle;
 	url: string;
 	title: string;
-	session: string | null;
-	injected: boolean;
+	bound: boolean;
 }

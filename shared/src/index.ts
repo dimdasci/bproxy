@@ -10,6 +10,7 @@ export type {
 	FillMethod,
 	Heading,
 	Landmark,
+	LinkInfo,
 	TraceEntry,
 } from "./actions";
 export type {
@@ -27,6 +28,13 @@ export type {
 	PageState,
 } from "./protocol";
 
-export type { PacingConfig, PacingMode, SessionInfo, TabInfo } from "./sessions";
+export type {
+	PacingConfig,
+	PacingMode,
+	SessionId,
+	SessionInfo,
+	TabHandle,
+	TabInfo,
+} from "./sessions";
 
 export { PACING_PRESETS } from "./sessions";

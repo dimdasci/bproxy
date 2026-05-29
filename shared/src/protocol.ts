@@ -1,12 +1,13 @@
 import type { Action, ActionParams, ActionResult } from "./actions";
 import type { BproxyError } from "./errors";
+import type { SessionId } from "./sessions";
 
 export interface BproxyRequest<A extends Action = Action> {
 	protocol_version: 1;
 	id: string;
 	action: A;
 	params: ActionParams[A];
-	session: string;
+	session: SessionId;
 	deadline: number; // unix ms
 	destructive: boolean;
 }
@@ -19,12 +20,13 @@ export interface BproxyRequest<A extends Action = Action> {
  * sending it over the WebSocket. Extensions parse this shape, not bare
  * `BproxyRequest`.
  *
- * Only browser/tab/`debug.log` actions are forwarded. `session.*`,
- * `debug.last`, and `debug.status` are handled daemon-locally and never
- * carry a `target`.
+ * `target.tabId` may be `null` for background-handled actions that do not
+ * require an existing tab (`tab.open`, `tab.list`, `tab.close`). `session.*`,
+ * `debug.last`, and `debug.status` remain daemon-local and never carry a
+ * `target`.
  */
 export type BproxyForwardedRequest<A extends Action = Action> = BproxyRequest<A> & {
-	target: { tabId: number };
+	target: { tabId: number | null };
 };
 
 export interface BproxySuccessResponse<A extends Action = Action> {
