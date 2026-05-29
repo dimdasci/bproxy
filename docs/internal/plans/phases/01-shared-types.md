@@ -611,5 +611,5 @@ pnpm test
 - **Implementation code in `service/`, `extension/`, `cli/`.** These are stubs — `package.json` + `tsconfig.json` + empty `src/`. Phase 2+ fills them.
 - **Pre-commit hooks.** Deferred to Phase 5 per `docs/quality-gates.md`.
 - **Drift detection between `architecture.md` actions table and `Action` type union.** Accept drift risk; revisit at Phase 4 when all three consumers exist and the action list has been stress-tested.
-- **Additional curated views** (Context, Deployment, Session State, Scenarios, Threat Model). These land in evolutionary PRs independent of production phases.
+- **Additional curated views** (Context, Deployment, Session State, Threat Model). These land in evolutionary PRs independent of production phases. Slot 05 scenario views are intentionally absent.
 - **Auto-generated component graphs for service/extension/cli.** No source code yet. `views:regen` will pick them up automatically when Phase 2+ adds code.

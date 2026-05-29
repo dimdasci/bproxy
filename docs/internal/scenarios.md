@@ -15,8 +15,8 @@ User opens Google, signed in with their real account. They ask the agent to comp
 ### Agent flow
 
 1. **Plan (no browser activity).** LLM produces a list of search queries and parameters (time filter, language, location, pagination cap).
-2. **Execute each search via URL.** `bproxy --session research navigate "https://www.google.com/search?q=...&tbs=qdr:w&hl=en&start=0"`. Google search is fully URL-driven — every parameter the human sets in the UI maps to a query-string field (`q`, `tbs`, `hl`, `gl`, `start`, `num`, `lr`).
-3. **Read SERP.** `bproxy --session research text "main"` returns rendered SERP text. The LLM extracts `[{title, url, snippet, source}]` directly from the text — no need to teach bproxy Google's selector schema.
+2. **Execute each search via URL.** `bproxy navigate --url "https://www.google.com/search?q=...&tbs=qdr:w&hl=en&start=0" --session research`. Google search is fully URL-driven — every parameter the human sets in the UI maps to a query-string field (`q`, `tbs`, `hl`, `gl`, `start`, `num`, `lr`).
+3. **Read SERP.** `bproxy text --selector main --session research` returns rendered SERP text. The LLM extracts `[{title, url, snippet, source}]` directly from the text — no need to teach bproxy Google's selector schema.
 4. **Paginate via URL.** `&start=10`, `&start=20`. Never click "Next."
 5. **Compile shortlist.** Pure LLM work: dedupe URLs across queries, rank by relevance and recency.
 6. **Optional deep read.** For each candidate URL, `navigate` + `text` again. Still URL-driven.
@@ -37,16 +37,16 @@ The remaining detection vector is **timing and frequency**, not content. Pacing 
 
 ### Capabilities the flow uses
 
-- `bproxy navigate <url>` — full navigation, not pushState.
-- `bproxy text <selector>` — ISOLATED-world DOM read.
-- `bproxy require-human <reason>` — for the rare CAPTCHA / sign-out interstitial.
+- `bproxy navigate --url <url> --session research` — full navigation, not pushState.
+- `bproxy text --selector <selector> --session research` — ISOLATED-world DOM read.
+- `bproxy require-human --reason <reason> --session research` — for the rare CAPTCHA / sign-out interstitial.
 
 ### Capabilities the flow does *not* use
 
 - No `bproxy click` or `bproxy type` — never dispatches a synthetic event.
 - No MAIN-world shim — never wraps `fetch` / `history`.
 - No MutationObserver — server-rendered SERPs are complete on `load`.
-- No `--trusted` mode — no synthetic events to make trusted.
+- No Phase 4 trusted-input mode — no synthetic events to make trusted.
 
 ### Why this works
 
@@ -56,7 +56,7 @@ Google search is URL-driven for everything. Reads happen against a server-render
 
 ## Scenario 2 — LinkedIn daily feed snapshot
 
-User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They ask the agent to capture today's feed: who posted what, with truncated bodies and permalinks, ready for the user to digest.
+User opens LinkedIn home (signed in), bound to the `li-snapshot` session (for example, `bproxy session bind --tab-id 123 --pacing human --session li-snapshot`). They ask the agent to capture today's feed: who posted what, with truncated bodies and permalinks, ready for the user to digest.
 
 ### Why LinkedIn is harder than Google
 
@@ -70,7 +70,7 @@ User opens LinkedIn home (signed in), pinned to `--session li-snapshot`. They as
 1. read visible feed  (top ~6-8 posts already in DOM)
 2. extract URNs + author + truncated body + reactions/comments counts
 3. scroll one viewport down with paced behaviour
-4. wait for new posts to appear (DOM polling with jittered intervals [ADR-006](../decisions.md#adr-006-dom-polling-over-mutationobserver))
+4. wait for new posts to appear (DOM polling with jittered intervals; see ADR-006)
    - Shadow-DOM aware: posts may appear inside open shadow roots
 5. read newly-loaded posts
 6. repeat 3-5 until N posts collected (cap: ~30, or ~5 scroll cycles)
@@ -92,13 +92,13 @@ Belongs in concept B's read-mode toolkit alongside `navigate` and `text`. Implem
 CLI surface kept narrow:
 
 ```
-bproxy --session li-snapshot scroll
-  [--by <px|viewport>]          how far (default: ~0.85 viewport, jittered)
-  [--direction up|down]          default: down
-  [--until-stable]               default behaviour: poll until DOM settles
+bproxy scroll --session li-snapshot \
+  --by viewport \
+  --direction down \
+  --until-stable
 ```
 
-The session's `--pacing` value (set at session start) governs the inter-scroll wait, the velocity profile, and the occasional reverse-scroll noise. The agent does not have to model human shape itself.
+The session's `--pacing` value (for example, set with `bproxy session bind --tab-id 123 --pacing human --session li-snapshot`) governs the inter-scroll wait, the velocity profile, and the occasional reverse-scroll noise. The agent does not have to model human shape itself.
 
 ### Bot-signal accounting
 
@@ -133,18 +133,18 @@ In rough order of preference, kept on the shelf for incremental escalation as re
 - Pros: zero scroll, zero clicks, zero rendering. Returns full post bodies, no truncation. Fastest possible execution.
 - Cons: LinkedIn's terms of service prohibit scraping; the legal posture for personal aggregation against your own logged-in account is a different question than scraping at scale, but it is not risk-free. Internal API is undocumented and changes without notice.
 
-This is genuinely the cleanest technical solution and a real legal grey zone. Surface to the user as `bproxy domain set linkedin.com --use-api` with explicit warning copy. Off by default.
+This is genuinely the cleanest technical solution and a real legal grey zone. Phase 4 does **not** ship a domain-policy command for this; any future `linkedin.com` API opt-in would need an explicit out-of-scope command and warning copy. Off by default.
 
 ### Recommended posture
 
-1. **Default:** read mode + paced `bproxy scroll` + DOM polling + truncated-body digest. URLs to permalinks captured but not visited unless the user asks. Pacing 4–8 s between scrolls, ~30 posts max per snapshot, hard stop on `HUMAN_REQUIRED`.
+1. **Default:** read mode + paced `bproxy scroll --by viewport --direction down --until-stable --session li-snapshot` + DOM polling + truncated-body digest. URLs to permalinks captured but not visited unless the user asks. Pacing 4–8 s between scrolls, ~30 posts max per snapshot, hard stop on `HUMAN_REQUIRED`.
 2. **Escalate only when needed:** the three hatches above, in order, based on what real usage reveals.
 
 ---
 
 ## Scenario 3 — Job application form fill
 
-User opens a job application page (LinkedIn or a custom company site), pinned to `--session apply-companyX`. They provide the candidate dossier (resume content, work history, answers to standard questions) in the conversation. The agent's job is to fill the form. **It must not submit** — the user reviews and submits.
+User opens a job application page (LinkedIn or a custom company site), bound to the `apply-companyX` session (for example, `bproxy session bind --tab-id 456 --pacing human --session apply-companyX`). They provide the candidate dossier (resume content, work history, answers to standard questions) in the conversation. The agent's job is to fill the form. **It must not submit** — the user reviews and submits.
 
 ### Why "don't submit" is load-bearing
 
@@ -159,11 +159,11 @@ This is the same pattern as the LinkedIn digest: agent prepares, user reviews an
 ### Agent flow
 
 ```
-1. read form structure        → bproxy elements --form
+1. read form structure        → bproxy elements --form --session apply-companyX
 2. LLM maps candidate fields  → {target: ElementTarget, value: string, method: FillMethod, world: ExecutionWorld}
-3. fill all fields            → bproxy fill-form <json>
-4. handle file inputs         → bproxy require-human --for-attach "#resume"
-5. read back filled state     → bproxy elements --form (verify framework accepted values)
+3. fill all fields            → bproxy fill-form --file fields.json --session apply-companyX
+4. handle file inputs         → bproxy require-human --reason "Attach resume" --for-attach "#resume" --session apply-companyX
+5. read back filled state     → bproxy elements --form --session apply-companyX (verify framework accepted values)
 6. report: "form filled, please review and submit"
 7. user reviews, fixes anything, clicks submit themselves
 ```
@@ -180,7 +180,7 @@ Real humans do not type their CV into application forms. The actual mix:
 
 Typing per-character is the *exception*, not the rule. Most application forms are filled in 30–90 seconds by a human, almost entirely via paste + click + autofill.
 
-`bproxy fill` therefore defaults to **paste-flavored input events**, not character-by-character typing:
+`bproxy fill` should therefore be called with an explicit **paste-flavored method** (`--method paste --world isolated` for ordinary fields), not character-by-character typing:
 
 ```js
 input.focus();
@@ -201,13 +201,13 @@ The key signal is `inputType: "insertFromPaste"`. Frameworks (React, Vue, Angula
 
 The session's `--pacing` value governs the **delay between fields** (0.5–2 s with jitter), not delay between characters. Real humans paste fast within a field but pause between fields to glance, scroll, or read the next label. Total fill time of 30–90 s for a 20-field form is realistic.
 
-Explicit `method: direct`, `method: paste`, or `method: runtime-api` required—see fill-method-selection skill
+Explicit `method: direct`, `method: paste`, or `method: runtime-api` and `world: isolated|main` are required in every `fill` / `fill-form` payload; Phase 4 has no CLI-side method selection or fallback chain.
 
 ### The framework-state trap
 
 Setting `input.value = "..."` directly **does not update React/Vue/Angular controlled-input state** — the framework still sees the old value, and the user's eventual submit will send empty fields. The fix is to use the native value setter on the prototype and dispatch an `input` event, exactly as shown above. This is well-known but tricky enough to warrant a first-class primitive instead of leaving it to the agent.
 
-After fill, **read back via `bproxy elements --form`** to confirm the framework's reflected value matches what was sent. If it does not, the field is using a custom component that intercepts events before the framework sees them — fall back to the per-component strategy (e.g., custom dropdown helper).
+After fill, **read back via `bproxy elements --form --session apply-companyX`** to confirm the framework's reflected value matches what was sent. If it does not, the field is using a custom component that intercepts events before the framework sees them — fall back to the per-component strategy (e.g., custom dropdown helper).
 
 ### Hidden-field guard
 
@@ -218,7 +218,7 @@ After fill, **read back via `bproxy elements --form`** to confirm the framework'
 Most modern application forms use React-Select, Select2, or custom comboboxes — `<div>` trees with click handlers, not `<select>`. Pattern is always the same: click the trigger, wait for the menu, click the option matching some text. Enough boilerplate to deserve a primitive:
 
 ```
-bproxy select <trigger-selector> <option-text>
+bproxy select --selector <trigger-selector> --option-text <option-text> --session apply-companyX
 ```
 
 Opens, waits for menu, clicks option. Falls back gracefully on standard `<select>` (sets value + change event). The agent never needs to model the platform's specific dropdown widget.
@@ -229,7 +229,7 @@ Opens, waits for menu, clicks option. Falls back gracefully on standard `<select
 
 1. `DataTransfer` drop simulation — synthesises a drop event with file data. Works on permissive sites, fails on strict ones.
 2. `chrome.debugger` + `Page.handleFileChooser` — works reliably. Yellow banner cost.
-3. Hand off to human via `bproxy require-human --for-attach "#resume"` — surfaces a desktop notification deep-linked to the field.
+3. Hand off to human via `bproxy require-human --reason "Attach resume" --for-attach "#resume" --session apply-companyX` — surfaces a desktop notification deep-linked to the field.
 
 For MVP, option 3 is right. The user already needs to review the form before submitting; attaching the file is a five-second step they were going to do anyway. Revisit options 1 and 2 if real usage shows the handoff is annoying.
 
@@ -237,11 +237,11 @@ For MVP, option 3 is right. The user already needs to review the form before sub
 
 | Primitive | Purpose |
 |---|---|
-| `bproxy elements --form` | Form-shaped read: each field with `{label, type, currentValue, options, required, pattern, name}`. |
-| `bproxy fill <selector> <value>` | Paste-flavored write with framework-event dispatch. --method FillMethod, --world ExecutionWorld. |
-| `bproxy fill-form <json>` | Bulk fill in one round-trip with internal pacing. |
-| `bproxy select <trigger> <option-text>` | Custom-dropdown helper. Opens, waits, clicks option. |
-| `bproxy require-human --for-attach <selector>` | File upload handoff with deep-link to field. |
+| `bproxy elements --form --session apply-companyX` | Form-shaped read: each field with `{label, type, currentValue, options, required, pattern, name}`. |
+| `bproxy fill --selector <css> --value <text> --method paste --world isolated --session apply-companyX` | Paste-flavored write with framework-event dispatch. Also supports `--value-file` or `--value-stdin`. |
+| `bproxy fill-form --file fields.json --session apply-companyX` | Bulk fill in one round-trip with internal pacing. Payload is `{ "fields": [...] }` and each field carries target, value, method, and world. |
+| `bproxy select --selector <trigger> --option-text <text> --session apply-companyX` | Custom-dropdown helper. Opens, waits, clicks option. |
+| `bproxy require-human --reason <reason> --for-attach <selector> --session apply-companyX` | File upload handoff with deep-link to field. |
 
 ### Bot-signal accounting
 
@@ -264,7 +264,7 @@ The user-submit line is doing most of the heavy lifting. Even if the agent's fil
 
 ### Capabilities the flow uses
 
-- `bproxy elements --form`, `bproxy fill-form`, `bproxy select`, `bproxy require-human`.
+- `bproxy elements --form --session apply-companyX`, `bproxy fill-form --file fields.json --session apply-companyX`, `bproxy select --selector <trigger> --option-text <text> --session apply-companyX`, `bproxy require-human --reason <reason> --for-attach <selector> --session apply-companyX`.
 - Read mode foundations (ISOLATED-world DOM access, no MAIN-world shim, no MutationObserver).
 
 ### Capabilities the flow does *not* use
@@ -272,13 +272,13 @@ The user-submit line is doing most of the heavy lifting. Even if the agent's fil
 - No MAIN-world shim — paste-flavored events fire from ISOLATED world fine.
 - No MutationObserver — the read-back verify after each fill is enough to confirm framework state.
 - No network shim — we do not care about the form's XHRs.
-- No `--trusted` mode — `isTrusted: false` on `input` events is accepted by all major frameworks and most form libraries.
+- No Phase 4 trusted-input/debugger mode for form writes — `isTrusted: false` on `input` events is accepted by all major frameworks and most form libraries.
 - No CAPTCHA solving — handed off to the user at submit.
 
 ### Recommended posture
 
-1. **MVP**: read mode + new `fill` / `fill-form` / `select` / `elements --form` primitives + paste-default + `require-human --for-attach` for file uploads. No `--trusted` mode by default.
-2. **Iterate**: if specific forms reject `isTrusted: false` clicks on custom dropdowns, surface `--trusted` as a per-form opt-in.
+1. **MVP**: read mode + `fill` / `fill-form` / `select` / `elements --form` primitives + explicit `--method paste --world isolated` where appropriate + `require-human --for-attach` for file uploads. No trusted-input mode in Phase 4.
+2. **Iterate**: if specific forms reject `isTrusted: false` clicks on custom dropdowns, consider a future trusted-input opt-in (not a Phase 4 CLI flag).
 3. **Defer**: file upload synthesis (DataTransfer or debugger) until real usage shows the handoff is too annoying.
 
 ---
@@ -288,8 +288,8 @@ The user-submit line is doing most of the heavy lifting. Even if the agent's fil
 - **Read mode covers most of the work** for both URL-driven and SPA-shaped sites, provided we add a scroll primitive.
 - **DOM polling beats MutationObserver** as the default "is the page settled" mechanism for read mode. Lower fingerprint, no listener install, simpler mental model.
 - **Pacing is a daemon-enforced primitive**, set per session, applied to navigations, scrolls, and per-field fill delay. The agent does not implement human shape; the extension does.
-- **Paste, not typing, is the realistic write primitive.** Real humans never type their CV into application forms — they paste, autofill, and click. `bproxy fill` defaults to paste-flavored input events with `inputType: "insertFromPaste"`; per-character typing is the explicit opt-in.
-- **Interact mode is a thin extension of read mode**, not a wholesale switch into heavy instrumentation. The additions are paste-shaped writes (`fill`, `fill-form`, `select`), a form-shaped read variant (`elements --form`), and a file-upload handoff (`require-human --for-attach`). No MAIN-world shim, no MutationObserver, no `--trusted` mode by default.
+- **Paste, not typing, is the realistic write primitive.** Real humans never type their CV into application forms — they paste, autofill, and click. The agent should choose explicit `--method paste` / `method: "paste"` values for paste-shaped writes; Phase 4 has no per-character typing primitive.
+- **Interact mode is a thin extension of read mode**, not a wholesale switch into heavy instrumentation. The additions are paste-shaped writes (`fill`, `fill-form`, `select`), a form-shaped read variant (`elements --form`), and a file-upload handoff (`require-human --for-attach`). No MAIN-world shim, no MutationObserver, no Phase 4 trusted-input mode.
 - **Interstitial detection + `HUMAN_REQUIRED`** is load-bearing for any sustained autonomous run. Without it, the agent will retry through CAPTCHAs and confirm itself as automation.
 - **"Don't submit" handoff is load-bearing for write-heavy autonomous flows.** The agent prepares; the user reviews and submits. The user-driven submit is `isTrusted: true`, which often offsets any lower bot score from the fill behaviour. Same posture as "agent prepares, user digests" in the read scenarios.
 - **Escape hatches stay on the shelf** until real usage signals which ones earn their cost. Start simple, iterate.

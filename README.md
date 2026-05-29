@@ -1,16 +1,18 @@
+> **Status:** Not released. Implementation is in progress; use from the repository only while integration hardening continues.
+
 <p align="center">
   <img src="assets/brand/cable.svg" width="48" height="48" alt="bproxy logo">
 </p>
 
 # bproxy
 
-Browser proxy for code agents. A localhost daemon bridges a CLI to a Chrome extension running in your real browser, so coding agents can navigate, read, and fill pages from the same session you're already signed into.
+bproxy is a proxy between a code agent and your real browser. A Chrome extension executes constrained commands inside your signed-in session, a localhost daemon paces and scopes those commands, and a CLI gives the agent a clean one-shot interface.
 
-Playwright-style automation gets blocked by Cloudflare, Datadome, and friends because it runs in a detectable automated browser. bproxy keeps the agent out of the page entirely: real Chrome, real cookies, real fingerprint. The default mode (**read mode**) has no MAIN-world presence — no wrapped globals, no MutationObserver, no history patches. URL-driven navigation, ISOLATED-world DOM reads, paste-flavored writes. Interstitials (CAPTCHAs, sign-in walls) hand control back to you via a structured `HUMAN_REQUIRED` signal.
+It is built for human-in-the-loop research and form-work workflows: you provide direction, the agent handles mechanical collection and copy-paste relief. Login, CAPTCHA, consent screens, and final submits stay yours. No browser automation protocol touches the page.
 
-## Status
+## Implementation status
 
-Design phase — no code yet. The repository currently contains the architecture, decisions, and solution specs that will drive implementation.
+Shared types, the localhost daemon, the Chrome extension, and the CLI have initial working implementations. The next phase is integration hardening against the documented scenarios.
 
 ```
 Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page

@@ -6,7 +6,7 @@ title: Phase 4 — CLI
 
 **Goal:** Ship `@bproxy/cli` — a `bproxy` binary built with citty that agents can call one command at a time. The CLI manages the daemon lifecycle, sends protocol actions to `POST /`, preserves clean machine-readable output, and exposes enough debug/status commands for an agent to diagnose its own failures.
 
-**Strategy:** Close the lifecycle contract seams first, then build the CLI from the boundary inward: state/token resolution, daemon HTTP client, command argument surfaces, lifecycle commands, integration tests, and docs/views. The CLI must not become a strategy layer. It translates explicit user/agent intent into shared `ActionParams`; method choice, target choice, and escalation remain agent-owned.
+**Strategy:** Close the lifecycle contract seams first, then build the CLI from the boundary inward: state/token resolution, daemon HTTP client, command argument surfaces, lifecycle commands, integration tests, and public documentation updates. The CLI must not become a strategy layer. It translates explicit user/agent intent into shared `ActionParams`; method choice, target choice, and escalation remain agent-owned.
 
 **Spec:** `docs/public/solution/cli.md`.
 **Roadmap entry:** [Phase 4 in roadmap.md](../roadmap.md#phase-4--cli).
@@ -22,7 +22,7 @@ title: Phase 4 — CLI
 - [ADR-011](../../decisions.md#adr-011-extension-token-bootstrap-via-popup-driven-pairing) — `service start` surfaces the pairing code for the popup flow.
 - [ADR-012](../../decisions.md#adr-012-static-analysis-stack) — `pnpm check` remains the phase gate.
 - [ADR-017](../../decisions.md#adr-017-sensoractuator-boundary) and [ADR-018](../../decisions.md#adr-018-agent-guidance-ownership) — CLI forwards explicit choices; it does not classify targets or select write methods.
-- [ADR-019](../../decisions.md#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers), [ADR-020](../../decisions.md#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia) — Phase 4 completes the remaining scenario views and regenerates the CLI component graph.
+- [ADR-019](../../decisions.md#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers), [ADR-020](../../decisions.md#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia) — Phase 4 regenerates the CLI component graph. Slot 05 scenario views were dropped during the publication split and must not be recreated.
 
 ---
 
@@ -37,7 +37,7 @@ title: Phase 4 — CLI
 7. **Token preflight fails closed.** Before any POST command, the CLI verifies `~/.bproxy/token` (or `$BPROXY_HOME/token`) exists, is owned by the current user when UID is available, and has mode exactly `0600`. It refuses to send auth when this check fails.
 8. **`--verbose` is structured stderr.** It records request id, action, session, URL, elapsed time, HTTP status, and protocol error code when present, without leaking bearer token values.
 9. **Write commands preserve explicitness.** `fill` and `fill-form` require method/world fields. `eval` requires an explicit CLI opt-in flag in addition to any daemon/extension policy; the CLI must not silently run arbitrary code because a string argument was present.
-10. **Docs and views reflect the shipped CLI.** `cli/README.md` and affected solution docs are updated; `docs/views/05-scenarios/*.md` exists and builds; `pnpm views:regen` updates `docs/views/auto/cli-components.svg`; the Container view links to the CLI graph.
+10. **Docs and views reflect the shipped CLI.** `cli/README.md` and affected solution docs are updated; `pnpm views:regen` updates `docs/public/views/auto/cli-components.svg`; the Container view links to the CLI graph. The curated public view set remains five pages; slot 05 scenario views are intentionally absent.
 11. **Static gates pass from a clean checkout:** `pnpm check`, `pnpm test`, and `pnpm docs:build`.
 
 ---
@@ -150,14 +150,14 @@ cli/
 service/src/lifecycle.ts          # MODIFIED — pairing.json + start/stop output seam
 service/src/config.ts             # MODIFIED — stateFile support for pairing.json
 service/src/index.ts              # MODIFIED — lifecycle JSON output/args normalized
-docs/solution/cli.md              # MODIFIED — actual command surfaces and lifecycle contract
-docs/solution/service.md          # MODIFIED if lifecycle/eval-debug contract changes
-docs/views/02-containers.md       # MODIFIED — click CLI link
-docs/views/05-scenarios/*.md      # NEW — scenario sequence views
-docs/views/auto/cli-components.svg
+docs/public/solution/cli.md       # MODIFIED — actual command surfaces and lifecycle contract
+docs/public/solution/service.md   # MODIFIED if lifecycle/eval-debug contract changes
+docs/public/views/02-containers.md
+                                      # MODIFIED — click CLI link
+docs/public/views/auto/cli-components.svg
 ```
 
-If the implementation discovers a better layout, update `docs/solution/cli.md` in the same task. File names should continue to mirror architecture concepts: client, paths, token, service lifecycle, commands.
+If the implementation discovers a better layout, update `docs/public/solution/cli.md` in the same task. File names should continue to mirror architecture concepts: client, paths, token, service lifecycle, commands.
 
 ---
 
@@ -165,7 +165,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Status:** Done.
 
-**Files:** `service/src/lifecycle.ts`, `service/src/index.ts`, service lifecycle tests, `docs/solution/service.md`, `docs/solution/cli.md`.
+**Files:** `service/src/lifecycle.ts`, `service/src/index.ts`, service lifecycle tests, `docs/public/solution/service.md`, `docs/public/solution/cli.md`.
 
 **Purpose:** Make daemon lifecycle scriptable by the future CLI without violating the package dependency boundary.
 
@@ -315,7 +315,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 - [ ] Preserve paused-session semantics: if daemon returns `HUMAN_REQUIRED`, print it as protocol JSON and exit `1`; do not convert it to exit `2`. Document that current daemon semantics refuse forwarded `debug.log` while paused.
 - [ ] Add tests that local daemon actions (`session.*`, `debug.last`, `debug.status`) do not require a connected extension, while forwarded debug/tab actions surface daemon protocol errors normally.
 
-**Done when:** all non-lifecycle action families in `docs/architecture.md#actions` are reachable from the CLI.
+**Done when:** all non-lifecycle action families in `docs/internal/architecture.md#actions` are reachable from the CLI.
 
 ---
 
@@ -362,19 +362,18 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 
 **Status:** Done.
 
-**Files:** `docs/views/02-containers.md`, `docs/views/05-scenarios/*.md`, `docs/views/auto/cli-components.svg`, `docs/solution/cli.md`, `docs/solution/service.md`, `cli/README.md`.
+**Files:** `docs/public/views/02-containers.md`, `docs/public/views/auto/cli-components.svg`, `docs/public/solution/cli.md`, `docs/public/solution/service.md`, `cli/README.md`.
 
 **Purpose:** Make the visual and prose docs describe the CLI that actually shipped.
 
-- [ ] Update `docs/solution/cli.md` with actual command names, argument shapes, lifecycle behavior, exit-code rules, and any deliberate deviations from the original spec.
-- [ ] Update `docs/solution/service.md` if Task 1 changed pairing metadata, lifecycle output, or eval/debugger configuration.
-- [ ] Author `docs/views/05-scenarios/google-research.md`, `linkedin-snapshot.md`, and `form-fill.md` as Mermaid sequence views. They should be faithful to `docs/scenarios.md` and to the real command surfaces implemented in this phase.
-- [ ] Add accurate frontmatter `sources` to each scenario view so `pnpm views:audit` reports them when CLI/service/extension/scenario docs change.
-- [ ] Run `pnpm views:regen` and commit the updated `docs/views/auto/cli-components.svg`.
-- [ ] Update `docs/views/02-containers.md` with a `click CLI "../auto/cli-components.svg"` directive and a “See also” link to the CLI component graph.
-- [ ] Run `pnpm views:audit` and `pnpm docs:build`.
+- [x] Update `docs/public/solution/cli.md` with actual command names, argument shapes, lifecycle behavior, exit-code rules, and any deliberate deviations from the original spec.
+- [x] Update `docs/public/solution/service.md` if Task 1 changed pairing metadata, lifecycle output, or eval/debugger configuration.
+- [x] Keep slot 05 scenario views absent; they were intentionally dropped during the publication split.
+- [x] Run `pnpm views:regen` and commit the updated `docs/public/views/auto/cli-components.svg`.
+- [x] Update `docs/public/views/02-containers.md` with a `click CLI "../auto/cli-components.svg"` directive and a “See also” link to the CLI component graph.
+- [x] Run `pnpm views:audit` and `pnpm docs:build`.
 
-**Done when:** the architecture site contains the full curated scenario-view set and the Container diagram drills into the generated CLI component graph.
+**Done when:** the architecture site contains the five curated public views and the Container diagram drills into the generated CLI component graph.
 
 ---
 
@@ -391,7 +390,7 @@ If the implementation discovers a better layout, update `docs/solution/cli.md` i
 - [x] `eval` requires an explicit local CLI opt-in and respects daemon/extension policy errors.
 - [x] CLI tests cover request shape, command parsing, lifecycle, output cleanliness, and action coverage.
 - [x] `cli/README.md` and affected solution docs are updated.
-- [x] Scenario views exist and build; CLI component SVG is regenerated and linked from Container view.
+- [x] Five curated public views build; slot 05 scenario views are absent by design; CLI component SVG is regenerated and linked from Container view.
 - [x] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---
