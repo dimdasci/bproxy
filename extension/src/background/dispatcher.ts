@@ -138,7 +138,7 @@ async function appendTrace(
 		await deps.trace.append({
 			id: request.id,
 			action: request.action,
-			tab: request.target.tabId,
+			tab: request.target.tabId ?? 0,
 			timestamp: startedAt,
 			elapsed: Math.max(0, endedAt - startedAt),
 			result: response.ok ? "ok" : "error",
@@ -169,7 +169,7 @@ function malformedRequest(id: string): BproxyForwardedRequest<"debug.log"> {
 		id,
 		action: "debug.log",
 		params: {},
-		session: "",
+		session: "" as BproxyForwardedRequest<"debug.log">["session"],
 		deadline: 0,
 		destructive: false,
 		target: { tabId: 0 },

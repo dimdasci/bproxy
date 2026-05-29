@@ -140,7 +140,7 @@ const ENVELOPE_BASE = z.object({
 	id: z.string().min(1),
 	action: z.string(),
 	params: z.unknown(),
-	session: z.string().min(1),
+	session: z.string(),
 	deadline: z.number().int(),
 	destructive: z.boolean(),
 });

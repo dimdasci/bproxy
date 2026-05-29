@@ -1,4 +1,4 @@
-import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyError, BproxyRequest, BproxyResponse, PageState } from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 import { type DebugDeps, handleDaemonLocal, isDaemonLocal } from "../debug-actions";
@@ -15,17 +15,17 @@ export interface CommandRouteDeps {
 	sessions: SessionRegistry;
 }
 
-function pageOk() {
-	return { url: "", title: "", state: "ready" as const, busy: false };
+function pageOk(): PageState {
+	return { url: "", title: "", state: "ready", busy: false };
 }
 
-function success(cmd: BproxyRequest, data: unknown): BproxyResponse {
+function success(cmd: BproxyRequest, data: unknown, page: PageState = pageOk()): BproxyResponse {
 	return {
 		protocol_version: 1,
 		id: cmd.id,
 		ok: true,
 		data,
-		page: pageOk(),
+		page,
 		replay: false,
 	} as BproxyResponse;
 }
@@ -50,6 +50,16 @@ function isSessionLocal(action: BproxyRequest["action"]): boolean {
 	);
 }
 
+function isTabMediated(action: BproxyRequest["action"]): boolean {
+	return (
+		action === "tab.open" ||
+		action === "tab.list" ||
+		action === "tab.pin" ||
+		action === "tab.unpin" ||
+		action === "tab.close"
+	);
+}
+
 function isSessionExempt(action: BproxyRequest["action"]): boolean {
 	return (
 		action === "session.create" ||
@@ -62,6 +72,7 @@ function isSessionExempt(action: BproxyRequest["action"]): boolean {
 function validateSession(cmd: BproxyRequest, sessions: SessionRegistry): BproxyResponse | null {
 	if (isSessionExempt(cmd.action)) return null;
 	if (!cmd.session) {
+		if (cmd.action === "tab.open") return null;
 		return failure(cmd, {
 			code: "SESSION_REQUIRED",
 			category: "policy",
@@ -177,19 +188,119 @@ async function handleSessionLocal(
 	return await handleSessionClose(cmd as BproxyRequest<"session.close">, deps);
 }
 
-async function executeCommand(cmd: BproxyRequest, deps: CommandRouteDeps): Promise<BproxyResponse> {
-	if (isDaemonLocal(cmd.action)) return handleDaemonLocal(cmd, deps.debug);
-	if (isSessionLocal(cmd.action)) return await handleSessionLocal(cmd, deps);
-	// Forwarded path. Distinguish an extension-authored HUMAN_REQUIRED (must
-	// pause) from a daemon-synthesized one (session already paused — must not
-	// overwrite the original reason). Read live state immediately before
-	// mutating: a pre-dispatch snapshot is racy under concurrent requests.
-	const response = await deps.dispatch.send(cmd);
+function resolveSessionTab(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	requestedTab: string | undefined,
+): NonNullable<ReturnType<SessionRegistry["resolveBound"]>> | BproxyResponse {
+	if (requestedTab) {
+		const resolved = deps.sessions.resolveTab(cmd.session, requestedTab);
+		if (resolved) return resolved;
+		const code = deps.sessions.hasTabAnywhere(requestedTab)
+			? "TAB_NOT_IN_SESSION"
+			: "TAB_HANDLE_NOT_FOUND";
+		return failure(cmd, {
+			code,
+			category: "target",
+			retry: "conditional",
+			message:
+				code === "TAB_NOT_IN_SESSION"
+					? `Tab '${requestedTab}' does not belong to session '${cmd.session}'`
+					: `Tab '${requestedTab}' was not found in session '${cmd.session}'`,
+			details: { session: cmd.session, tab: requestedTab },
+		});
+	}
+
+	const bound = deps.sessions.resolveBound(cmd.session);
+	if (bound) return bound;
+	return failure(cmd, {
+		code: "TAB_NOT_FOUND",
+		category: "target",
+		retry: "never",
+		message: `Session '${cmd.session}' has no bound tab`,
+	});
+}
+
+async function dispatchAndPause(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	options?: Parameters<DispatchEngine["send"]>[1],
+): Promise<BproxyResponse> {
+	const response = await deps.dispatch.send(cmd, options);
 	if (!response.ok && response.error.code === "HUMAN_REQUIRED") {
 		const live = deps.sessions.get(cmd.session);
 		if (live && !live.paused) deps.sessions.pause(cmd.session, response.error.message);
 	}
 	return response;
+}
+
+async function handleTabMediated(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+): Promise<BproxyResponse> {
+	if (cmd.action === "tab.list") {
+		return success(cmd, {
+			session: cmd.session,
+			tabs: deps.sessions.listTabs(cmd.session),
+		});
+	}
+
+	if (cmd.action === "tab.open") {
+		const createdSession = !cmd.session;
+		const session = cmd.session || deps.sessions.create().id;
+		const request = { ...cmd, session } as BproxyRequest<"tab.open">;
+		const cleanupCreatedSession = () => {
+			if (createdSession && deps.sessions.has(session)) deps.sessions.close(session);
+		};
+		const opened = await dispatchAndPause(request, deps, { targetTabId: null });
+		if (!opened.ok) {
+			cleanupCreatedSession();
+			return opened;
+		}
+		const data = opened.data as { tabId?: unknown; url?: unknown };
+		if (typeof data.tabId !== "number") {
+			cleanupCreatedSession();
+			return failure(request, {
+				code: "SCRIPT_ERROR",
+				category: "execution",
+				retry: "conditional",
+				message: "Extension returned tab.open without a numeric tab id",
+			});
+		}
+		const tab = deps.sessions.registerTab(session, data.tabId, {
+			url: typeof data.url === "string" ? data.url : (cmd.params as { url: string }).url,
+			title: opened.page.title,
+			bind: true,
+		});
+		return success(request, { session, tab: tab.tab, bound: true, url: tab.url }, opened.page);
+	}
+
+	const resolved = resolveSessionTab(cmd, deps, (cmd.params as { tab?: string }).tab);
+	if ("ok" in resolved) return resolved;
+
+	if (cmd.action === "tab.pin") {
+		const pinned = await dispatchAndPause(cmd, deps, { targetTabId: resolved.chromeTabId });
+		if (!pinned.ok) return pinned;
+		return success(cmd, { tab: resolved.tab, pinned: true }, pinned.page);
+	}
+
+	if (cmd.action === "tab.unpin") {
+		const unpinned = await dispatchAndPause(cmd, deps, { targetTabId: resolved.chromeTabId });
+		if (!unpinned.ok) return unpinned;
+		return success(cmd, { tab: resolved.tab, pinned: false }, unpinned.page);
+	}
+
+	const closed = await dispatchAndPause(cmd, deps, { targetTabId: resolved.chromeTabId });
+	if (!closed.ok) return closed;
+	deps.sessions.removeTab(cmd.session, resolved.tab);
+	return success(cmd, { tab: resolved.tab, closed: true }, closed.page);
+}
+
+async function executeCommand(cmd: BproxyRequest, deps: CommandRouteDeps): Promise<BproxyResponse> {
+	if (isDaemonLocal(cmd.action)) return handleDaemonLocal(cmd, deps.debug);
+	if (isSessionLocal(cmd.action)) return await handleSessionLocal(cmd, deps);
+	if (isTabMediated(cmd.action)) return await handleTabMediated(cmd, deps);
+	return await dispatchAndPause(cmd, deps);
 }
 
 export function commandRoute(deps: CommandRouteDeps) {

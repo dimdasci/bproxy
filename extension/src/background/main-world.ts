@@ -44,7 +44,7 @@ export function createMainWorldExecutor(deps: MainWorldExecutorDeps): MainWorldE
 	return {
 		async executeRuntimeApiFill(request) {
 			const result = await executeSingleResult(deps.scripting, {
-				target: { tabId: request.target.tabId },
+				target: { tabId: requireTargetTabId(request) },
 				world: "MAIN",
 				func: injectedRuntimeApiFill,
 				args: [request.params.target, request.params.value, RUNTIME_API_PLANS] as const,
@@ -60,7 +60,7 @@ export function createMainWorldExecutor(deps: MainWorldExecutorDeps): MainWorldE
 		},
 		async executeEval(request) {
 			const result = await executeSingleResult(deps.scripting, {
-				target: { tabId: request.target.tabId },
+				target: { tabId: requireTargetTabId(request) },
 				world: "MAIN",
 				func: injectedEval,
 				args: [request.params.code] as const,
@@ -72,6 +72,11 @@ export function createMainWorldExecutor(deps: MainWorldExecutorDeps): MainWorldE
 			};
 		},
 	};
+}
+
+function requireTargetTabId(request: BproxyForwardedRequest<"fill" | "eval">): number {
+	if (typeof request.target.tabId === "number") return request.target.tabId;
+	throw scriptError(`${request.action} requires a target tab id`);
 }
 
 async function executeSingleResult<Args extends readonly unknown[], Result>(

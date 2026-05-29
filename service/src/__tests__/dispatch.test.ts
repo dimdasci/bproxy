@@ -74,6 +74,36 @@ describe("dispatch", () => {
 		expect(response).toMatchObject({ ok: false, error: { code: "TAB_NOT_FOUND" } });
 	});
 
+	it("forwards tab.open with target.tabId null so a fresh session does not need a bound tab", async () => {
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const onForwarded = vi.fn();
+		const dispatch = createDispatch({ clients, pending, sessions, onForwarded });
+
+		const promise = dispatch.send({
+			...req("open"),
+			action: "tab.open",
+			params: { url: "https://google.com" },
+			destructive: true,
+		});
+		expect(sendMock).toHaveBeenCalledOnce();
+		const forwarded = sendMock.mock.calls[0]![0] as BproxyForwardedRequest;
+		expect(onForwarded).toHaveBeenCalledWith({ id: forwarded.id, wsClient: "c1", tab: null });
+		expect(forwarded.target).toEqual({ tabId: null });
+		pending.resolveById(forwarded.id, {
+			protocol_version: 1,
+			id: forwarded.id,
+			ok: true,
+			data: { tabId: 42, url: "https://google.com" },
+			page: { url: "https://google.com", title: "Google", state: "ready", busy: false },
+			replay: false,
+		});
+		await expect(promise).resolves.toMatchObject({ ok: true });
+	});
+
 	it("forwards to the client and resolves on response", async () => {
 		const sessions = createSeededRegistry(DEFAULT_SESSION);
 		sessions.bind(DEFAULT_SESSION, 42);

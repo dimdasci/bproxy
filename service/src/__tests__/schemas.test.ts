@@ -38,6 +38,20 @@ describe("request schemas", () => {
 		expect(parse("session.create", { label: "research" }).success).toBe(true);
 	});
 
+	it("accepts tab.open with an empty session placeholder for fresh bootstrap", () => {
+		expect(
+			parseRequest({
+				protocol_version: 1,
+				id: "schema-tab-open-empty-session",
+				action: "tab.open",
+				params: { url: "https://example.com" },
+				session: "",
+				deadline: Date.now() + 1000,
+				destructive: true,
+			}).success,
+		).toBe(true);
+	});
+
 	it("accepts session.bind with a logical tab handle", () => {
 		expect(parse("session.bind", { tab: "t1", pacing: "fast" }).success).toBe(true);
 	});

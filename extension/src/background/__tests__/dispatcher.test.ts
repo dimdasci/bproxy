@@ -93,6 +93,22 @@ describe("parseForwardedRequest", () => {
 		);
 		expect(parsed).toMatchObject({ success: false, id: "req-1" });
 	});
+
+	it("rejects tab.list so the extension cannot enumerate browser tabs", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify({
+				protocol_version: 1,
+				id: "req-1",
+				action: "tab.list",
+				params: {},
+				session: "default",
+				deadline: 10_000,
+				destructive: false,
+				target: { tabId: null },
+			}),
+		);
+		expect(parsed).toMatchObject({ success: false, id: "req-1" });
+	});
 });
 
 describe("dispatcher", () => {

@@ -1,4 +1,5 @@
 import type {
+	Action,
 	BproxyError,
 	BproxyForwardedRequest,
 	BproxyRequest,
@@ -12,12 +13,18 @@ export interface DispatchDeps {
 	clients: ClientsRegistry;
 	pending: PendingMap;
 	sessions: SessionRegistry;
-	onForwarded?: (info: { id: string; wsClient: string; tab: number }) => void;
+	onForwarded?: (info: { id: string; wsClient: string; tab: number | null }) => void;
+}
+
+export interface DispatchSendOptions {
+	targetTabId?: number | null;
 }
 
 export interface DispatchEngine {
-	send(cmd: BproxyRequest): Promise<BproxyResponse>;
+	send(cmd: BproxyRequest, options?: DispatchSendOptions): Promise<BproxyResponse>;
 }
+
+const BACKGROUND_HANDLED_ACTIONS = new Set<Action>(["tab.open"]);
 
 function errorResponse(id: string, error: BproxyError): BproxyResponse {
 	return { protocol_version: 1, id, ok: false, error };
@@ -80,7 +87,7 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 	const withTabLock = createTabLock();
 
 	return {
-		async send(cmd) {
+		async send(cmd, options = {}) {
 			const client = deps.clients.any();
 			if (!client) {
 				return errorResponse(cmd.id, {
@@ -118,24 +125,48 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			const bound = deps.sessions.resolveBound(cmd.session);
-			if (!bound) {
-				return errorResponse(cmd.id, {
-					code: "TAB_NOT_FOUND",
-					category: "target",
-					retry: "never",
-					message: `Session '${cmd.session}' has no bound tab`,
-				});
+			const tabId = resolveTargetTabId(cmd, deps.sessions, options.targetTabId);
+			if (tabId.kind === "error") {
+				return errorResponse(cmd.id, tabId.error);
 			}
 
-			const tabId = bound.chromeTabId;
-			const forwarded: BproxyForwardedRequest = { ...cmd, target: { tabId } };
-			return withTabLock(tabId, () =>
+			const forwarded: BproxyForwardedRequest = { ...cmd, target: { tabId: tabId.value } };
+			const registerPending = () =>
 				deps.pending.register(forwarded, (wireCmd) => {
-					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: tabId });
+					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: tabId.value });
 					client.send(wireCmd);
-				}),
-			);
+				});
+			if (tabId.value === null) {
+				return await registerPending();
+			}
+			return await withTabLock(tabId.value, registerPending);
 		},
 	};
+}
+
+function resolveTargetTabId(
+	cmd: BproxyRequest,
+	sessions: SessionRegistry,
+	overrideTabId: number | null | undefined,
+): { kind: "ok"; value: number | null } | { kind: "error"; error: BproxyError } {
+	if (overrideTabId !== undefined) {
+		return { kind: "ok", value: overrideTabId };
+	}
+	if (BACKGROUND_HANDLED_ACTIONS.has(cmd.action)) {
+		return { kind: "ok", value: null };
+	}
+
+	const bound = sessions.resolveBound(cmd.session);
+	if (!bound) {
+		return {
+			kind: "error",
+			error: {
+				code: "TAB_NOT_FOUND",
+				category: "target",
+				retry: "never",
+				message: `Session '${cmd.session}' has no bound tab`,
+			},
+		};
+	}
+	return { kind: "ok", value: bound.chromeTabId };
 }

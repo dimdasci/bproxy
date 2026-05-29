@@ -2,6 +2,7 @@ import type { Action } from "@bproxy/shared";
 
 export type ForwardedAction = Exclude<
 	Action,
+	| "tab.list"
 	| "session.list"
 	| "session.bind"
 	| "session.unbind"
@@ -16,7 +17,6 @@ export type BrowserAction = Extract<
 	| "screenshot"
 	| "require-human"
 	| "eval"
-	| "tab.list"
 	| "tab.pin"
 	| "tab.unpin"
 	| "tab.open"
@@ -40,7 +40,6 @@ const FORWARDED_ACTIONS = [
 	"wait",
 	"require-human",
 	"eval",
-	"tab.list",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
@@ -53,7 +52,6 @@ const BROWSER_ACTIONS = [
 	"screenshot",
 	"require-human",
 	"eval",
-	"tab.list",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",

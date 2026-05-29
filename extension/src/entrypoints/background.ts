@@ -81,7 +81,6 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 		tabRuntime: tabs,
 		tabs: {
 			update: (tabId, updateProperties) => chrome.tabs.update(tabId, updateProperties),
-			query: (queryInfo = {}) => chrome.tabs.query(queryInfo),
 			create: (createProperties) => chrome.tabs.create(createProperties),
 			remove: (tabId) => chrome.tabs.remove(tabId),
 			captureVisibleTab: (windowId, options) => {

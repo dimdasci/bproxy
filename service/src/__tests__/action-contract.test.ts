@@ -181,11 +181,6 @@ describe("action contract coverage — GAP A", () => {
 			"wait",
 			"require-human",
 			"eval",
-			"tab.list",
-			"tab.pin",
-			"tab.unpin",
-			"tab.open",
-			"tab.close",
 			"debug.log",
 		];
 
@@ -208,6 +203,40 @@ describe("action contract coverage — GAP A", () => {
 				expect(body.ok).toBe(false);
 				if (!body.ok) expect(body.error.code).toBe("TAB_NOT_FOUND");
 				ws.close();
+			});
+		}
+
+		it("tab.list succeeds without a WS client and stays session-scoped", async () => {
+			built.sessions.registerTab(currentSession, 42, { url: "https://owned.test/", bind: true });
+			const res = await postCommand(makeCmd("tab.list"));
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse<"tab.list">;
+			expect(body.ok).toBe(true);
+			if (body.ok) {
+				expect(body.data.session).toBe(currentSession);
+				expect(body.data.tabs).toMatchObject([
+					{ tab: "t1", url: "https://owned.test/", bound: true },
+				]);
+			}
+		});
+
+		it("tab.open returns NO_EXTENSION without a WS client but does not leak an auto-created session", async () => {
+			const before = built.sessions.list().length;
+			const res = await postCommand(makeCmd("tab.open", { session: "" as never }));
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body.ok).toBe(false);
+			if (!body.ok) expect(body.error.code).toBe("NO_EXTENSION");
+			expect(built.sessions.list()).toHaveLength(before);
+		});
+
+		for (const action of ["tab.pin", "tab.unpin", "tab.close"] as const) {
+			it(`${action}: returns TAB_NOT_FOUND without a selected tab even before WS forwarding`, async () => {
+				const res = await postCommand(makeCmd(action));
+				expect(res.status).toBe(200);
+				const body = (await res.json()) as BproxyResponse;
+				expect(body.ok).toBe(false);
+				if (!body.ok) expect(body.error.code).toBe("TAB_NOT_FOUND");
 			});
 		}
 	});

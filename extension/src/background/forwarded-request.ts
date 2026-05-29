@@ -17,7 +17,7 @@ type EnvelopeValidation =
 				session: string;
 				deadline: number;
 				destructive: boolean;
-				target: { tabId: number };
+				target: { tabId: number | null };
 			};
 	  }
 	| { success: false; error: string; id?: string };
@@ -76,7 +76,7 @@ function validateEnvelope(input: EnvelopeRecord): EnvelopeValidation {
 		return { success: false, id, error: "destructive must be a boolean" };
 	}
 	if (!isTarget(input["target"])) {
-		return { success: false, id, error: "target must be { tabId: integer }" };
+		return { success: false, id, error: "target must be { tabId: integer|null }" };
 	}
 	if (!paramsValidForAction(action, input["params"])) {
 		return { success: false, id, error: `params are invalid for action ${action}` };

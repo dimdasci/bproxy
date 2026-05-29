@@ -27,9 +27,7 @@ function tab(overrides: Partial<TargetTab> = {}): TargetTab {
 interface HarnessOverrides {
 	resolveTargetTab?: (tabId: number) => Promise<TargetTab>;
 	waitForLoad?: (tabId: number, options: { timeoutMs: number }) => Promise<TargetTab>;
-	getInjectedTabs?: () => Promise<number[]>;
 	update?: (tabId: number, updateProperties: Record<string, unknown>) => Promise<TabLike>;
-	query?: (queryInfo?: Record<string, unknown>) => Promise<TabLike[]>;
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
 	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
@@ -84,21 +82,15 @@ function createTabRuntimeSeam(overrides: HarnessOverrides, now: { value: number 
 				return tab({ id: tabId, url: "https://example.test/next", title: "Next" });
 			}),
 	);
-	const getInjectedTabs = vi.fn(overrides.getInjectedTabs ?? (async () => []));
 	return {
 		resolveTargetTab,
 		waitForLoad,
-		getInjectedTabs,
 	};
 }
 
 function createTabsSeam(overrides: HarnessOverrides) {
 	const target = tab({ active: false, status: "loading" });
 	const update = vi.fn(overrides.update ?? createUpdateResult(target));
-	const query = vi.fn(
-		overrides.query ??
-			(async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })]),
-	);
 	const create = vi.fn(overrides.create ?? createTabCreator());
 	const remove = vi.fn(overrides.remove ?? (async () => undefined));
 	const captureVisibleTab = vi.fn(
@@ -106,7 +98,6 @@ function createTabsSeam(overrides: HarnessOverrides) {
 	);
 	return {
 		update,
-		query,
 		create,
 		remove,
 		captureVisibleTab,
@@ -274,37 +265,6 @@ describe("createBrowserActionHandler", () => {
 		});
 	});
 
-	it("lists tabs with injected state and the current session binding where available", async () => {
-		const h = createHarness({
-			getInjectedTabs: async () => [7],
-			query: async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })],
-		});
-
-		const result = await h.handler.handleBrowserAction(tabListRequest());
-
-		expect(result).toEqual({
-			data: {
-				tabs: [
-					{
-						id: 42,
-						url: "https://example.test/",
-						title: "Example",
-						session: "default",
-						injected: false,
-					},
-					{
-						id: 7,
-						url: "https://two.test/",
-						title: "Two",
-						session: null,
-						injected: true,
-					},
-				],
-			},
-			page: PAGE,
-		});
-	});
-
 	it("opens, pins, unpins, and closes tabs without mutating daemon session state", async () => {
 		const h = createHarness();
 
@@ -345,7 +305,7 @@ describe("createBrowserActionHandler", () => {
 		});
 
 		await expect(
-			h.handler.handleBrowserAction(tabCloseRequest({ params: { tabId: 99 } })),
+			h.handler.handleBrowserAction(tabCloseRequest({ target: { tabId: 99 } })),
 		).rejects.toMatchObject({ code: "TAB_NOT_FOUND" });
 		expect(h.remove).not.toHaveBeenCalled();
 	});
@@ -429,21 +389,6 @@ function screenshotRequest(
 		protocol_version: 1,
 		id: overrides.id ?? "req-shot",
 		action: "screenshot",
-		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
-		deadline: overrides.deadline ?? 10_000,
-		destructive: overrides.destructive ?? false,
-		target: overrides.target ?? { tabId: 42 },
-	};
-}
-
-function tabListRequest(
-	overrides: Partial<BproxyForwardedRequest<"tab.list">> = {},
-): BproxyForwardedRequest<"tab.list"> {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? "req-list",
-		action: "tab.list",
 		params: overrides.params ?? {},
 		session: overrides.session ?? "default",
 		deadline: overrides.deadline ?? 10_000,

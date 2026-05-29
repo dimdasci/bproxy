@@ -20,11 +20,10 @@ export function paramsValidForAction<A extends ForwardedAction>(
 		wait: isWaitParams,
 		"require-human": isRequireHumanParams,
 		eval: isEvalParams,
-		"tab.list": isEmptyParams,
-		"tab.pin": isOptionalTabIdParams,
-		"tab.unpin": isEmptyParams,
+		"tab.pin": isOptionalTabHandleParams,
+		"tab.unpin": isOptionalTabHandleParams,
 		"tab.open": isNavigateParams,
-		"tab.close": isOptionalTabIdParams,
+		"tab.close": isOptionalTabHandleParams,
 		"debug.log": isDebugLogParams,
 	};
 	return validators[action](value);
@@ -129,9 +128,11 @@ function isEvalParams(value: unknown): value is ActionParams["eval"] {
 	return isStrictObject(value, ["code"]) && typeof value["code"] === "string";
 }
 
-function isOptionalTabIdParams(value: unknown): value is ActionParams["tab.pin"] {
+function isOptionalTabHandleParams(value: unknown): value is ActionParams["tab.pin"] {
 	return (
-		isStrictObject(value, ["tabId"]) && (value["tabId"] === undefined || isInteger(value["tabId"]))
+		isStrictObject(value, ["tab"]) &&
+			(value["tab"] === undefined ||
+				(typeof value["tab"] === "string" && /^t[1-9]\d*$/.test(value["tab"])))
 	);
 }
 
@@ -200,5 +201,7 @@ function isInteger(value: unknown): value is number {
 }
 
 export function isTarget(value: unknown): value is BproxyForwardedRequest["target"] {
-	return isStrictObject(value, ["tabId"]) && isInteger(value["tabId"]);
+	return (
+		isStrictObject(value, ["tabId"]) && (value["tabId"] === null || isInteger(value["tabId"]))
+	);
 }

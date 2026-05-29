@@ -78,6 +78,105 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 		});
 	});
 
+	describe("workflow: fresh tab bootstrap", () => {
+		it("tab.open succeeds on a fresh paired daemon without a pre-bound tab", async () => {
+			const ws = await connectClient();
+			let forwardedTarget: number | null = 123;
+
+			ws.on("message", (raw: unknown) => {
+				const req = JSON.parse(String(raw)) as BproxyRequest & { target?: { tabId: number | null } };
+				forwardedTarget = req.target?.tabId ?? null;
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: { tabId: 42, url: "https://google.com" },
+						page: {
+							url: "https://google.com",
+							title: "Google",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					} satisfies BproxyResponse),
+				);
+			});
+
+			const res = await postCommand(
+				makeCmd({ action: "tab.open", params: { url: "https://google.com" }, session: "" as never }),
+			);
+			const body = (await res.json()) as BproxyResponse<"tab.open">;
+			expect(body.ok).toBe(true);
+			if (body.ok) {
+				expect(body.data.session).toMatch(/^[a-z2-7]{6}$/);
+				expect(body.data.tab).toBe("t1");
+				expect(body.data.bound).toBe(true);
+				expect(body.data.url).toBe("https://google.com");
+				expect(built.sessions.get(body.data.session)).toMatchObject({ tab: "t1" });
+				expect(built.sessions.listTabs(body.data.session)).toMatchObject([
+					{ tab: "t1", url: "https://google.com", title: "Google", bound: true },
+				]);
+			}
+			expect(forwardedTarget).toBeNull();
+			ws.close();
+		});
+
+		it("tab.open on an existing session registers t2 and binds it", async () => {
+			const ws = await connectClient();
+			const openedUrls: string[] = [];
+			let nextTabId = 42;
+
+			ws.on("message", (raw: unknown) => {
+				const req = JSON.parse(String(raw)) as BproxyRequest & { target?: { tabId: number | null } };
+				expect(req.target?.tabId).toBeNull();
+				openedUrls.push((req.params as { url: string }).url);
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: { tabId: nextTabId++, url: (req.params as { url: string }).url },
+						page: {
+							url: (req.params as { url: string }).url,
+							title: `Opened ${openedUrls.length}`,
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					} satisfies BproxyResponse),
+				);
+			});
+
+			const first = (await (
+				await postCommand(
+					makeCmd({ action: "tab.open", params: { url: "https://one.test" }, session: currentSession }),
+				)
+			).json()) as BproxyResponse<"tab.open">;
+			expect(first.ok).toBe(true);
+			if (!first.ok) throw new Error("first tab.open should succeed");
+			expect(first.data.tab).toBe("t1");
+
+			const second = (await (
+				await postCommand(
+					makeCmd({ action: "tab.open", params: { url: "https://two.test" }, session: currentSession }),
+				)
+			).json()) as BproxyResponse<"tab.open">;
+			expect(second.ok).toBe(true);
+			if (!second.ok) throw new Error("second tab.open should succeed");
+			expect(second.data.session).toBe(currentSession);
+			expect(second.data.tab).toBe("t2");
+			expect(second.data.bound).toBe(true);
+			expect(built.sessions.get(currentSession)).toMatchObject({ tab: "t2" });
+			expect(built.sessions.listTabs(currentSession)).toMatchObject([
+				{ tab: "t1", url: "https://one.test", title: "Opened 1", bound: false },
+				{ tab: "t2", url: "https://two.test", title: "Opened 2", bound: true },
+			]);
+			expect(openedUrls).toEqual(["https://one.test", "https://two.test"]);
+			ws.close();
+		});
+	});
+
 	describe("workflow: logical tab binding", () => {
 		it("session.bind moves to a session-owned logical tab and forwarded actions succeed", async () => {
 			built.sessions.registerTab(currentSession, 42);

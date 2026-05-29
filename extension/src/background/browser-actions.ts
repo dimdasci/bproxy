@@ -1,8 +1,7 @@
-import type { BproxyError, BproxyForwardedRequest, PageState } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest } from "@bproxy/shared";
 import { detectInterstitial } from "./browser-action-interstitials";
 import {
 	debuggerDisabledError,
-	emptyPageState,
 	errorMessage,
 	evalDisabledError,
 	humanRequiredError,
@@ -19,7 +18,6 @@ import type { TabLike, TabRuntime } from "./tabs";
 
 export interface BrowserTabsSeam {
 	update(tabId: number, updateProperties: Record<string, unknown>): Promise<TabLike>;
-	query(queryInfo?: Record<string, unknown>): Promise<TabLike[]>;
 	create(createProperties: Record<string, unknown>): Promise<TabLike>;
 	remove(tabId: number): Promise<void>;
 	captureVisibleTab(windowId?: number, options?: { format?: "png" | "jpeg" }): Promise<string>;
@@ -27,7 +25,7 @@ export interface BrowserTabsSeam {
 
 export interface BrowserActionHandlerDeps {
 	mainWorld: MainWorldExecutor;
-	tabRuntime: Pick<TabRuntime, "resolveTargetTab" | "waitForLoad" | "getInjectedTabs">;
+	tabRuntime: Pick<TabRuntime, "resolveTargetTab" | "waitForLoad">;
 	tabs: BrowserTabsSeam;
 	now?: () => number;
 	isEvalEnabled?: () => boolean | Promise<boolean>;
@@ -53,7 +51,6 @@ type BrowserActionMap = { [A in RoutedBrowserAction]: BrowserActionFn<A> };
 const ROUTED_BROWSER_ACTIONS: BrowserActionMap = {
 	navigate: handleNavigate,
 	screenshot: handleScreenshot,
-	"tab.list": handleTabList,
 	"tab.open": handleTabOpen,
 	"tab.close": handleTabClose,
 	"tab.pin": handleTabPin,
@@ -89,7 +86,7 @@ async function handleNavigate(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"navigate">,
 ): Promise<ExecutedAction> {
-	const target = await deps.tabRuntime.resolveTargetTab(request.target.tabId);
+	const target = await deps.tabRuntime.resolveTargetTab(requireTargetTabId(request, request.action));
 	const startedAt = now(deps);
 	try {
 		await deps.tabs.update(target.id, { url: request.params.url });
@@ -126,7 +123,7 @@ async function handleScreenshot(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"screenshot">,
 ): Promise<ExecutedAction> {
-	let target = await deps.tabRuntime.resolveTargetTab(request.target.tabId);
+	let target = await deps.tabRuntime.resolveTargetTab(requireTargetTabId(request, request.action));
 	if (request.params.debugger === true) {
 		if (!(await debuggerScreenshotEnabled(deps)) || !deps.captureDebuggerScreenshot) {
 			throw debuggerDisabledError();
@@ -148,35 +145,6 @@ async function handleScreenshot(
 	};
 }
 
-async function handleTabList(
-	deps: BrowserActionHandlerDeps,
-	request: BproxyForwardedRequest<"tab.list">,
-): Promise<ExecutedAction> {
-	const injected = new Set(await deps.tabRuntime.getInjectedTabs());
-	const tabs = (await deps.tabs.query({})).flatMap((tab) => toListedTab(tab, request, injected));
-	return {
-		data: { tabs },
-		page: await currentPageStateOrEmpty(deps, request.target.tabId),
-	};
-}
-
-function toListedTab(
-	tab: TabLike,
-	request: BproxyForwardedRequest<"tab.list">,
-	injected: ReadonlySet<number>,
-) {
-	if (typeof tab.id !== "number") return [];
-	return [
-		{
-			id: tab.id,
-			url: tab.url ?? "",
-			title: tab.title ?? "",
-			session: tab.id === request.target.tabId ? request.session : null,
-			injected: injected.has(tab.id),
-		},
-	];
-}
-
 async function handleTabOpen(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"tab.open">,
@@ -192,7 +160,8 @@ async function handleTabClose(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"tab.close">,
 ): Promise<ExecutedAction> {
-	const tab = await deps.tabRuntime.resolveTargetTab(request.params.tabId ?? request.target.tabId);
+	const tabId = requireTargetTabId(request, request.action);
+	const tab = await deps.tabRuntime.resolveTargetTab(tabId);
 	await deps.tabs.remove(tab.id);
 	return { data: {}, page: pageStateFromTab(tab) };
 }
@@ -201,7 +170,7 @@ async function handleTabPin(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"tab.pin">,
 ): Promise<ExecutedAction> {
-	const tabId = request.params.tabId ?? request.target.tabId;
+	const tabId = requireTargetTabId(request, request.action);
 	const updated = await resolveTabResult(deps, tabId, deps.tabs.update(tabId, { pinned: true }));
 	return { data: { tabId: updated.id }, page: pageStateFromTab(updated) };
 }
@@ -210,11 +179,8 @@ async function handleTabUnpin(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"tab.unpin">,
 ): Promise<ExecutedAction> {
-	const updated = await resolveTabResult(
-		deps,
-		request.target.tabId,
-		deps.tabs.update(request.target.tabId, { pinned: false }),
-	);
+	const tabId = requireTargetTabId(request, request.action);
+	const updated = await resolveTabResult(deps, tabId, deps.tabs.update(tabId, { pinned: false }));
 	return { data: {}, page: pageStateFromTab(updated) };
 }
 
@@ -245,18 +211,11 @@ async function resolveTabResult(
 	throw scriptError("Chrome tabs API returned a tab without an id");
 }
 
-async function currentPageStateOrEmpty(
-	deps: BrowserActionHandlerDeps,
-	tabId: number,
-): Promise<PageState> {
-	const tab = await safeResolveTargetTab(deps, tabId);
-	return tab ? pageStateFromTab(tab) : emptyPageState();
-}
-
 async function safeResolveTargetTab(
 	deps: BrowserActionHandlerDeps,
-	tabId: number,
+	tabId: number | null,
 ): Promise<(TabLike & { id: number }) | null> {
+	if (tabId === null) return null;
 	try {
 		return await deps.tabRuntime.resolveTargetTab(tabId);
 	} catch {
@@ -270,6 +229,14 @@ async function evalEnabled(deps: BrowserActionHandlerDeps): Promise<boolean> {
 
 async function debuggerScreenshotEnabled(deps: BrowserActionHandlerDeps): Promise<boolean> {
 	return (await deps.isDebuggerScreenshotEnabled?.()) ?? false;
+}
+
+function requireTargetTabId(
+	request: BproxyForwardedRequest<BrowserAction>,
+	action: BrowserAction,
+): number {
+	if (typeof request.target.tabId === "number") return request.target.tabId;
+	throw scriptError(`${action} requires a target tab id`);
 }
 
 function assertRuntimeApiFillRequest(request: BproxyForwardedRequest<"fill">): void {

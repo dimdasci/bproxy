@@ -174,7 +174,7 @@ async function handleDomAction<A extends DomAction>(
 	deps: TabRuntimeDeps,
 	request: BproxyForwardedRequest<A>,
 ): Promise<ExecutedAction> {
-	const tab = await resolveTargetTab(deps, request.target.tabId);
+	const tab = await resolveTargetTab(deps, requireTargetTabId(request));
 	await deps.injector.ensureInjected(tab.id);
 	const raw = await withTimeout(
 		deps,
@@ -204,6 +204,11 @@ function getFrames(state: RuntimeState, tabId: number): FrameRecord[] {
 	const frames = state.frames.get(tabId);
 	if (!frames) return [];
 	return [...frames.values()].sort((left, right) => left.frameId - right.frameId);
+}
+
+function requireTargetTabId(request: BproxyForwardedRequest<DomAction>): number {
+	if (typeof request.target.tabId === "number") return request.target.tabId;
+	throw tabRuntimeScriptError(`${request.action} requires a target tab id`);
 }
 
 async function resolveTargetTab(
