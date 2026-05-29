@@ -30,7 +30,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + scroll.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
-- **Session authority lives in the daemon** — `tabId`, `pacing`, `paused`, and `pauseReason` are daemon-owned in-memory state; extension executes forwarded browser actions but does not own session lifecycle.
+- **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, and pacing / pause state remains daemon-owned in-memory state.
 - **Auth is transport-boundary first-fail (header-auth routes)** — `POST /` and `GET /ws` are rejected at request ingress (before body parsing/validation and before any route logic). `POST /pair/claim` keeps Host/Origin checks at ingress and validates pairing code after body parse.
 - **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
@@ -46,7 +46,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 ### Proxy Daemon
 
-A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind` changes `tabId`, the next forwarded command uses the new tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
+A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, the logical-tab registry, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind --tab tN` changes the logical binding, the next forwarded command resolves that handle to the new internal Chrome tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
 
 Implementation: `docs/public/solution/service.md`
 
@@ -68,7 +68,7 @@ Implementation: `docs/public/solution/extension.md`
 
 ### CLI
 
-One invocation = one command = one HTTP POST to the daemon = one JSON response on stdout. Accepts `--session <name>` on every command. Exits 0/1/2.
+One invocation = one command = one HTTP POST to the daemon = one JSON response on stdout. Browser-control commands accept `-s, --session <id>` where `<id>` is a daemon-generated 6-character handle matching `/^[a-z2-7]{6}$/`. `tab open --url ...` is the sole bootstrap exception that may omit `-s`; it returns the generated `session` id plus logical `tab` handle. Exits 0/1/2.
 
 Implementation: `docs/public/solution/cli.md`
 
@@ -105,7 +105,7 @@ The shared contract between all three components. Every message uses the same JS
   "id": "01HZX9C2K8R7Q3VG9MNPYJVZ4D",
   "action": "fill",
   "params": { "selector": "input[name='email']", "value": "user@example.com" },
-  "session": "default",
+  "session": "m4q7z2",
   "deadline": 1714000030000,
   "destructive": true
 }
@@ -140,6 +140,17 @@ Errors use a single RFC 9457-aligned envelope:
 }
 ```
 
+### Planned (Phase 5) browser-control contract amendments
+
+- **Generated sessions:** daemon-created only, 6-character base32 lowercase ids without prefixes; no implicit shared `default` session for browser-control flows.
+- **Logical tabs:** normal CLI/protocol responses expose session-scoped handles such as `t1`; raw Chrome tab ids remain daemon/extension internals.
+- **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url }`.
+- **Scoped privacy:** normal `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
+- **Bind/close rules:** `session bind --tab tN` accepts logical tab handles only; `session close -s <id>` closes all session-owned Chrome tabs.
+- **Extension-control wire shape:** the daemon reuses the existing `BproxyRequest` envelope and sets `target.tabId` to `null` for actions that do not target an existing tab. The background service worker routes `tab.open`, `tab.list`, and `tab.close` by action name without forwarding them to a content script.
+- **Structured links:** Phase 5 adds a first-class `links` read action for structured visible-link extraction, traversing open shadow roots by default.
+- **Phase 5 capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the planned shared error contract for the generated-session/logical-tab model.
+
 ## Actions
 
 | Action       | Notes                                                                                 |
@@ -159,11 +170,11 @@ Errors use a single RFC 9457-aligned envelope:
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
 | `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
 | `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
-
-Routing details and contract: `docs/public/solution/service.md` § Action routing and session contract.
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon log view (last N request lifecycles).                                     |
 | `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |
+
+Routing details and contract: `docs/public/solution/service.md` § Action routing and session contract.
 
 ## Reliability
 
