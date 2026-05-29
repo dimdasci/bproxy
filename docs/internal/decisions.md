@@ -251,7 +251,7 @@ The skill is what agents load and apply; the extension contract is the three met
 **Date:** 2026-05-13
 **Status:** Accepted
 
-**Decision:** The architecture views artifact is rendered by [Astro Starlight](https://starlight.astro.build) reading existing markdown plus a curated set of [Mermaid](https://mermaid.js.org) diagrams under `docs/views/`. Two advisory pnpm scripts (`views:audit`, `views:regen`) surface drift; neither blocks CI.
+**Decision:** The architecture views artifact is rendered by [Astro Starlight](https://starlight.astro.build) reading the public documentation tier plus a curated set of [Mermaid](https://mermaid.js.org) diagrams under `docs/public/views/`. Two advisory pnpm scripts (`views:audit`, `views:regen`) surface drift; neither blocks CI.
 
 **Rationale:**
 - Starlight is TS-native, fits the project's TypeScript-only stance ([ADR-005](#adr-005-typescript-as-project-language)), and ships Zod-validated content collections — the schema doubles as the contract for the sync audit script.
@@ -261,7 +261,7 @@ The skill is what agents load and apply; the extension contract is the three met
 
 **Notation constraint:** Mermaid's experimental `C4Container` syntax is not used — render fails inconsistently. Container/Context/Deployment views are authored as `flowchart` with named subgraphs; C4 vocabulary lives in node labels and arrow captions.
 
-**Scope:** Six curated diagrams (Context, Container, Deployment, Session State, Scenarios, Threat Model) plus auto-derived component graphs via `dependency-cruiser` ([ADR-012](#adr-012-static-analysis-stack)). See [`docs/solution/views.md`](./solution/views.md) for the implementation spec.
+**Scope:** Five curated diagrams (Context, Container, Deployment, Session State, Threat Model) plus auto-derived component graphs via `dependency-cruiser` ([ADR-012](#adr-012-static-analysis-stack)). Slot 05 is intentionally absent: the earlier scenario-sequence view duplicated prose and was dropped during the public/internal documentation split. See [`docs/internal/solution/views.md`](./solution/views.md) for the implementation spec.
 
 ---
 
@@ -280,10 +280,10 @@ The skill is what agents load and apply; the extension contract is the three met
 **Cross-cutting indexes (not layers):** Protocol envelope, Actions catalog, ADRs, Scenarios — linked from each view's footer.
 
 **Diátaxis mapping for existing docs:**
-- `docs/views/` + `architecture.md` → explanation
-- `solution/*.md` → reference
-- `scenarios.md` + `docs/views/05-scenarios/` → how-to
-- _(gap)_ → tutorial — added when the daemon exists and an end-to-end walkthrough is real
+- `docs/public/views/` + `docs/public/index.md` → explanation
+- `docs/public/solution/*.md` → reference
+- _(how-to)_ — deferred until concrete walkthroughs exist; internal scenarios remain maintainer inputs under `docs/internal/scenarios.md`
+- _(tutorial)_ — added when an end-to-end walkthrough is real
 
 **Alternatives rejected:** Role-based layering (Scenarios → Capabilities → Components → Files) was considered but rejected because bproxy's structural decomposition is already clean C4 territory; flat topic-based IA matches today's docs but offers no layered ascent. ArchiMate, full UML, and DDD context maps were considered and rejected as inappropriate-for-scale.
 

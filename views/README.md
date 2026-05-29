@@ -2,8 +2,8 @@
 
 Astro Starlight site that renders bproxy's architecture views and existing prose docs. Plus two advisory sync helpers (`views:audit`, `views:regen`) that surface drift between the artifact and the codebase.
 
-**Spec:** [`docs/solution/views.md`](../docs/solution/views.md)
-**Decisions:** [ADR-019](../docs/decisions.md#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers), [ADR-020](../docs/decisions.md#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia)
+**Spec:** [`docs/internal/solution/views.md`](../docs/internal/solution/views.md)
+**Decisions:** [ADR-019](../docs/internal/decisions.md#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers), [ADR-020](../docs/internal/decisions.md#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia)
 
 ## Local development
 

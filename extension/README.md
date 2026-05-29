@@ -19,10 +19,10 @@ forwarded browser actions on behalf of a CLI agent. Built with [WXT](https://wxt
 
 ## Architecture references
 
-- Solution spec: [`docs/solution/extension.md`](../docs/solution/extension.md)
-- Container view: [`docs/views/02-containers.md`](../docs/views/02-containers.md)
-- Threat model: [`docs/views/06-threat-model.md`](../docs/views/06-threat-model.md)
-- Generated component graph: [`docs/views/auto/extension-components.svg`](../docs/views/auto/extension-components.svg)
+- Solution spec: [`docs/public/solution/extension.md`](../docs/public/solution/extension.md)
+- Container view: [`docs/public/views/02-containers.md`](../docs/public/views/02-containers.md)
+- Threat model: [`docs/public/views/06-threat-model.md`](../docs/public/views/06-threat-model.md)
+- Generated component graph: [`docs/public/views/auto/extension-components.svg`](../docs/public/views/auto/extension-components.svg)
 
 Build-time assertions also lock the shipped MV3 surface: no declarative
 `content_scripts`, no default `web_accessible_resources`, no forbidden
@@ -185,17 +185,18 @@ The extension toolbar action opens the pairing popup.
 
 ## Pairing the extension to a running daemon
 
-1. Start the daemon (`pnpm --filter @bproxy/service start` or your normal
-   workflow). The daemon listens on `127.0.0.1:9615` by default.
-2. Issue a one-time pairing code by starting the daemon in foreground
-   (`pnpm --filter @bproxy/extension smoke:daemon` for the local smoke flow,
-   or `BPROXY_HOME=... pnpm --filter @bproxy/service exec bproxy-service daemonize`
-   and copy the printed `pairingCode`). Phase 4 will replace this with a real
-   CLI command.
-3. Open the extension popup and paste the code into **Pairing code**, then
+1. Start the daemon with the built CLI:
+
+   ```bash
+   node cli/dist/bproxy.mjs service start --home <BPROXY_HOME>
+   ```
+
+   The daemon listens on `127.0.0.1:9615` by default and prints lifecycle JSON
+   containing `pairingCode` and `pairingExpiresAt`.
+2. Open the extension popup and paste the code into **Pairing code**, then
    click **Pair**. On success the popup shows `Paired. You can close this
    popup.` and the background worker reconnects to the daemon WebSocket.
-4. On failure the popup shows a status line in red with a machine-readable
+3. On failure the popup shows a status line in red with a machine-readable
    error code (e.g. `PAIRING_CODE_EXPIRED`, `INVALID_WS_URL`,
    `PAIR_TRANSPORT_ERROR`) plus a hint; the popup is the only place the
    user is prompted (no options page — see ADR-011).
@@ -211,6 +212,6 @@ The extension toolbar action opens the pairing popup.
 - Source layout: `srcDir: "src"` so all extension code stays under
   `extension/src/**` where dependency-cruiser and knip can see it.
 
-See [`docs/solution/extension.md`](../docs/solution/extension.md) for the
-full spec and [`docs/plans/phases/03-extension.md`](../docs/plans/phases/03-extension.md)
+See [`docs/public/solution/extension.md`](../docs/public/solution/extension.md) for the
+full spec and [`docs/internal/plans/phases/03-extension.md`](../docs/internal/plans/phases/03-extension.md)
 for the phase plan.

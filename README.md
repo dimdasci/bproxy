@@ -10,7 +10,7 @@ Playwright-style automation gets blocked by Cloudflare, Datadome, and friends be
 
 ## Status
 
-Design phase — no code yet. The repository currently contains the architecture, decisions, and solution specs that will drive implementation.
+Implementation in progress. Shared types, the localhost daemon, the Chrome extension, and the CLI have initial working implementations. The next phase is integration hardening against the documented scenarios.
 
 ```
 Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page

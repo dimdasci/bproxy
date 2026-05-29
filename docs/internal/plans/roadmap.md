@@ -25,7 +25,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 5 | Integration & hardening | End-to-end against documented scenarios | Not started | _plan written when Phase 4 closes_ |
 | 6 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 5 closes_ |
 
-Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
+Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
 
 **Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing all seven plans up front would lock in assumptions before they've been tested.
 
@@ -41,23 +41,23 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 2. **CLI → extension pairing transport** (~½–1 day) — confirms whether `chrome.runtime.onMessageExternal` accepts native processes; if not, evaluates alternatives (CLI-opened companion page, in-band pairing through the daemon WS).
 3. **Explicit write methods on real frameworks** (~½ day) — manual test against a real React/Vue application form. Validates [ADR-007](../decisions.md#adr-007-three-method-write-contract): `direct` for DOM, `paste` for frameworks, `runtime-api` for editor instances.
 
-**Done when:** all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/journal/`, and any ADR amendments under `docs/decisions.md`. Each PoC closes with a verdict (*confirms / modifies / invalidates the design*).
+**Done when:** all three PoCs have committed code under `poc/<name>/`, journal memos under `docs/internal/journal/`, and any ADR amendments under `docs/internal/decisions.md`. Each PoC closes with a verdict (*confirms / modifies / invalidates the design*).
 
 ### Phase 0.5 — Doc reconciliation gate
 
 **Purpose:** propagate PoC verdicts into the design docs before Layer 1 starts.
 
-**Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/architecture.md`, `docs/decisions.md`, or `docs/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
+**Done when:** every PoC verdict that modifies or invalidates a design choice has produced a corresponding edit to `docs/internal/architecture.md`, `docs/internal/decisions.md`, or `docs/public/solution/*.md`, committed. Layer 1 cannot start until docs reflect validated reality.
 
 ### Phase 0.7 — Architecture viewer (v1)
 
-**Purpose:** stand up the architecture views site so the rest of the build has a visual onboarding and presentation surface from day one, and so the sync helpers are wired before any production code lands. Per [docs/solution/views.md](../solution/views.md).
+**Purpose:** stand up the architecture views site so the rest of the build has a visual onboarding and presentation surface from day one, and so the sync helpers are wired before any production code lands. Per [docs/internal/solution/views.md](../solution/views.md).
 
-**Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; existing prose docs (`architecture.md`, `decisions.md`, `scenarios.md`, `solution/*.md`) accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
+**Output:** `views/` workspace scaffolded (Astro Starlight + sync helper scripts); content collection schema (`viewSchema`) defined and enforced at build; `docs/public/views/02-containers.md` populated with the canonical Container view as a Mermaid `flowchart`; public-tier docs accessible via the site's sidebar; `pnpm docs:dev` renders locally; `pnpm docs:build` runs in CI as a correctness gate; `pnpm views:audit` and `pnpm views:regen` implemented (regen is a no-op until production code exists).
 
-**Done when:** local dev server renders the Container view as the canonical diagram and the existing prose docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on `viewSchema` violations or site-build regressions.
+**Done when:** local dev server renders the Container view as the canonical diagram and public docs are sidebar-accessible; `views:audit` correctly reports affected views given a sample diff; CI fails on `viewSchema` violations or site-build regressions.
 
-**Out of scope (this phase):** the other five intent diagrams (Context, Deployment, Session State, Scenarios, Threat Model) — they land in evolutionary PRs as content priorities dictate; auto-generated component graphs in `docs/views/auto/` — empty until Phase 1+ produces source code to scan.
+**Out of scope (this phase):** the other four curated intent diagrams (Context, Deployment, Session State, Threat Model) — they land in evolutionary PRs as content priorities dictate; slot 05 scenario views are intentionally absent; auto-generated component graphs in `docs/public/views/auto/` are empty until Phase 1+ produces source code to scan.
 
 ### Phase 1 — Shared types (and workspace scaffold) ✅ Done
 
@@ -75,19 +75,19 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Done when:** all routes (`POST /`, `POST /pair/claim`, `GET /ws`) implemented with the four-layer auth gate; pacing engine enforces per-session delays; pending map handles timeout, replay-on-reconnect, dedupe; lifecycle scripts (start, stop, status) work; daemon log is structured with the request `id` per [ADR-009](../decisions.md#adr-009-observability-as-a-first-class-design-constraint).
 
-**Views integration:** `service` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/service-components.svg`; Container diagram in `02-containers.md` gets a `click Daemon` directive linking to the generated SVG.
+**Views integration:** `service` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/public/views/auto/service-components.svg`; Container diagram in `02-containers.md` gets a `click Daemon` directive linking to the generated SVG.
 
 ### Phase 3 — Extension ✅ Done
 
 **Purpose:** browser-side execution. Per `docs/public/solution/extension.md`.
 
-**Status note:** Phase 3 is complete. Task 17 closed the extension-specific docs integration pass and the follow-up structural docs pass added `docs/views/01-context.md` and `docs/views/03-deployment.md`. The remaining curated views work is now the Phase 4 scenario-view completion described below.
+**Status note:** Phase 3 is complete. Task 17 closed the extension-specific docs integration pass and the follow-up structural docs pass added `docs/public/views/01-context.md` and `docs/public/views/03-deployment.md`. Slot 05 scenario views were later dropped during the publication split and must not be recreated.
 
 **Output:** `extension/.output/chrome-mv3/` loadable in Chrome, with all action handlers, ring buffer, pairing receiver, and connection-state badge.
 
 **Done when:** background SW maintains WS connection across SW restart with replay; content script injection is programmatic per-tab; all action handlers from the [actions table](../architecture.md#actions) execute correctly; ring buffer queryable via `debug.log`; design-constraint assertions hold (no `MutationObserver` in bundle, `fill` dispatches `insertFromPaste`, no MAIN-world script registered by default).
 
-**Views integration:** `extension` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/extension-components.svg`; Container diagram in `02-containers.md` gets a `click Ext` directive linking to the generated SVG.
+**Views integration:** `extension` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/public/views/auto/extension-components.svg`; Container diagram in `02-containers.md` gets a `click Ext` directive linking to the generated SVG.
 
 ### Phase 4 — CLI
 
@@ -95,11 +95,11 @@ Per-phase detail files live under [`docs/plans/phases/`](./phases/) as each phas
 
 **Status note:** Phase 4 is complete. All 11 tasks done: lifecycle contract alignment, CLI package bootstrap, primitives (paths/token/output/exit), HTTP client, read commands, write commands, service lifecycle commands, session/tab/debug commands, design assertions, integration smoke tests, and views/docs integration. 327 CLI tests, 652 total workspace tests pass. `pnpm check`, `pnpm test`, and `pnpm docs:build` all green.
 
-**Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands. Phase 4 also closes the remaining curated architecture-view content so Phase 5 hardening can validate against a complete explanatory set.
+**Output:** `bproxy` binary with all commands listed in the [actions table](../architecture.md#actions), plus `service`, `session`, `tab`, and `debug` subcommands. Phase 4 also regenerates the CLI component graph and links it from the public Container view.
 
-**Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens. The remaining curated views are authored against the real shipped system — specifically `docs/views/05-scenarios/*.md` is present, accurate, and builds cleanly alongside the now-existing `01-context.md` and `03-deployment.md`.
+**Done when:** every command POSTs the correct action to the daemon; output is clean JSON on stdout; exit codes follow the 0/1/2 convention; `--verbose` writes structured stderr; token preflight refuses insecure tokens. The five curated public views (Context, Containers, Deployment, Session State, Threat Model) build cleanly; slot 05 scenario views are intentionally absent.
 
-**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG. Phase 4 is also the explicit home for finishing the remaining curated scenario views left intentionally incomplete by Phase 0.7.
+**Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/public/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG.
 
 ### Phase 5 — Integration & hardening
 
@@ -131,8 +131,8 @@ Every PoC has:
 - **Hard timebox** — ½ or 1 day. If the timebox is hit without an answer, the PoC reports "inconclusive" and we decide what to do next; PoCs never silently grow. If a PoC reveals a deeper problem, it spawns a follow-up PoC rather than expanding in place.
 - **Three outputs:**
   1. Working-but-throwaway code under `poc/<short-name>/` — committed (not gitignored), so it remains referenceable, but never imported by production packages.
-  2. A 1-page memo at `docs/journal/YYYY-MM-DD-poc-<topic>.md` capturing: question, method, finding, implication.
-  3. ADR amendment in `docs/decisions.md` if the finding modifies or invalidates a decision.
+  2. A 1-page memo at `docs/internal/journal/YYYY-MM-DD-poc-<topic>.md` capturing: question, method, finding, implication.
+  3. ADR amendment in `docs/internal/decisions.md` if the finding modifies or invalidates a decision.
 - **A verdict** — each PoC closes with one of: *confirms the design / modifies it / invalidates it.*
 
 ### Layer pattern (definition of done)
@@ -143,7 +143,7 @@ Every layer (1–5) follows the same structure:
 2. **Definition of done = the checkpoint.** Four criteria, all required:
    - **Functional** — every interface consumed by later layers is implemented.
    - **Design-asserted** — at least one test or static check confirms a design constraint. Examples: extension bundle contains no `MutationObserver` reference; daemon's `onRequest` auth hook runs before any route handler; `fill` action handler dispatches `InputEvent` with `inputType: "insertFromPaste"`.
-   - **Documented** — package `README.md` and any updates to `docs/solution/*.md` are committed.
+   - **Documented** — package `README.md` and any updates to `docs/public/solution/*.md` are committed.
    - **Static gates pass** — `pnpm check` succeeds (type checking, format, lint with complexity and size limits, architecture rules, dead-code and dependency hygiene). Per [docs/quality-gates.md](../quality-gates.md).
 3. **Layer scope is locked at start** — the phase detail file enumerates what's in scope; anything else is out of scope for that phase.
 
@@ -158,7 +158,7 @@ This rule counters bottom-up's natural tendency to over-engineer the foundation.
 Treated as a non-functional requirement. Practical rules, enforced during review:
 
 - **Public API is explicit.** Each package has a single entry point exposing its public surface; internals stay unexported. A consumer can read the entry point alone and know how to use the package.
-- **File names mirror architecture.** Layout in each package matches what's described in `docs/solution/*.md`. If reality diverges, the doc gets updated, not the other way round.
+- **File names mirror architecture.** Layout in each package matches what's described in `docs/public/solution/*.md`. If reality diverges, the doc gets updated, not the other way round.
 - **Names carry meaning; comments are rare.** No comments explaining *what* the code does — names are the explanation. Comments only where the *why* is non-obvious (constraint, invariant, workaround). No TODOs or commented-out code in committed work.
 - **Tests read as specifications.** Test names describe behaviour in domain terms. A reader scanning test files should understand what the package does without reading the implementation.
 - **Per-package `README.md`** — purpose (1 paragraph), public API (link to entry point), how to develop locally, how to test. One file per package, kept short.
