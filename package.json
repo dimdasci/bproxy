@@ -17,7 +17,7 @@
 		"check": "pnpm typecheck && pnpm format && pnpm lint && pnpm arch && pnpm deadcode",
 		"test": "pnpm -r test",
 		"docs:dev": "pnpm --filter views dev",
-		"docs:build": "mkdir -p views/public/views/auto && cp docs/public/views/auto/*.svg views/public/views/auto/ 2>/dev/null; pnpm --filter views build && bash views/scripts/assert-no-md-links.sh",
+		"docs:build": "rm -rf views/public/views/auto && mkdir -p views/public/views/auto && cp docs/public/views/auto/*.svg views/public/views/auto/ && pnpm --filter views build && bash views/scripts/assert-no-md-links.sh && bash views/scripts/assert-component-svgs.sh",
 		"views:audit": "pnpm --filter views run audit",
 		"views:regen": "pnpm --filter views regen"
 	},
