@@ -131,13 +131,13 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Move browser authority from user-chosen names/raw tab ids into daemon-owned in-memory capabilities.
 
-- [ ] Add generated session creation with optional display label.
-- [ ] Reject unknown/invalid session ids for browser-control actions instead of implicitly creating arbitrary names.
-- [ ] Preserve daemon-local introspection where safe, but do not let a typo create or steal a browser-control session.
-- [ ] Add `session.close` to remove session state and **close all session-owned Chrome tabs** (locked decision: no orphans).
-- [ ] Add per-session logical tab registry: `t1`, `t2`, ... mapped to Chrome tab ids internally.
-- [ ] Store current binding as logical tab handle plus internal Chrome id resolution, not a public `tabId` field.
-- [ ] Unit-test id format, uniqueness/collision handling, invalid ids, close semantics, cross-session tab-handle rejection, and pause/pacing preservation.
+- [X] Add generated session creation with optional display label.
+- [X] Reject unknown/invalid session ids for browser-control actions instead of implicitly creating arbitrary names.
+- [X] Preserve daemon-local introspection where safe, but do not let a typo create or steal a browser-control session.
+- [X] Add `session.close` to remove session state and **close all session-owned Chrome tabs** (locked decision: no orphans).
+- [X] Add per-session logical tab registry: `t1`, `t2`, ... mapped to Chrome tab ids internally.
+- [X] Store current binding as logical tab handle plus internal Chrome id resolution, not a public `tabId` field.
+- [X] Unit-test id format, uniqueness/collision handling, invalid ids, close semantics, cross-session tab-handle rejection, and pause/pacing preservation.
 
 **Done when:** the daemon can represent a session-owned browser workspace without exposing Chrome ids through its normal protocol responses.
 
@@ -175,6 +175,8 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Update command registry/action coverage and destructive classification for new/changed actions.
 - [ ] Test stdout cleanliness and exit-code behaviour for missing session, invalid session, cross-session tab, fresh `tab open`, and `links`.
 - [ ] Verify `-s` short flag works identically to `--session` in all commands.
+
+- [ ] Handle the `session.close` partial-success case: if the daemon returns `ok: false` with an error that originated inside the close loop (e.g., `HUMAN_REQUIRED` returned by the extension for one of the tab.close sub-requests), the session is already gone from the daemon — do not treat the response as retriable. Print a warning such as "session terminated but some Chrome tabs may not have been closed" and exit with a non-zero code to signal partial success. Do not retry `session close` on this error; a retry will return `SESSION_NOT_FOUND`.
 
 **Done when:** command help and tests guide agents into the fresh-flow path rather than the Phase 4 fake-binding workaround.
 
