@@ -1,4 +1,4 @@
-import type { Action, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { Action, BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../logger";
@@ -10,9 +10,12 @@ const extensionToken = "test-extension-token";
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
+let currentSession: BproxyRequest["session"];
+const T1 = "t1" as TabHandle;
 
 const PARAMS_BY_ACTION: Partial<Record<Action, BproxyRequest["params"]>> = {
 	navigate: { url: "https://example.com" },
+	links: {},
 	fill: {
 		target: { selector: "#email" },
 		value: "x@example.com",
@@ -48,7 +51,7 @@ function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): Bproxy
 			`01HZX${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(21, "0")}`,
 		action,
 		params: paramsFor(action),
-		session: overrides.session ?? "default",
+		session: overrides.session ?? currentSession,
 		deadline: Date.now() + 5000,
 		destructive: false,
 		...overrides,
@@ -79,6 +82,7 @@ beforeEach(async () => {
 	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
+	currentSession = built.sessions.create().id;
 });
 
 afterEach(async () => {
@@ -101,40 +105,62 @@ describe("action contract coverage — GAP A", () => {
 			expect(body.ok).toBe(true);
 		});
 
+		it("session.create returns a generated session id", async () => {
+			const res = await postCommand(
+				makeCmd("session.create", {
+					params: { label: "research" },
+					session: currentSession,
+				}),
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse<"session.create">;
+			if (!body.ok) throw new Error("session.create should succeed");
+			expect(body.data.session).toMatch(/^[a-z2-7]{6}$/);
+			expect(body.data.label).toBe("research");
+		});
+
+		it("session.create succeeds without a label", async () => {
+			const res = await postCommand(
+				makeCmd("session.create", { params: {}, session: currentSession }),
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse<"session.create">;
+			if (!body.ok) throw new Error("session.create should succeed");
+			expect(body.data.session).toMatch(/^[a-z2-7]{6}$/);
+			expect(body.data.label).toBeUndefined();
+		});
+
 		it("session.list succeeds without WS client", async () => {
 			const res = await postCommand(makeCmd("session.list"));
 			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
+			const body = (await res.json()) as BproxyResponse<"session.list">;
 			expect(body.ok).toBe(true);
-			if (body.ok) {
-				const data = body.data as { sessions: unknown[] };
-				expect(Array.isArray(data.sessions)).toBe(true);
-			}
+			if (body.ok) expect(Array.isArray(body.data.sessions)).toBe(true);
 		});
 
-		it("session.bind works from unbound session and updates pacing", async () => {
+		it("session.bind binds an existing logical tab and updates pacing", async () => {
+			built.sessions.registerTab(currentSession, 42);
 			const res = await postCommand(
-				makeCmd("session.bind", { session: "s1", params: { tabId: 42, pacing: "fast" } }),
+				makeCmd("session.bind", { params: { tab: T1, pacing: "fast" } }),
 			);
 			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
+			const body = (await res.json()) as BproxyResponse<"session.bind">;
 			expect(body.ok).toBe(true);
-			expect(built.sessions.getOrCreate("s1").tabId).toBe(42);
-			expect(built.sessions.getOrCreate("s1").pacing).toBe("fast");
+			expect(built.sessions.get(currentSession)).toMatchObject({ tab: "t1", pacing: "fast" });
 		});
 
-		it("session.unbind clears tabId (idempotent)", async () => {
-			built.sessions.bind("default", 99);
+		it("session.unbind clears the logical binding (idempotent)", async () => {
+			built.sessions.bind(currentSession, 99);
 			await postCommand(makeCmd("session.unbind"));
-			expect(built.sessions.getOrCreate("default").tabId).toBeNull();
+			expect(built.sessions.get(currentSession)?.tab).toBeNull();
 			await postCommand(makeCmd("session.unbind"));
-			expect(built.sessions.getOrCreate("default").tabId).toBeNull();
+			expect(built.sessions.get(currentSession)?.tab).toBeNull();
 		});
 
 		it("session.resume clears paused state", async () => {
-			built.sessions.pause("default", "captcha");
+			built.sessions.pause(currentSession, "captcha");
 			await postCommand(makeCmd("session.resume"));
-			expect(built.sessions.getOrCreate("default").paused).toBe(false);
+			expect(built.sessions.get(currentSession)?.paused).toBe(false);
 		});
 	});
 
@@ -142,6 +168,7 @@ describe("action contract coverage — GAP A", () => {
 		const forwardedActions: Action[] = [
 			"navigate",
 			"text",
+			"links",
 			"images",
 			"elements",
 			"outline",
@@ -186,7 +213,7 @@ describe("action contract coverage — GAP A", () => {
 	});
 
 	it("debug.log is forwarded to extension (not daemon-local)", async () => {
-		built.sessions.bind("default", 42);
+		built.sessions.bind(currentSession, 42);
 		const ws = await connectClient();
 
 		let receivedAction: string | null = null;

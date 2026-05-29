@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- compile-time assertions */
 import type { Action, ActionParams, ActionResult, DaemonRequestTrace, TraceEntry } from "./actions";
 import type { ErrorCode } from "./errors";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";
@@ -44,4 +45,7 @@ type _TraceUsesNarrowActionAndErrorCode = Expect<
 type _TabInfoUsesLogicalHandle = Expect<Equals<TabInfo["tab"], TabHandle>>;
 type _ForwardedTargetAllowsNull = Expect<
 	Equals<BproxyForwardedRequest["target"]["tabId"], number | null>
+>;
+type _DebugStatusExposesSessionTabs = Expect<
+	Equals<ActionResult["debug.status"]["sessionTabs"][number], { session: SessionId; tabs: Array<TabInfo> }>
 >;

@@ -10,6 +10,7 @@ const extensionToken = "test-extension-token";
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
+let currentSession: BproxyRequest["session"];
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
@@ -19,7 +20,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 			`01HZX${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(21, "0")}`,
 		action: "text",
 		params: {},
-		session: "default",
+		session: currentSession,
 		deadline: Date.now() + 5000,
 		destructive: false,
 		...overrides,
@@ -62,6 +63,7 @@ beforeEach(async () => {
 	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
+	currentSession = built.sessions.create().id;
 });
 
 afterEach(async () => {
@@ -73,7 +75,6 @@ describe("round-trip — design-asserted invariants", () => {
 		const handlerSpy = vi.spyOn(built.pending, "register");
 		const cmd = makeCmd({ id: "auth-test", action: "debug.status" });
 
-		// Negative: missing bearer → 401, handler never called.
 		const noAuth = await fetch(`http://127.0.0.1:${port}/`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -82,12 +83,10 @@ describe("round-trip — design-asserted invariants", () => {
 		expect(noAuth.status).toBe(401);
 		expect(handlerSpy).not.toHaveBeenCalled();
 
-		// Negative: wrong bearer → 401, handler never called.
 		const badAuth = await postCommand(cmd, "wrong-token");
 		expect(badAuth.status).toBe(401);
 		expect(handlerSpy).not.toHaveBeenCalled();
 
-		// Positive control: SAME body with the right bearer succeeds.
 		const okRes = await postCommand(cmd);
 		expect(okRes.status).toBe(200);
 	});
@@ -95,7 +94,7 @@ describe("round-trip — design-asserted invariants", () => {
 
 describe("round-trip — happy path", () => {
 	it("forwards a command to a connected WS client and resolves with the response", async () => {
-		built.sessions.bind("default", 42);
+		built.sessions.bind(currentSession, 42);
 		const ws = await connectClient();
 
 		ws.on("message", (raw: unknown) => {
@@ -126,6 +125,7 @@ describe("round-trip — happy path", () => {
 		const body = (await res.json()) as BproxyResponse<"debug.status">;
 		if (!body.ok) throw new Error("debug.status should succeed");
 		expect(body.data.daemon.pid).toBe(process.pid);
+		expect(body.data.sessionTabs).toContainEqual({ session: currentSession, tabs: [] });
 	});
 
 	it("pairing flow: claim issues an extension token", async () => {
@@ -153,61 +153,61 @@ describe("round-trip — happy path", () => {
 });
 
 describe("round-trip — reconnect and replay", () => {
-	it("replays an in-flight request to a reconnecting client and resolves the original POST", {
-		timeout: 15_000,
-	}, async () => {
-		built.sessions.bind("default", 42);
-		let ws = await connectClient();
+	it(
+		"replays an in-flight request to a reconnecting client and resolves the original POST",
+		{ timeout: 15_000 },
+		async () => {
+			built.sessions.bind(currentSession, 42);
+			let ws = await connectClient();
 
-		const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
-			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
-		});
-
-		const cmd = makeCmd({ id: "01HZX0000000000000000000RP", deadline: Date.now() + 10_000 });
-		const postPromise = postCommand(cmd);
-		await seenByClient1;
-		ws.close();
-		await waitUntil(() => built.clients.size() === 0);
-
-		// Register the message handler BEFORE the WS open event, to avoid a
-		// race where replayForClient sends the message before the handler is set.
-		const replayPromise = new Promise<BproxyRequest>((resolve) => {
-			const auth = Buffer.from(extensionToken).toString("base64url");
-			const ws2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-				headers: { Origin: "chrome-extension://test" },
+			const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
+				ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
 			});
-			ws2.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
-			ws2.once("open", () => {
-				ws = ws2;
+
+			const cmd = makeCmd({ id: "01HZX0000000000000000000RP", deadline: Date.now() + 10_000 });
+			const postPromise = postCommand(cmd);
+			await seenByClient1;
+			ws.close();
+			await waitUntil(() => built.clients.size() === 0);
+
+			const replayPromise = new Promise<BproxyRequest>((resolve) => {
+				const auth = Buffer.from(extensionToken).toString("base64url");
+				const ws2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
+					headers: { Origin: "chrome-extension://test" },
+				});
+				ws2.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
+				ws2.once("open", () => {
+					ws = ws2;
+				});
+				ws2.once("error", () => {
+					/* ignore */
+				});
 			});
-			ws2.once("error", () => {
-				/* ignore */
-			});
-		});
 
-		const replayed = await replayPromise;
-		expect(replayed.id).toBe(cmd.id);
+			const replayed = await replayPromise;
+			expect(replayed.id).toBe(cmd.id);
 
-		ws.send(
-			JSON.stringify({
-				protocol_version: 1,
-				id: replayed.id,
-				ok: true,
-				data: { text: "from-client-2" },
-				page: { url: "https://x", title: "", state: "ready", busy: false },
-				replay: false,
-			} satisfies BproxyResponse),
-		);
+			ws.send(
+				JSON.stringify({
+					protocol_version: 1,
+					id: replayed.id,
+					ok: true,
+					data: { text: "from-client-2" },
+					page: { url: "https://x", title: "", state: "ready", busy: false },
+					replay: false,
+				} satisfies BproxyResponse),
+			);
 
-		const res = await postPromise;
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as BproxyResponse;
-		expect(body).toMatchObject({ ok: true, id: cmd.id });
-		if (body.ok && body.data && "text" in body.data) {
-			expect(body.data.text).toBe("from-client-2");
-		}
-		ws.close();
-	});
+			const res = await postPromise;
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body).toMatchObject({ ok: true, id: cmd.id });
+			if (body.ok && body.data && "text" in body.data) {
+				expect(body.data.text).toBe("from-client-2");
+			}
+			ws.close();
+		},
+	);
 });
 
 describe("round-trip — observability (ADR-009)", () => {
@@ -215,31 +215,31 @@ describe("round-trip — observability (ADR-009)", () => {
 		const cmd = makeCmd({ id: "01HZX000000000000000000OBS", action: "debug.status" });
 		await postCommand(cmd);
 
-		const eventsForId = captured.lines.filter((l) => l["id"] === cmd.id);
-		const events = eventsForId.map((l) => l["event"]);
+		const eventsForId = captured.lines.filter((line) => line["id"] === cmd.id);
+		const events = eventsForId.map((line) => line["event"]);
 		expect(events).toContain("received");
 		expect(events).toContain("response");
 
-		const received = eventsForId.find((l) => l["event"] === "received");
+		const received = eventsForId.find((line) => line["event"] === "received");
 		expect(received).toMatchObject({
 			id: cmd.id,
 			action: "debug.status",
-			session: "default",
+			session: currentSession,
 			destructive: false,
 		});
 
-		const response = eventsForId.find((l) => l["event"] === "response");
+		const response = eventsForId.find((line) => line["event"] === "response");
 		expect(response).toMatchObject({ id: cmd.id, ok: true });
 	});
 
 	it("emits ws_connect and ws_disconnect when a client connects and drops", async () => {
 		captured.clear();
 		const ws = await connectClient();
-		await waitUntil(() => captured.lines.some((l) => l["event"] === "ws_connect"));
+		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 		ws.close();
-		await waitUntil(() => captured.lines.some((l) => l["event"] === "ws_disconnect"));
+		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_disconnect"));
 
-		const connect = captured.lines.find((l) => l["event"] === "ws_connect");
+		const connect = captured.lines.find((line) => line["event"] === "ws_connect");
 		expect(connect).toHaveProperty("ws_client");
 	});
 });

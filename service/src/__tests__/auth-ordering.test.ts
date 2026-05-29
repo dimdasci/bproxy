@@ -10,6 +10,7 @@ const wsToken = "test-ext-token";
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
+const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
@@ -17,7 +18,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		id: overrides.id ?? `auth-test-${Math.random().toString(36).slice(2, 8)}`,
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? DEFAULT_SESSION,
 		deadline: Date.now() + 5000,
 		destructive: false,
 		...overrides,
@@ -211,16 +212,19 @@ describe("auth ordering — GAP C", () => {
 		});
 
 		it("session state is not modified when auth fails", async () => {
-			const sessionBefore = built.sessions.getOrCreate("default");
+			const sessionId = built.sessions.create().id;
+			built.sessions.pause(sessionId, "captcha");
+			const sessionBefore = built.sessions.internal(sessionId);
 			const beforePaused = sessionBefore.paused;
 
-			const cmd = makeCmd({ action: "session.resume" });
+			const cmd = makeCmd({ action: "session.resume", session: sessionId });
 			const res = await postCommand(cmd, "wrong-token");
 			expect(res.status).toBe(401);
 
-			const sessionAfter = built.sessions.getOrCreate("default");
+			const sessionAfter = built.sessions.internal(sessionId);
 			// Session state should be unchanged
 			expect(sessionAfter.paused).toBe(beforePaused);
+			expect(sessionAfter.pauseReason).toBe("captcha");
 		});
 
 		it("no trace is recorded when auth fails", async () => {

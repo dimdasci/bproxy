@@ -91,7 +91,16 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			const session = deps.sessions.getOrCreate(cmd.session);
+			const session = deps.sessions.get(cmd.session);
+			if (!session) {
+				return errorResponse(cmd.id, {
+					code: "SESSION_NOT_FOUND",
+					category: "target",
+					retry: "conditional",
+					message: `Session '${cmd.session}' was not found`,
+					details: { session: cmd.session },
+				});
+			}
 
 			// Precedence (normative): paused → unbound → forward.
 			// A paused session refuses every forwarded action without going
@@ -109,7 +118,8 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			if (session.tabId === null) {
+			const bound = deps.sessions.resolveBound(cmd.session);
+			if (!bound) {
 				return errorResponse(cmd.id, {
 					code: "TAB_NOT_FOUND",
 					category: "target",
@@ -118,7 +128,7 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			const tabId = session.tabId;
+			const tabId = bound.chromeTabId;
 			const forwarded: BproxyForwardedRequest = { ...cmd, target: { tabId } };
 			return withTabLock(tabId, () =>
 				deps.pending.register(forwarded, (wireCmd) => {

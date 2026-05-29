@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../logger";
@@ -10,6 +10,8 @@ const extensionToken = "test-ext-token";
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
+let currentSession: BproxyRequest["session"];
+const T1 = "t1" as TabHandle;
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
@@ -17,7 +19,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		id: overrides.id ?? `obs-${Math.random().toString(36).slice(2, 8)}`,
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? currentSession,
 		deadline: overrides.deadline ?? Date.now() + 5000,
 		destructive: false,
 		...overrides,
@@ -60,6 +62,7 @@ beforeEach(async () => {
 	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
+	currentSession = built.sessions.create().id;
 });
 
 afterEach(async () => {
@@ -70,7 +73,7 @@ describe("observability contract — GAP D", () => {
 	describe("happy path event sequence", () => {
 		it("emits received → forwarded → response for dispatched actions", async () => {
 			captured.clear();
-			built.sessions.bind("default", 42);
+			built.sessions.bind(currentSession, 42);
 			const ws = await connectClient();
 
 			ws.on("message", (raw: unknown) => {
@@ -89,27 +92,23 @@ describe("observability contract — GAP D", () => {
 			const cmd = makeCmd({ id: "obs-seq-test-1", action: "text" });
 			await postCommand(cmd);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			const eventNames = events.map((l) => l["event"]);
+			const events = captured.lines.filter((line) => line["id"] === cmd.id);
+			const eventNames = events.map((line) => line["event"]);
 
 			expect(eventNames).toContain("received");
 			expect(eventNames).toContain("forwarded");
 			expect(eventNames).toContain("response");
+			expect(eventNames.indexOf("received")).toBeLessThan(eventNames.indexOf("forwarded"));
+			expect(eventNames.indexOf("forwarded")).toBeLessThan(eventNames.indexOf("response"));
 
-			const receivedIndex = eventNames.indexOf("received");
-			const forwardedIndex = eventNames.indexOf("forwarded");
-			const responseIndex = eventNames.indexOf("response");
-			expect(receivedIndex).toBeLessThan(forwardedIndex);
-			expect(forwardedIndex).toBeLessThan(responseIndex);
-
-			const forwarded = events.find((l) => l["event"] === "forwarded");
+			const forwarded = events.find((line) => line["event"] === "forwarded");
 			expect(forwarded).toMatchObject({
 				id: cmd.id,
 				ws_client: expect.any(String),
 				tab: 42,
 			});
 
-			const response = events.find((l) => l["event"] === "response");
+			const response = events.find((line) => line["event"] === "response");
 			expect(response).toMatchObject({
 				id: cmd.id,
 				ok: true,
@@ -121,7 +120,7 @@ describe("observability contract — GAP D", () => {
 
 		it("emits pacing_wait when pacing delay occurs", async () => {
 			captured.clear();
-			built.sessions.bind("default", 42, "human");
+			built.sessions.bind(currentSession, 42, "human");
 			const ws = await connectClient();
 
 			ws.on("message", (raw: unknown) => {
@@ -149,8 +148,8 @@ describe("observability contract — GAP D", () => {
 			});
 			await postCommand(cmd2);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd2.id);
-			const pacing = events.find((l) => l["event"] === "pacing_wait");
+			const events = captured.lines.filter((line) => line["id"] === cmd2.id);
+			const pacing = events.find((line) => line["event"] === "pacing_wait");
 			expect(pacing).toMatchObject({ id: cmd2.id, delay_ms: expect.any(Number) });
 
 			ws.close();
@@ -164,8 +163,8 @@ describe("observability contract — GAP D", () => {
 			const cmd = makeCmd({ id: "obs-err-1", action: "text" });
 			await postCommand(cmd);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			const response = events.find((l) => l["event"] === "response");
+			const events = captured.lines.filter((line) => line["id"] === cmd.id);
+			const response = events.find((line) => line["event"] === "response");
 			expect(response).toMatchObject({
 				ok: false,
 				error_code: "TAB_NOT_FOUND",
@@ -176,30 +175,23 @@ describe("observability contract — GAP D", () => {
 
 		it("emits timeout event when request exceeds deadline", { timeout: 10000 }, async () => {
 			captured.clear();
-			built.sessions.bind("default", 42);
+			built.sessions.bind(currentSession, 42);
 			const ws = await connectClient();
-
-			// Client receives but doesn't respond (simulating hang)
 			ws.on("message", () => {
-				// Don't respond - let it timeout
+				// Intentionally hang.
 			});
 
 			const cmd = makeCmd({ id: "obs-timeout-1", action: "text", deadline: Date.now() + 500 });
 			await postCommand(cmd);
 
-			// Wait for timeout
 			await waitUntil(() => {
-				const events = captured.lines.filter((l) => l["id"] === cmd.id);
-				return events.some((l) => l["event"] === "timeout");
+				const events = captured.lines.filter((line) => line["id"] === cmd.id);
+				return events.some((line) => line["event"] === "timeout");
 			}, 3000);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			const timeout = events.find((l) => l["event"] === "timeout");
-
-			expect(timeout).toMatchObject({
-				id: cmd.id,
-				elapsed_ms: expect.any(Number),
-			});
+			const events = captured.lines.filter((line) => line["id"] === cmd.id);
+			const timeout = events.find((line) => line["event"] === "timeout");
+			expect(timeout).toMatchObject({ id: cmd.id, elapsed_ms: expect.any(Number) });
 
 			ws.close();
 		});
@@ -208,7 +200,7 @@ describe("observability contract — GAP D", () => {
 	describe("replay events", () => {
 		it("emits replay event when in-flight request is replayed", { timeout: 10000 }, async () => {
 			captured.clear();
-			built.sessions.bind("default", 42);
+			built.sessions.bind(currentSession, 42);
 			let ws = await connectClient();
 
 			const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
@@ -219,7 +211,6 @@ describe("observability contract — GAP D", () => {
 			const postPromise = postCommand(cmd);
 			await seenByClient1;
 			ws.close();
-
 			await waitUntil(() => built.clients.size() === 0);
 
 			captured.clear();
@@ -248,30 +239,34 @@ describe("observability contract — GAP D", () => {
 
 			await postPromise;
 			await waitUntil(() =>
-				captured.lines.some((l) => l["id"] === cmd.id && l["event"] === "replay"),
+				captured.lines.some((line) => line["id"] === cmd.id && line["event"] === "replay"),
 			);
 
-			const replay = captured.lines.find((l) => l["id"] === cmd.id && l["event"] === "replay");
+			const replay = captured.lines.find(
+				(line) => line["id"] === cmd.id && line["event"] === "replay",
+			);
 			expect(replay).toMatchObject({ id: cmd.id, ws_client: expect.any(String) });
 
-			ws2.close();
+			ws = ws2;
+			ws.close();
 		});
 	});
 
 	describe("configuration events", () => {
 		it("emits pacing_config when pacing mode changes", async () => {
 			captured.clear();
+			built.sessions.registerTab(currentSession, 42);
 
 			const cmd = makeCmd({
 				id: "obs-config-1",
 				action: "session.bind",
-				params: { tabId: 42, pacing: "fast" },
+				params: { tab: T1, pacing: "fast" },
 			});
 			await postCommand(cmd);
 
-			const configEvent = captured.lines.find((l) => l["event"] === "pacing_config");
+			const configEvent = captured.lines.find((line) => line["event"] === "pacing_config");
 			expect(configEvent).toMatchObject({
-				session: "default",
+				session: currentSession,
 				mode: "fast",
 			});
 		});
@@ -282,12 +277,10 @@ describe("observability contract — GAP D", () => {
 			captured.clear();
 			const ws = await connectClient();
 
-			await waitUntil(() => captured.lines.some((l) => l["event"] === "ws_connect"));
+			await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 
-			const connect = captured.lines.find((l) => l["event"] === "ws_connect");
-			expect(connect).toMatchObject({
-				event: "ws_connect",
-			});
+			const connect = captured.lines.find((line) => line["event"] === "ws_connect");
+			expect(connect).toMatchObject({ event: "ws_connect" });
 			expect(connect).toHaveProperty("ws_client");
 
 			ws.close();
@@ -295,17 +288,15 @@ describe("observability contract — GAP D", () => {
 
 		it("emits ws_disconnect with ws_client on close", async () => {
 			const ws = await connectClient();
-			await waitUntil(() => captured.lines.some((l) => l["event"] === "ws_connect"));
+			await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 
 			captured.clear();
 			ws.close();
 
-			await waitUntil(() => captured.lines.some((l) => l["event"] === "ws_disconnect"));
+			await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_disconnect"));
 
-			const disconnect = captured.lines.find((l) => l["event"] === "ws_disconnect");
-			expect(disconnect).toMatchObject({
-				event: "ws_disconnect",
-			});
+			const disconnect = captured.lines.find((line) => line["event"] === "ws_disconnect");
+			expect(disconnect).toMatchObject({ event: "ws_disconnect" });
 			expect(disconnect).toHaveProperty("ws_client");
 		});
 	});
@@ -313,32 +304,22 @@ describe("observability contract — GAP D", () => {
 	describe("error_code field presence", () => {
 		it("includes error_code in response event on failure", async () => {
 			captured.clear();
-
-			// This will fail because no session is bound
 			const cmd = makeCmd({ id: "obs-errcode-1", action: "text" });
 			await postCommand(cmd);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			const response = events.find((l) => l["event"] === "response");
-			expect(response).toMatchObject({
-				ok: false,
-				error_code: expect.any(String),
-			});
+			const events = captured.lines.filter((line) => line["id"] === cmd.id);
+			const response = events.find((line) => line["event"] === "response");
+			expect(response).toMatchObject({ ok: false, error_code: expect.any(String) });
 		});
 
 		it("omits error_code when response is successful", async () => {
 			captured.clear();
-
-			// debug.status should succeed
 			const cmd = makeCmd({ id: "obs-success-1", action: "debug.status" });
 			await postCommand(cmd);
 
-			const events = captured.lines.filter((l) => l["id"] === cmd.id);
-			const response = events.find((l) => l["event"] === "response");
-			expect(response).toMatchObject({
-				ok: true,
-			});
-			// error_code should not be present on success
+			const events = captured.lines.filter((line) => line["id"] === cmd.id);
+			const response = events.find((line) => line["event"] === "response");
+			expect(response).toMatchObject({ ok: true });
 			expect(response).not.toHaveProperty("error_code");
 		});
 	});

@@ -195,6 +195,7 @@ export interface ActionResult {
 		daemon: { pid: number; port: number; uptimeSec: number };
 		wsClients: Array<{ id: string; connectedAt: number }>;
 		sessions: Array<SessionInfo>;
+		sessionTabs: Array<{ session: SessionId; tabs: Array<TabInfo> }>;
 		pausedSessions: Array<{ session: SessionId; reason?: string }>;
 	};
 }

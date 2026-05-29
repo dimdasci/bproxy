@@ -5,7 +5,11 @@ import { createDispatch } from "../dispatch";
 import { createPending } from "../pending";
 import { createSessionRegistry } from "../sessions";
 
-function req(id: string, session = "default"): BproxyRequest {
+const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
+const SESSION_A = "aaaaaa" as BproxyRequest["session"];
+const SESSION_B = "bbbbbb" as BproxyRequest["session"];
+
+function req(id: string, session = DEFAULT_SESSION): BproxyRequest {
 	return {
 		protocol_version: 1,
 		id,
@@ -28,30 +32,51 @@ function ok(id: string): BproxyResponse {
 	};
 }
 
+function createSeededRegistry(...sessionIds: BproxyRequest["session"][]) {
+	const sessions = createSessionRegistry();
+	for (const sessionId of sessionIds) {
+		sessions.getOrCreate(sessionId);
+	}
+	return sessions;
+}
+
 describe("dispatch", () => {
 	it("returns NO_EXTENSION when no clients are connected", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("default", 42);
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.bind(DEFAULT_SESSION, 42);
 		const pending = createPending({ maxSize: 10 });
 		const dispatch = createDispatch({ clients: createClients(), pending, sessions });
-		const r = await dispatch.send(req("a"));
-		expect(r).toMatchObject({ ok: false, error: { code: "NO_EXTENSION" } });
+		const response = await dispatch.send(req("a"));
+		expect(response).toMatchObject({ ok: false, error: { code: "NO_EXTENSION" } });
 	});
 
-	it("returns TAB_NOT_FOUND when the session has no bound tab", async () => {
+	it("returns SESSION_NOT_FOUND when dispatch is called for an unknown session", async () => {
 		const sessions = createSessionRegistry();
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const dispatch = createDispatch({ clients, pending, sessions });
-		const r = await dispatch.send(req("a"));
-		expect(r).toMatchObject({ ok: false, error: { code: "TAB_NOT_FOUND" } });
+		const response = await dispatch.send(req("a"));
+		expect(response).toMatchObject({ ok: false, error: { code: "SESSION_NOT_FOUND" } });
+		expect(sessions.get(DEFAULT_SESSION)).toBeNull();
+		expect(sendMock).not.toHaveBeenCalled();
+	});
+
+	it("returns TAB_NOT_FOUND when the session has no bound tab", async () => {
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		const clients = createClients();
+		const sendMock = vi.fn();
+		clients.add({ id: "c1", send: sendMock });
+		const pending = createPending({ maxSize: 10 });
+		const dispatch = createDispatch({ clients, pending, sessions });
+		const response = await dispatch.send(req("a"));
+		expect(response).toMatchObject({ ok: false, error: { code: "TAB_NOT_FOUND" } });
 	});
 
 	it("forwards to the client and resolves on response", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("default", 42);
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.bind(DEFAULT_SESSION, 42);
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
@@ -59,20 +84,18 @@ describe("dispatch", () => {
 		const onForwarded = vi.fn();
 		const dispatch = createDispatch({ clients, pending, sessions, onForwarded });
 
-		const p = dispatch.send(req("a"));
+		const promise = dispatch.send(req("a"));
 		expect(sendMock).toHaveBeenCalledOnce();
 		const forwarded = sendMock.mock.calls[0]![0] as BproxyForwardedRequest;
 		expect(onForwarded).toHaveBeenCalledWith({ id: forwarded.id, wsClient: "c1", tab: 42 });
-		// The on-wire shape MUST carry the daemon-owned target.tabId so the
-		// extension can route without re-resolving session state.
 		expect(forwarded.target).toEqual({ tabId: 42 });
 		pending.resolveById(forwarded.id, ok(forwarded.id));
-		await expect(p).resolves.toMatchObject({ ok: true });
+		await expect(promise).resolves.toMatchObject({ ok: true });
 	});
 
 	it("rebinding the session changes target.tabId on the very next forwarded request", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("default", 1);
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.bind(DEFAULT_SESSION, 1);
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
@@ -85,8 +108,7 @@ describe("dispatch", () => {
 		pending.resolveById(first.id, ok(first.id));
 		await p1;
 
-		// Rebind: very next forwarded request must carry the new tabId.
-		sessions.bind("default", 2);
+		sessions.bind(DEFAULT_SESSION, 2);
 		const p2 = dispatch.send(req("b"));
 		const second = sendMock.mock.calls[1]![0] as BproxyForwardedRequest;
 		expect(second.target.tabId).toBe(2);
@@ -95,44 +117,41 @@ describe("dispatch", () => {
 	});
 
 	it("refuses forwarded actions on a paused session with HUMAN_REQUIRED, before any tab check", async () => {
-		const sessions = createSessionRegistry();
-		// Pause WITHOUT binding — proves the paused check fires before the
-		// tabId === null check (precedence: paused → unbound → forward).
-		sessions.pause("default", "captcha-check");
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.pause(DEFAULT_SESSION, "captcha-check");
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const dispatch = createDispatch({ clients, pending, sessions });
 
-		const r = await dispatch.send(req("a"));
-		expect(r).toMatchObject({ ok: false, error: { code: "HUMAN_REQUIRED" } });
-		// The pause gate runs entirely inside the daemon — nothing is sent over WS.
+		const response = await dispatch.send(req("a"));
+		expect(response).toMatchObject({ ok: false, error: { code: "HUMAN_REQUIRED" } });
 		expect(sendMock).not.toHaveBeenCalled();
 	});
 
 	it("HUMAN_REQUIRED gate carries the pause reason in the error message", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("default", 42);
-		sessions.pause("default", "manual-attach");
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.bind(DEFAULT_SESSION, 42);
+		sessions.pause(DEFAULT_SESSION, "manual-attach");
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const dispatch = createDispatch({ clients, pending, sessions });
 
-		const r = await dispatch.send(req("a"));
-		expect(r.ok).toBe(false);
-		if (!r.ok) {
-			expect(r.error.code).toBe("HUMAN_REQUIRED");
-			expect(r.error.message).toContain("manual-attach");
+		const response = await dispatch.send(req("a"));
+		expect(response.ok).toBe(false);
+		if (!response.ok) {
+			expect(response.error.code).toBe("HUMAN_REQUIRED");
+			expect(response.error.message).toContain("manual-attach");
 		}
 		expect(sendMock).not.toHaveBeenCalled();
 	});
 
 	it("serialises commands targeting the same tab in FIFO order", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("default", 42);
+		const sessions = createSeededRegistry(DEFAULT_SESSION);
+		sessions.bind(DEFAULT_SESSION, 42);
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
@@ -142,13 +161,11 @@ describe("dispatch", () => {
 		const p1 = dispatch.send(req("a"));
 		const p2 = dispatch.send(req("b"));
 		const p3 = dispatch.send(req("c"));
-		// Only the first should have been forwarded so far.
 		expect(sendMock).toHaveBeenCalledOnce();
 		expect((sendMock.mock.calls[0]![0] as BproxyForwardedRequest).id).toBe("a");
 
 		pending.resolveById("a", ok("a"));
 		await p1;
-		// After 'a' resolves, 'b' (not 'c') is forwarded next — order preserved.
 		expect(sendMock).toHaveBeenCalledTimes(2);
 		expect((sendMock.mock.calls[1]![0] as BproxyForwardedRequest).id).toBe("b");
 
@@ -162,18 +179,17 @@ describe("dispatch", () => {
 	});
 
 	it("runs commands targeting different tabs in parallel (per-tab lock only)", async () => {
-		const sessions = createSessionRegistry();
-		sessions.bind("s-a", 1);
-		sessions.bind("s-b", 2);
+		const sessions = createSeededRegistry(SESSION_A, SESSION_B);
+		sessions.bind(SESSION_A, 1);
+		sessions.bind(SESSION_B, 2);
 		const clients = createClients();
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const dispatch = createDispatch({ clients, pending, sessions });
 
-		const pa = dispatch.send(req("a", "s-a"));
-		const pb = dispatch.send(req("b", "s-b"));
-		// Different tabs → both forwarded immediately, no serialization between them.
+		const pa = dispatch.send(req("a", SESSION_A));
+		const pb = dispatch.send(req("b", SESSION_B));
 		expect(sendMock).toHaveBeenCalledTimes(2);
 
 		pending.resolveById("b", ok("b"));

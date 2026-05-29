@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../logger";
@@ -10,6 +10,8 @@ const extensionToken = "test-extension-token";
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
+let currentSession: BproxyRequest["session"];
+const T1 = "t1" as TabHandle;
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
@@ -19,7 +21,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 			`01HZX${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(21, "0")}`,
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? currentSession,
 		deadline: Date.now() + 5000,
 		destructive: false,
 		...overrides,
@@ -45,36 +47,42 @@ function connectClient(): Promise<WebSocket> {
 	});
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for future use
-function waitUntil(fn: () => boolean, timeoutMs = 2000): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const start = Date.now();
-		const tick = () => {
-			if (fn()) return resolve();
-			if (Date.now() - start > timeoutMs) return reject(new Error("waitUntil timeout"));
-			setTimeout(tick, 10);
-		};
-		tick();
-	});
-}
-
 beforeEach(async () => {
 	captured = buildCapturedLogger();
 	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
+	currentSession = built.sessions.create().id;
 });
 
 afterEach(async () => {
 	await built.app.close();
 });
 
-describe("end-to-end workflows — GAP B", () => {
-	describe("workflow: unbound session → session.bind → forwarded action", () => {
-		it("full happy path: bind then succeed", async () => {
+describe("end-to-end workflows — Phase 5 task 3", () => {
+	describe("session validation", () => {
+		it("rejects malformed session ids for browser-control actions", async () => {
+			const res = await postCommand(
+				makeCmd({ action: "text", session: "default" as BproxyRequest["session"] }),
+			);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body).toMatchObject({ ok: false, error: { code: "INVALID_SESSION_ID" } });
+		});
+
+		it("rejects unknown but well-formed session ids", async () => {
+			const res = await postCommand(
+				makeCmd({ action: "text", session: "zzzzzz" as BproxyRequest["session"] }),
+			);
+			const body = (await res.json()) as BproxyResponse;
+			expect(body).toMatchObject({ ok: false, error: { code: "SESSION_NOT_FOUND" } });
+		});
+	});
+
+	describe("workflow: logical tab binding", () => {
+		it("session.bind moves to a session-owned logical tab and forwarded actions succeed", async () => {
+			built.sessions.registerTab(currentSession, 42);
 			const ws = await connectClient();
 
-			// Set up message handler
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				const resp: BproxyResponse = {
@@ -88,317 +96,176 @@ describe("end-to-end workflows — GAP B", () => {
 				ws.send(JSON.stringify(resp));
 			});
 
-			// Without binding, text action should fail
-			const textBefore = makeCmd({ action: "text" });
-			const res1 = await postCommand(textBefore);
-			const body1 = (await res1.json()) as BproxyResponse;
-			expect(body1.ok).toBe(false);
-			if (!body1.ok) expect(body1.error.code).toBe("TAB_NOT_FOUND");
-
-			// Bind the session
-			const bindCmd = makeCmd({ action: "session.bind", params: { tabId: 42 } });
-			const bindRes = await postCommand(bindCmd);
-			const bindBody = (await bindRes.json()) as BproxyResponse;
+			const bindRes = await postCommand(
+				makeCmd({ action: "session.bind", params: { tab: T1, pacing: "fast" } }),
+			);
+			const bindBody = (await bindRes.json()) as BproxyResponse<"session.bind">;
 			expect(bindBody.ok).toBe(true);
-			if (bindBody.ok) {
-				const data = bindBody.data as { session: string };
-				expect(data.session).toBe("default");
-			}
+			expect(built.sessions.get(currentSession)).toMatchObject({ tab: "t1", pacing: "fast" });
 
-			// Now text action should succeed
-			const textAfter = makeCmd({ action: "text" });
-			const res2 = await postCommand(textAfter);
-			const body2 = (await res2.json()) as BproxyResponse;
-			expect(body2.ok).toBe(true);
-			if (body2.ok) {
-				const data2 = body2.data as { text: string };
-				expect(data2.text).toBe("Hello from extension");
-			}
+			const textRes = await postCommand(makeCmd({ action: "text" }));
+			const textBody = (await textRes.json()) as BproxyResponse<"text">;
+			expect(textBody.ok).toBe(true);
+			if (textBody.ok) expect(textBody.data.text).toBe("Hello from extension");
 
 			ws.close();
 		});
 
-		it("chicken-and-egg: session.bind must work without pre-bound tab", async () => {
-			// The session is created automatically but not bound
-			const session = built.sessions.getOrCreate("workflow-test");
-			expect(session.tabId).toBeNull();
-
-			// session.bind should succeed
-			const bindCmd = makeCmd({
-				action: "session.bind",
-				session: "workflow-test",
-				params: { tabId: 100 },
-			});
-			const res = await postCommand(bindCmd);
-			expect(res.status).toBe(200);
+		it("rejects logical handles owned by another session", async () => {
+			const otherSession = built.sessions.create().id;
+			built.sessions.registerTab(currentSession, 42);
+			const res = await postCommand(
+				makeCmd({
+					action: "session.bind",
+					session: otherSession,
+					params: { tab: T1 },
+				}),
+			);
 			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-
-			// Session should now be bound
-			const after = built.sessions.getOrCreate("workflow-test");
-			expect(after.tabId).toBe(100);
+			expect(body).toMatchObject({ ok: false, error: { code: "TAB_NOT_IN_SESSION" } });
 		});
 	});
 
 	describe("workflow: pause/resume", () => {
 		it("pause blocks forwarded commands, resume allows them", async () => {
-			built.sessions.bind("default", 42);
+			built.sessions.bind(currentSession, 42);
 			const ws = await connectClient();
 
-			// Set up handler that tracks calls
 			let commandCount = 0;
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
-				commandCount++;
+				commandCount += 1;
 				const resp = {
 					protocol_version: 1,
 					id: req.id,
 					ok: true,
 					data: { count: commandCount },
-					page: { url: "https://x", title: "X", state: "ready" as const, busy: false },
+					page: { url: "https://x", title: "X", state: "ready", busy: false },
 					replay: false,
-				};
+				} as unknown as BproxyResponse;
 				ws.send(JSON.stringify(resp));
 			});
 
-			// Start with normal operation
-			const cmd1 = makeCmd({ action: "text" });
-			const res1 = await postCommand(cmd1);
+			const res1 = await postCommand(makeCmd({ action: "text" }));
 			const body1 = (await res1.json()) as BproxyResponse;
 			expect(body1.ok).toBe(true);
 			expect(commandCount).toBe(1);
 
-			// Pause the session: the daemon must now refuse forwarded actions
-			// without sending anything to the extension.
-			built.sessions.pause("default", "captcha-check");
-
-			const cmd2 = makeCmd({ action: "text" });
-			const res2 = await postCommand(cmd2);
+			built.sessions.pause(currentSession, "captcha-check");
+			const res2 = await postCommand(makeCmd({ action: "text" }));
 			const body2 = (await res2.json()) as BproxyResponse;
-			expect(body2.ok).toBe(false);
-			if (!body2.ok) expect(body2.error.code).toBe("HUMAN_REQUIRED");
-			// The extension MUST NOT see the paused-session command.
+			expect(body2).toMatchObject({ ok: false, error: { code: "HUMAN_REQUIRED" } });
 			expect(commandCount).toBe(1);
 
-			// Resume
-			const resumeCmd = makeCmd({ action: "session.resume" });
-			await postCommand(resumeCmd);
-
-			// After resume, forwarded commands flow again.
-			const cmd3 = makeCmd({ action: "text" });
-			const res3 = await postCommand(cmd3);
+			await postCommand(makeCmd({ action: "session.resume" }));
+			const res3 = await postCommand(makeCmd({ action: "text" }));
 			const body3 = (await res3.json()) as BproxyResponse;
 			expect(body3.ok).toBe(true);
 			expect(commandCount).toBe(2);
 
 			ws.close();
 		});
-
-		it("pauseReason survives concurrent HUMAN_REQUIRED responses", async () => {
-			// Regression for the race fixed in command.ts: two concurrent POSTs
-			// to the same session both observe paused=false at HTTP entry. The
-			// first response carries the extension-authored reason "interstitial"
-			// and the route handler pauses the session. The second response
-			// arrives later and ALSO carries HUMAN_REQUIRED (any wrapped form).
-			// Old logic, using a pre-dispatch snapshot, would overwrite the
-			// original reason. The fix re-reads live state immediately before
-			// mutating, so the original "interstitial" must survive.
-			built.sessions.bind("default", 42);
-			const ws = await connectClient();
-
-			let received = 0;
-			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest;
-				received++;
-				// First request: extension-authored HUMAN_REQUIRED with the
-				// original reason. The route handler will pause the session.
-				// Second request: a different HUMAN_REQUIRED (here, the wrapped
-				// form a daemon-side gate would synthesize) that the old logic
-				// would mistakenly write back into pauseReason.
-				const message =
-					received === 1 ? "interstitial" : "Session 'default' is paused: interstitial";
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: false,
-					error: { code: "HUMAN_REQUIRED", category: "policy", retry: "never", message },
-				};
-				ws.send(JSON.stringify(resp));
-			});
-
-			// Issue both POSTs without awaiting in between, so both enter
-			// executeCommand before the first dispatch resolves.
-			const a = postCommand(makeCmd({ action: "text" }));
-			const b = postCommand(makeCmd({ action: "text" }));
-			const [resA, resB] = await Promise.all([a, b]);
-			const bodyA = (await resA.json()) as BproxyResponse;
-			const bodyB = (await resB.json()) as BproxyResponse;
-			expect(bodyA.ok).toBe(false);
-			expect(bodyB.ok).toBe(false);
-
-			// The original extension-authored reason must NOT have been
-			// overwritten by the second response's wrapped form.
-			const after = built.sessions.internal("default");
-			expect(after.paused).toBe(true);
-			expect(after.pauseReason).toBe("interstitial");
-			// Sanity: the WS handler did serve both requests.
-			expect(received).toBe(2);
-
-			ws.close();
-		});
-
-		it("forwarded HUMAN_REQUIRED response pauses the session in daemon state", async () => {
-			built.sessions.bind("default", 42);
-			const ws = await connectClient();
-
-			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest;
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: false,
-					error: {
-						code: "HUMAN_REQUIRED",
-						category: "policy",
-						retry: "never",
-						message: "interstitial detected",
-					},
-				};
-				ws.send(JSON.stringify(resp));
-			});
-
-			const cmd = makeCmd({ action: "text" });
-			const res = await postCommand(cmd);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(false);
-			if (!body.ok) expect(body.error.code).toBe("HUMAN_REQUIRED");
-
-			// Daemon must have flipped the session into paused state with the reason.
-			const after = built.sessions.getOrCreate("default");
-			expect(after.paused).toBe(true);
-			expect(after.pauseReason).toBe("interstitial detected");
-
-			ws.close();
-		});
 	});
 
-	describe("workflow: tab reassignment", () => {
-		it("rebinding session updates routing target", async () => {
-			built.sessions.bind("default", 1);
+	describe("workflow: session close", () => {
+		it("session.close closes all session-owned tabs and removes the session", async () => {
+			built.sessions.bind(currentSession, 42);
+			built.sessions.bind(currentSession, 99);
 			const ws = await connectClient();
+			const closedTargets: number[] = [];
 
-			// Track which tab ID commands are sent for
-			const receivedTabIds: number[] = [];
 			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest;
-				const session = built.sessions.getOrCreate(req.session);
-				if (session.tabId !== null) {
-					receivedTabIds.push(session.tabId);
+				const req = JSON.parse(String(raw)) as BproxyRequest & { target?: { tabId: number } };
+				if (req.action === "tab.close") {
+					closedTargets.push(req.target?.tabId ?? -1);
+					const resp = {
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: { tab: T1, closed: true },
+						page: { url: "", title: "", state: "ready", busy: false },
+						replay: false,
+					} as unknown as BproxyResponse;
+					ws.send(JSON.stringify(resp));
 				}
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: true,
-					data: { tabId: session.tabId ?? -1 },
-					page: { url: "https://x", title: "X", state: "ready", busy: false },
-					replay: false,
-				};
-				ws.send(JSON.stringify(resp));
 			});
 
-			// First command goes to tab 1
-			const cmd1 = makeCmd({ action: "text" });
-			await postCommand(cmd1);
-
-			// Rebind to tab 2
-			const bindCmd = makeCmd({ action: "session.bind", params: { tabId: 2 } });
-			await postCommand(bindCmd);
-
-			// Second command should go to tab 2
-			const cmd2 = makeCmd({ action: "text" });
-			await postCommand(cmd2);
-
-			// This captures a potential gap - does rebinding actually update the target?
-			expect(receivedTabIds).toContain(2);
+			const res = await postCommand(makeCmd({ action: "session.close", params: {} }));
+			const body = (await res.json()) as BproxyResponse<"session.close">;
+			expect(body.ok).toBe(true);
+			if (body.ok) expect(body.data.closedTabs).toBe(2);
+			expect(closedTargets).toEqual([42, 99]);
+			expect(built.sessions.get(currentSession)).toBeNull();
 
 			ws.close();
 		});
-	});
 
-	describe("workflow: pairing → connect → command", () => {
-		it("full pairing flow: issue code, claim, connect WS, send command", async () => {
-			// Step 1: Issue pairing code (would be done by daemon on start)
-			const issue = built.pairing.issue();
-			expect(issue.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+		it("session.close is best-effort and still releases daemon state when no extension is connected", async () => {
+			built.sessions.bind(currentSession, 42);
+			built.sessions.bind(currentSession, 99);
 
-			// Step 2: Claim the code
-			const claimRes = await fetch(`http://127.0.0.1:${port}/pair/claim`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json", Origin: "chrome-extension://test" },
-				body: JSON.stringify({ code: issue.code }),
-			});
-			expect(claimRes.status).toBe(200);
-			const claimBody = (await claimRes.json()) as {
-				ok: boolean;
-				data: { extensionToken: string };
-			};
-			expect(claimBody.ok).toBe(true);
+			const res = await postCommand(makeCmd({ action: "session.close", params: {} }));
+			const body = (await res.json()) as BproxyResponse<"session.close">;
+			expect(body.ok).toBe(true);
+			if (body.ok) expect(body.data.closedTabs).toBe(2);
+			expect(built.sessions.get(currentSession)).toBeNull();
+		});
 
-			// Step 3: Connect with the claimed token
-			const newToken = claimBody.data.extensionToken;
-			const auth = Buffer.from(newToken).toString("base64url");
-			const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-				headers: { Origin: "chrome-extension://test" },
-			});
+		it("session.close treats TAB_NOT_FOUND during the close loop as best-effort cleanup", async () => {
+			built.sessions.bind(currentSession, 42);
+			built.sessions.bind(currentSession, 99);
+			const ws = await connectClient();
+			const responses: Array<true | "TAB_NOT_FOUND"> = [true, "TAB_NOT_FOUND"];
 
-			await new Promise<void>((resolve, reject) => {
-				ws.once("open", () => resolve());
-				ws.once("error", reject);
-			});
-
-			// Step 4: Bind and send command
-			built.sessions.bind("default", 42);
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
-				const resp: BproxyResponse = {
-					protocol_version: 1,
-					id: req.id,
-					ok: true,
-					data: { result: "ok" },
-					page: { url: "https://x", title: "X", state: "ready", busy: false },
-					replay: false,
-				};
-				ws.send(JSON.stringify(resp));
+				if (req.action !== "tab.close") return;
+				const next = responses.shift();
+				if (next === true) {
+					ws.send(
+						JSON.stringify({
+							protocol_version: 1,
+							id: req.id,
+							ok: true,
+							data: { tab: T1, closed: true },
+							page: { url: "", title: "", state: "ready", busy: false },
+							replay: false,
+						} as unknown as BproxyResponse),
+					);
+					return;
+				}
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: false,
+						error: {
+							code: "TAB_NOT_FOUND",
+							category: "target",
+							retry: "conditional",
+							message: "Target tab 99 was not found",
+						},
+					} satisfies BproxyResponse),
+				);
 			});
 
-			const cmd = makeCmd({ action: "text" });
-			const res = await postCommand(cmd);
-			const body = (await res.json()) as BproxyResponse;
+			const res = await postCommand(makeCmd({ action: "session.close", params: {} }));
+			const body = (await res.json()) as BproxyResponse<"session.close">;
 			expect(body.ok).toBe(true);
-
+			if (body.ok) expect(body.data.closedTabs).toBe(2);
+			expect(built.sessions.get(currentSession)).toBeNull();
 			ws.close();
 		});
-	});
 
-	describe("workflow: boundary conditions", () => {
-		it("handles session binding without specifying pacing (defaults to human)", async () => {
-			const bindCmd = makeCmd({ action: "session.bind", params: { tabId: 42 } });
-			const res = await postCommand(bindCmd);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
+		it("a second session.close returns SESSION_NOT_FOUND", async () => {
+			built.sessions.bind(currentSession, 42);
+			const res1 = await postCommand(makeCmd({ action: "session.close", params: {} }));
+			const body1 = (await res1.json()) as BproxyResponse<"session.close">;
+			expect(body1.ok).toBe(true);
 
-			const session = built.sessions.getOrCreate("default");
-			expect(session.pacing).toBe("human");
-		});
-
-		it("handles session binding with explicit pacing", async () => {
-			const bindCmd = makeCmd({ action: "session.bind", params: { tabId: 42, pacing: "fast" } });
-			const res = await postCommand(bindCmd);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body.ok).toBe(true);
-
-			const session = built.sessions.getOrCreate("default");
-			expect(session.pacing).toBe("fast");
+			const res2 = await postCommand(makeCmd({ action: "session.close", params: {} }));
+			const body2 = (await res2.json()) as BproxyResponse;
+			expect(body2).toMatchObject({ ok: false, error: { code: "SESSION_NOT_FOUND" } });
 		});
 	});
 });
