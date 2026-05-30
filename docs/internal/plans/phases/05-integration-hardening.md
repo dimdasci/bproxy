@@ -149,13 +149,13 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Remove the fake-tab bootstrap problem and make tab operations privacy-preserving.
 
-- [ ] Make `tab.open --url` work when no current tab is bound. The daemon sends the request to the extension with `target.tabId: null`; the extension background SW recognizes `tab.open` as a background-handled action and creates the Chrome tab directly. Requires an authenticated CLI and a connected extension, but not an existing target tab.
-- [ ] If `tab.open` is called without `-s`, create a session and return the generated id. `tab open` is the **only** command with this auto-create behavior. If called with a valid session, add a new logical tab in that session.
-- [ ] Bind the opened logical tab by default and return `{ session, tab, bound: true, url }`.
-- [ ] Make `tab.list` return only session-owned logical tabs. Do not expose all Chrome tabs.
-- [ ] Make `session.bind --tab tN` resolve only inside the current session.
-- [ ] Keep raw Chrome ids available only in internal logs/debug output where needed for diagnosis, never in normal CLI JSON.
-- [ ] Add regression tests for the exact Phase 4 failure: fresh daemon + extension + `tab open` succeeds without `session bind --tab-id 1`.
+- [X] Make `tab.open --url` work when no current tab is bound. The daemon sends the request to the extension with `target.tabId: null`; the extension background SW recognizes `tab.open` as a background-handled action and creates the Chrome tab directly. Requires an authenticated CLI and a connected extension, but not an existing target tab.
+- [X] If `tab.open` is called without `-s`, create a session and return the generated id. `tab open` is the **only** command with this auto-create behavior. If called with a valid session, add a new logical tab in that session.
+- [X] Bind the opened logical tab by default and return `{ session, tab, bound: true, url }`.
+- [X] Make `tab.list` return only session-owned logical tabs. Do not expose all Chrome tabs.
+- [X] Make `session.bind --tab tN` resolve only inside the current session.
+- [X] Keep raw Chrome ids available only in internal logs/debug output where needed for diagnosis, never in normal CLI JSON.
+- [X] Add regression tests for the exact Phase 4 failure: fresh daemon + extension + `tab open` succeeds without `session bind --tab-id 1`.
 
 **Done when:** the journal workaround is impossible/obsolete, and an agent can bootstrap a fresh Google tab with one command.
 
