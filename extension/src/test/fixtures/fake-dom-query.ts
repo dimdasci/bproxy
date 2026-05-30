@@ -168,5 +168,44 @@ function splitSelectorGroups(selector: string): string[] {
 }
 
 function unescapeCss(value: string): string {
-	return value.replace(/\\(.)/g, "$1");
+	let unescaped = "";
+	for (let index = 0; index < value.length; index += 1) {
+		const char = value[index] as string;
+		if (char !== "\\") {
+			unescaped += char;
+			continue;
+		}
+		const escaped = consumeEscape(value, index);
+		if (!escaped) continue;
+		unescaped += escaped.value;
+		index += escaped.length;
+	}
+	return unescaped;
+}
+
+function consumeEscape(
+	value: string,
+	start: number,
+): { value: string; length: number } | undefined {
+	const next = value[start + 1];
+	if (!next) return undefined;
+	if (!isHexDigit(next)) return { value: next, length: 1 };
+
+	let end = start + 1;
+	while (end < value.length && end - start <= 6 && isHexDigit(value[end] as string)) end += 1;
+	const hex = value.slice(start + 1, end);
+	if (/\s/.test(value[end] ?? "")) end += 1;
+	return {
+		value: toCodePoint(hex),
+		length: end - start - 1,
+	};
+}
+
+function toCodePoint(hex: string): string {
+	const codePoint = Number.parseInt(hex, 16);
+	return codePoint === 0 ? "\uFFFD" : String.fromCodePoint(codePoint);
+}
+
+function isHexDigit(char: string): boolean {
+	return /^[0-9a-fA-F]$/.test(char);
 }

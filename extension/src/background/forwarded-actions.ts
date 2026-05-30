@@ -3,10 +3,12 @@ import type { Action } from "@bproxy/shared";
 export type ForwardedAction = Exclude<
 	Action,
 	| "tab.list"
+	| "session.create"
 	| "session.list"
 	| "session.bind"
 	| "session.unbind"
 	| "session.resume"
+	| "session.close"
 	| "debug.last"
 	| "debug.status"
 >;
@@ -28,6 +30,7 @@ export type DomAction = Exclude<ForwardedAction, BrowserAction | "debug.log">;
 const FORWARDED_ACTIONS = [
 	"navigate",
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
@@ -60,6 +63,7 @@ const BROWSER_ACTIONS = [
 
 const DOM_ACTIONS = [
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",

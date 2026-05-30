@@ -8,6 +8,7 @@ export function paramsValidForAction<A extends ForwardedAction>(
 	const validators: { [K in ForwardedAction]: (input: unknown) => input is ActionParams[K] } = {
 		navigate: isNavigateParams,
 		text: isSelectorParams,
+		links: isLinksParams,
 		images: isSelectorParams,
 		elements: isElementsParams,
 		outline: isEmptyParams,
@@ -35,6 +36,15 @@ function isNavigateParams(value: unknown): value is ActionParams["navigate"] {
 
 function isSelectorParams(value: unknown): value is ActionParams["text"] {
 	return isOptionalStringObject(value, ["selector"]);
+}
+
+function isLinksParams(value: unknown): value is ActionParams["links"] {
+	return (
+		isStrictObject(value, ["selector", "visibleOnly", "limit"]) &&
+		(value["selector"] === undefined || typeof value["selector"] === "string") &&
+		(value["visibleOnly"] === undefined || typeof value["visibleOnly"] === "boolean") &&
+		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
 }
 
 function isElementsParams(value: unknown): value is ActionParams["elements"] {

@@ -188,15 +188,15 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Make research workflows produce structured URLs without external HTML parsing.
 
-- [ ] Define `links` params: optional `selector`, `visibleOnly`, `limit`.
-- [ ] Define link result entries with text, href, target (`ElementTarget`), and optional title/rel/visible metadata if useful.
-- [ ] Implement extraction in ISOLATED world using DOM reads only; no MAIN-world script and no event dispatch.
-- [ ] Resolve relative URLs to absolute `href` values using browser normalization.
-- [ ] Filter hidden/offscreen links when `visibleOnly` is true.
-- [ ] Bound result size with a safe default and explicit `--limit`.
-- [ ] Add CLI command `bproxy links [--selector css] [--visible-only] [--limit N]`.
-- [ ] Traverse open shadow roots by default (consistent with `elements` behavior — locked decision).
-- [ ] Add tests using a fixture page with normal links, nested links, hidden links, duplicate URLs, shadow-root links in open roots, and Google-like result markup.
+- [X] Define `links` params: optional `selector`, `visibleOnly`, `limit`.
+- [X] Define link result entries with text, href, target (`ElementTarget`), and optional title/rel/visible metadata if useful.
+- [X] Implement extraction in ISOLATED world using DOM reads only; no MAIN-world script and no event dispatch.
+- [X] Resolve relative URLs to absolute `href` values using browser normalization.
+- [X] Filter hidden/offscreen links when `visibleOnly` is true.
+- [X] Bound result size with a safe default and explicit `--limit`.
+- [X] Add CLI command `bproxy links [--selector css] [--visible-only] [--limit N]`.
+- [X] Traverse open shadow roots by default (consistent with `elements` behavior — locked decision).
+- [X] Add tests using a fixture page with normal links, nested links, hidden links, duplicate URLs, shadow-root links in open roots, and Google-like result markup.
 
 **Done when:** Scenario 1 can extract search result URLs with one `links` command after navigation.
 
@@ -208,12 +208,12 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Fix the Google `elements` failure and make discovery safe on real pages with messy accessible labels.
 
-- [ ] Add tests for attribute values containing newline, quotes, backslashes, brackets, unicode, and control characters.
-- [ ] Use standards-compliant CSS string escaping for generated attribute selectors, not ad-hoc replacement.
-- [ ] If no safe unique selector can be generated, return a route-based target or omit the selector for that element while keeping the rest of the `elements` response successful.
-- [ ] Ensure one bad element cannot fail the entire `elements` command.
-- [ ] Preserve route-based shadow-DOM support and selector ambiguity errors for user-supplied selectors.
-- [ ] Add a regression fixture matching the journal's Google account `aria-label` newline case: an element with `aria-label="Google Account: Foo\nBar"` where the literal newline in the attribute produces an invalid CSS selector like `a[aria-label="Google Account: ...\n..."]`. The generator must escape it or fall back.
+- [X] Add tests for attribute values containing newline, quotes, backslashes, brackets, unicode, and control characters.
+- [X] Use standards-compliant CSS string escaping for generated attribute selectors, not ad-hoc replacement.
+- [X] If no safe unique selector can be generated, return a route-based target or omit the selector for that element while keeping the rest of the `elements` response successful.
+- [X] Ensure one bad element cannot fail the entire `elements` command.
+- [X] Preserve route-based shadow-DOM support and selector ambiguity errors for user-supplied selectors.
+- [X] Add a regression fixture matching the journal's Google account `aria-label` newline case: an element with `aria-label="Google Account: Foo\nBar"` where the literal newline in the attribute produces an invalid CSS selector like `a[aria-label="Google Account: ...\n..."]`. The generator must escape it or fall back.
 
 **Done when:** `elements` succeeds on a page containing hostile labels and returns enough target data for later `fill`/`select` calls where possible.
 

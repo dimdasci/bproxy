@@ -31,6 +31,7 @@ cli/
     ├── commands/
     │   ├── navigate.ts       # navigate --url
     │   ├── text.ts           # text [--selector]
+    │   ├── links.ts          # links [--selector] [--visible-only] [--limit N]
     │   ├── images.ts         # images [--selector]
     │   ├── elements.ts       # elements [--form]
     │   ├── outline.ts        # outline
@@ -237,7 +238,7 @@ Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `m
 
 **Destructive:** navigate, scroll, fill, fill-form, select, eval, tab.pin, tab.unpin, tab.open, tab.close, session.bind, session.unbind, session.resume, require-human.
 
-**Non-destructive:** text, images, elements, outline, dom, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
+**Non-destructive:** text, links, images, elements, outline, dom, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
 
 ## Verbose Mode (`--verbose`)
 

@@ -80,6 +80,7 @@ export interface PageState {
 export type Action =
   | 'navigate'
   | 'text'
+  | 'links'
   | 'images'
   | 'elements'
   | 'outline'
@@ -115,6 +116,7 @@ export type ElementTarget =
 export interface ActionParams {
   navigate: { url: string };
   text: { selector?: string };
+  links: { selector?: string; visibleOnly?: boolean; limit?: number };
   images: { selector?: string };
   elements: { form?: boolean };
   outline: {};
@@ -157,6 +159,7 @@ export interface ActionParams {
 export interface ActionResult {
   navigate: { url: string; title: string; loadTime: number };
   text: { text: string };
+  links: { links: Array<{ text: string; href: string; target: ElementTarget; title?: string; rel?: string; targetAttr?: string; visible?: boolean }> };
   images: { images: Array<{ src: string; alt: string; width: number; height: number }> };
   elements: { elements: Array<ElementInfo> };
   outline: { landmarks: Array<Landmark>; headings: Array<Heading> };

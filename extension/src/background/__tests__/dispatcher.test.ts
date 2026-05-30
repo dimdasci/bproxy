@@ -19,7 +19,7 @@ function makeRequest(overrides: Partial<BproxyForwardedRequest> = {}): BproxyFor
 		id: overrides.id ?? "req-1",
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? ("m4q8z2" as BproxyForwardedRequest["session"]),
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },
@@ -81,6 +81,18 @@ describe("parseForwardedRequest", () => {
 				makeRequest({
 					action: "fill",
 					params: { target: { selector: "#q" }, value: "x", method: "paste", world: "isolated" },
+				}),
+			),
+		);
+		expect(parsed.success).toBe(true);
+	});
+
+	it("accepts links params for forwarded DOM reads", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify(
+				makeRequest({
+					action: "links",
+					params: { selector: "#search", visibleOnly: true, limit: 10 },
 				}),
 			),
 		);

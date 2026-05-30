@@ -1,4 +1,4 @@
-import type { BproxyError, PageState } from "@bproxy/shared";
+import type { ActionResult, BproxyError, PageState } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createContentRpcHost,
@@ -24,6 +24,45 @@ function protocolError(message: string): BproxyError {
 }
 
 describe("createContentRpcHost", () => {
+	it("supports links as a content action", async () => {
+		const host = createContentRpcHost({
+			handlers: {
+				links: () =>
+					({
+						links: [
+							{
+								text: "Example",
+								href: "https://example.test/",
+								target: { selector: "a" },
+								visible: true,
+							},
+						],
+					}) satisfies ActionResult["links"],
+			},
+			getPageState: () => PAGE,
+		});
+
+		const response = await host.handleMessage(
+			toContentRpcRequest({
+				id: "req-links",
+				action: "links",
+				params: { selector: "main", visibleOnly: true, limit: 1 },
+			}),
+		);
+
+		expect(response).toMatchObject({
+			kind: "bproxy.content.response",
+			id: "req-links",
+			ok: true,
+			data: {
+				links: [
+					{ text: "Example", href: "https://example.test/", target: { selector: "a" }, visible: true },
+				],
+			},
+			page: PAGE,
+		});
+	});
+
 	it("returns a normalized error for unimplemented content actions", async () => {
 		const host = createContentRpcHost({
 			handlers: {

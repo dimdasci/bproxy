@@ -1,17 +1,24 @@
 import type { BproxyError, ElementRoute, ElementTarget } from "@bproxy/shared";
+import { isShadowRootLike } from "./dom-helpers";
+import {
+	createNthPathSegment,
+	createPathSegment,
+	createSelectorCandidates,
+	getElementRoot,
+	getSelectorParent,
+	hasOpenShadowRoot,
+	tagNameOf,
+	type QueryRoot,
+} from "./selector-utils";
 
 export interface TargetingDeps {
 	document?: Document;
 }
 
-type QueryRoot = Document | ShadowRoot;
-
 type SelectorCandidate = {
 	selector: string;
 	index?: number;
 };
-
-const SELECTOR_ATTRS = ["data-testid", "data-test", "data-qa", "data-cy", "name", "aria-label"];
 
 export function resolveElementTarget(target: ElementTarget, deps: TargetingDeps = {}): Element {
 	const doc = deps.document ?? document;
@@ -80,6 +87,14 @@ export function createElementTarget(element: Element): ElementTarget {
 	};
 }
 
+export function safeCreateElementTarget(element: Element): ElementTarget | undefined {
+	try {
+		return createElementTarget(element);
+	} catch {
+		return undefined;
+	}
+}
+
 export function createStableSelector(
 	element: Element,
 	root: QueryRoot = getElementRoot(element),
@@ -88,21 +103,20 @@ export function createStableSelector(
 		if (selectsExactly(root, selector, element)) return selector;
 	}
 
-	const segments: string[] = [];
-	let current: Element | null = element;
-	while (current) {
-		segments.unshift(createPathSegment(current));
-		const selector = segments.join(" > ");
-		if (selectsExactly(root, selector, element)) return selector;
-		current = getSelectorParent(current, root);
-	}
+	const preferredPath = createPathSelector(element, root, createPathSegment);
+	if (preferredPath) return preferredPath;
 
-	return segments.join(" > ");
+	return (
+		createPathSelector(element, root, createNthPathSegment) ??
+		buildPathSelector(element, root, createNthPathSegment) ??
+		tagNameOf(element)
+	);
 }
 
 function createRouteHostSelector(host: Element, root: QueryRoot): SelectorCandidate {
 	for (const selector of createSelectorCandidates(host)) {
-		const matches = queryAll(root, selector, { kind: "generated-host", selector });
+		const matches = tryQueryAll(root, selector);
+		if (!matches) continue;
 		const index = matches.indexOf(host);
 		if (index === -1) continue;
 		if (matches.length === 1) return { selector };
@@ -158,51 +172,39 @@ function selectRouteHost(
 	return matches[0] as Element;
 }
 
-function createSelectorCandidates(element: Element): string[] {
-	const candidates = new Set<string>();
-	pushCandidate(candidates, idSelector(element));
-	for (const selector of attributeSelectors(element, [
-		...SELECTOR_ATTRS,
-		"placeholder",
-		"role",
-		"type",
-	])) {
-		pushCandidate(candidates, selector);
+function createPathSelector(
+	element: Element,
+	root: QueryRoot,
+	segmentFor: (element: Element) => string,
+): string | undefined {
+	const segments: string[] = [];
+	let current: Element | null = element;
+	while (current) {
+		segments.unshift(segmentFor(current));
+		const selector = segments.join(" > ");
+		if (selectsExactly(root, selector, element)) return selector;
+		current = getSelectorParent(current, root);
 	}
-	if (element.getAttribute("contenteditable")?.trim() === "true") {
-		pushCandidate(candidates, '[contenteditable="true"]');
-	}
-	return [...candidates];
+	return undefined;
 }
 
-function createPathSegment(element: Element): string {
-	const id = element.id.trim();
-	if (id.length > 0) return `${tagNameOf(element)}#${escapeCssIdentifier(id)}`;
-
-	const firstAttributeSelector = attributeSelectors(element, [
-		...SELECTOR_ATTRS,
-		"placeholder",
-		"role",
-		"type",
-	])[0];
-	if (firstAttributeSelector) return firstAttributeSelector;
-
-	if (element.getAttribute("contenteditable") === "true") {
-		return `${tagNameOf(element)}[contenteditable="true"]`;
+function buildPathSelector(
+	element: Element,
+	root: QueryRoot,
+	segmentFor: (element: Element) => string,
+): string | undefined {
+	const segments: string[] = [];
+	let current: Element | null = element;
+	while (current) {
+		segments.unshift(segmentFor(current));
+		current = getSelectorParent(current, root);
 	}
-
-	return `${tagNameOf(element)}:nth-of-type(${nthOfType(element)})`;
-}
-
-function getSelectorParent(element: Element, root: QueryRoot): Element | null {
-	const parent = element.parentElement;
-	if (!parent) return null;
-	return getElementRoot(parent) === root ? parent : null;
+	return segments.length > 0 ? segments.join(" > ") : undefined;
 }
 
 function selectsExactly(root: QueryRoot, selector: string, expected: Element): boolean {
-	const matches = queryAll(root, selector, { kind: "generated-selector", selector });
-	return matches.length === 1 && matches[0] === expected;
+	const matches = tryQueryAll(root, selector);
+	return Boolean(matches && matches.length === 1 && matches[0] === expected);
 }
 
 function queryAll(root: QueryRoot, selector: string, details: Record<string, unknown>): Element[] {
@@ -213,64 +215,12 @@ function queryAll(root: QueryRoot, selector: string, details: Record<string, unk
 	}
 }
 
-function nthOfType(element: Element): number {
-	const parent = element.parentElement;
-	const siblings = parent ? Array.from(parent.children) : getRootChildren(getElementRoot(element));
-	const sameTag = siblings.filter((candidate) => tagNameOf(candidate) === tagNameOf(element));
-	return sameTag.indexOf(element) + 1;
-}
-
-function getRootChildren(root: QueryRoot): Element[] {
-	return Array.from(root.children ?? []);
-}
-
-function getElementRoot(element: Element): QueryRoot {
-	const root = element.getRootNode();
-	if (isShadowRootLike(root)) return root;
-	return (element.ownerDocument ?? document) as Document;
-}
-
-function tagNameOf(element: Element): string {
-	return element.tagName.toLowerCase();
-}
-
-function idSelector(element: Element): string | undefined {
-	const id = element.id.trim();
-	return id.length > 0 ? `#${escapeCssIdentifier(id)}` : undefined;
-}
-
-function attributeSelectors(element: Element, attrs: string[]): string[] {
-	return attrs
-		.map((attr) => selectorForAttribute(element, attr))
-		.filter((value): value is string => typeof value === "string");
-}
-
-function selectorForAttribute(element: Element, attr: string): string | undefined {
-	const value = element.getAttribute(attr)?.trim();
-	if (!value) return undefined;
-	return `${tagNameOf(element)}[${attr}="${escapeCssString(value)}"]`;
-}
-
-function pushCandidate(candidates: Set<string>, selector: string | undefined): void {
-	if (selector) candidates.add(selector);
-}
-
-function hasOpenShadowRoot(element: Element): element is Element & { shadowRoot: ShadowRoot } {
-	return isShadowRootLike(element.shadowRoot);
-}
-
-function isShadowRootLike(value: unknown): value is ShadowRoot {
-	return (
-		typeof value === "object" && value !== null && "host" in value && "querySelectorAll" in value
-	);
-}
-
-function escapeCssIdentifier(value: string): string {
-	return value.replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char}`);
-}
-
-function escapeCssString(value: string): string {
-	return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+function tryQueryAll(root: QueryRoot, selector: string): Element[] | null {
+	try {
+		return Array.from(root.querySelectorAll(selector));
+	} catch {
+		return null;
+	}
 }
 
 function elementNotFound(message: string, details?: Record<string, unknown>): BproxyError {

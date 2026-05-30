@@ -1,5 +1,7 @@
+import type { ElementTarget } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import { doc, el, shadow } from "../../test/fixtures/fake-dom";
+import { handleLinks } from "../actions/links";
 import {
 	handleDom,
 	handleElements,
@@ -8,6 +10,7 @@ import {
 	handleText,
 } from "../actions/reads";
 import type { ContentRpcRequest } from "../rpc";
+import { resolveElementTarget } from "../targeting";
 
 describe("read actions", () => {
 	it("text reads visible content from a scoped host and its open shadow root", () => {
@@ -32,6 +35,90 @@ describe("read actions", () => {
 		expect(handleText(request("text", { selector: "#card" }), withDocument(page))).toBe(
 			"Shadow title Visible body",
 		);
+	});
+
+	it("links extracts structured visible URLs from Google-like markup and open shadow roots", () => {
+		const first = el("a", {
+			attrs: { href: "/result-1", rel: "noopener", target: "_blank", title: "First result" },
+			text: "Result One",
+		});
+		const second = el("a", {
+			attrs: { href: "https://example.test/result-2" },
+			children: [el("span", { text: "Result Two" })],
+		});
+		const hidden = el("a", {
+			attrs: { href: "/hidden" },
+			text: "Hidden result",
+			style: { display: "none" },
+		});
+		const offscreen = el("a", {
+			attrs: { href: "/offscreen" },
+			text: "Offscreen result",
+			rect: { top: 2000, left: 0, width: 100, height: 20 },
+		});
+		const duplicate = el("a", { attrs: { href: "/result-1" }, text: "Result One copy" });
+		const shadowLink = el("a", { attrs: { href: "/shadow" }, text: "Shadow result" });
+		const host = el("search-shadow", { attrs: { id: "shadow-host" }, shadow: shadow(shadowLink) });
+		const page = doc(
+			el("html", {
+				children: [
+					el("body", {
+						children: [
+							el("div", {
+								attrs: { id: "search" },
+								children: [
+									el("div", {
+										attrs: { class: "g" },
+										children: [el("div", { attrs: { class: "yuRUbf" }, children: [first] })],
+									}),
+									el("div", { children: [el("div", { children: [second] })] }),
+									hidden,
+									offscreen,
+									duplicate,
+									host,
+								],
+							}),
+						],
+					}),
+				],
+			}),
+		);
+		Object.assign(page, { baseURI: "https://example.test/search?q=bproxy" });
+		Object.assign(page.defaultView, { innerWidth: 1280, innerHeight: 800 });
+
+		const links = handleLinks(
+			request("links", { selector: "#search", visibleOnly: true, limit: 4 }),
+			withDocument(page),
+		);
+
+		expect(links).toHaveLength(4);
+		expect(links.map((link) => link.href)).toEqual([
+			"https://example.test/result-1",
+			"https://example.test/result-2",
+			"https://example.test/result-1",
+			"https://example.test/shadow",
+		]);
+		const firstLink = links[0];
+		expect(firstLink).toMatchObject({
+			text: "Result One",
+			title: "First result",
+			rel: "noopener",
+			targetAttr: "_blank",
+			visible: true,
+		});
+		expect(links[3]).toMatchObject({
+			target: { route: { hosts: [{ selector: "#shadow-host" }] } },
+			text: "Shadow result",
+			visible: true,
+		});
+		expect(
+			resolveElementTarget(links[3]!.target as ElementTarget, {
+				document: page as unknown as Document,
+			}),
+		).toBe(shadowLink as unknown as Element);
+		const allLinks = handleLinks(request("links", { selector: "#search", limit: 10 }), withDocument(page));
+		expect(allLinks.map((link) => link.href)).toContain("https://example.test/hidden");
+		expect(allLinks.map((link) => link.href)).toContain("https://example.test/offscreen");
 	});
 
 	it("images returns only visible images within the requested scope", () => {
@@ -105,6 +192,36 @@ describe("read actions", () => {
 
 		const formOnly = handleElements(request("elements", { form: true }), withDocument(page));
 		expect(formOnly).toEqual([expect.objectContaining({ selector: "#email", tag: "input" })]);
+	});
+
+	it("elements keeps succeeding when a discovered label contains hostile selector characters", () => {
+		const account = el("a", {
+			attrs: {
+				href: "https://accounts.google.com/AccountChooser",
+				"aria-label": 'Google Account: Foo\n"Bar" \\ [1]',
+			},
+		});
+		const search = el("button", { attrs: { id: "search" }, text: "Search" });
+		const page = doc(
+			el("html", {
+				children: [el("body", { children: [account, search] })],
+			}),
+		);
+
+		const elements = handleElements(request("elements", {}), withDocument(page));
+		expect(elements).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ selector: "#search", tag: "button" }),
+				expect.objectContaining({ tag: "a", selector: expect.any(String) }),
+			]),
+		);
+
+		const accountInfo = elements.find((element) => element.tag === "a");
+		expect(accountInfo).toBeDefined();
+		expect(accountInfo?.selector).not.toContain("\n");
+		expect(
+			resolveElementTarget(accountInfo as ElementTarget, { document: page as unknown as Document }),
+		).toBe(account as unknown as Element);
 	});
 
 	it("outline returns visible landmarks and heading hierarchy", () => {

@@ -242,7 +242,7 @@ Handled through `src/content/**` and routed via background/content RPC.
 
 | Action | Notes |
 |---|---|
-| `text`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; no MAIN-world execution |
+| `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, and can filter to visible/in-viewport anchors |
 | `scroll`, `wait` | Jittered polling only; no `MutationObserver` |
 | `fill(method="direct")` | Native DOM state write, no events |
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
