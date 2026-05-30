@@ -5,7 +5,7 @@
  * - Correct action names and params in request envelopes
  * - Destructive classification per command registry
  * - Optional param omission
- * - Argument validation (tab-id, pacing, count, limit)
+ * - Argument validation (logical tab handles, pacing, count, limit)
  * - HUMAN_REQUIRED responses pass through as exit 1 (protocol JSON)
  */
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -25,7 +25,7 @@ function setupTempHome(): string {
 
 function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
 	return {
-		session: "test-session",
+		session: "m4q7z2",
 		timeout: "5000",
 		home,
 		verbose: false,
@@ -90,6 +90,23 @@ async function sendWithCapture(
 
 // ─── Session commands ──────────────────────────────────────────────────
 
+describe("session.create", () => {
+	it("sends session.create with optional label", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture(
+			"session.create",
+			{ label: "research" },
+			home,
+		);
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "session.create",
+			params: { label: "research" },
+			destructive: true,
+		});
+	});
+});
+
 describe("session.list", () => {
 	it("sends session.list with empty params", async () => {
 		const home = setupTempHome();
@@ -106,27 +123,27 @@ describe("session.list", () => {
 });
 
 describe("session.bind", () => {
-	it("sends session.bind with tabId", async () => {
+	it("sends session.bind with a logical tab handle", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("session.bind", { tabId: 42 }, home);
+		const { plan, calls } = await sendWithCapture("session.bind", { tab: "t1" }, home);
 		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({ action: "session.bind", params: { tabId: 42 } });
+		expect(calls[0]!.body).toMatchObject({ action: "session.bind", params: { tab: "t1" } });
 	});
 
-	it("sends session.bind with tabId and pacing", async () => {
+	it("sends session.bind with a logical tab handle and pacing", async () => {
 		const home = setupTempHome();
 		const { plan, calls } = await sendWithCapture(
 			"session.bind",
-			{ tabId: 7, pacing: "human" },
+			{ tab: "t7", pacing: "human" },
 			home,
 		);
 		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({ params: { tabId: 7, pacing: "human" } });
+		expect(calls[0]!.body).toMatchObject({ params: { tab: "t7", pacing: "human" } });
 	});
 
 	it("is classified as destructive", async () => {
 		const home = setupTempHome();
-		const { calls } = await sendWithCapture("session.bind", { tabId: 1 }, home);
+		const { calls } = await sendWithCapture("session.bind", { tab: "t1" }, home);
 		expect(calls[0]!.body).toMatchObject({ destructive: true });
 	});
 });
@@ -161,6 +178,21 @@ describe("session.resume", () => {
 	});
 });
 
+describe("session.close", () => {
+	it("sends session.close with empty params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("session.close", {}, home);
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({ action: "session.close", params: {} });
+	});
+
+	it("is classified as destructive", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("session.close", {}, home);
+		expect(calls[0]!.body).toMatchObject({ destructive: true });
+	});
+});
+
 // ─── Tab commands ──────────────────────────────────────────────────────
 
 describe("tab.list", () => {
@@ -179,14 +211,14 @@ describe("tab.list", () => {
 });
 
 describe("tab.pin", () => {
-	it("sends tab.pin with optional tabId", async () => {
+	it("sends tab.pin with an optional logical tab handle", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("tab.pin", { tabId: 5 }, home);
+		const { plan, calls } = await sendWithCapture("tab.pin", { tab: "t5" }, home);
 		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({ action: "tab.pin", params: { tabId: 5 } });
+		expect(calls[0]!.body).toMatchObject({ action: "tab.pin", params: { tab: "t5" } });
 	});
 
-	it("sends tab.pin without tabId when not specified", async () => {
+	it("sends tab.pin without a tab handle when not specified", async () => {
 		const home = setupTempHome();
 		const { plan, calls } = await sendWithCapture("tab.pin", {}, home);
 		expect(plan.code).toBe(0);
@@ -201,7 +233,14 @@ describe("tab.pin", () => {
 });
 
 describe("tab.unpin", () => {
-	it("sends tab.unpin with empty params", async () => {
+	it("sends tab.unpin with an optional logical tab handle", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("tab.unpin", { tab: "t2" }, home);
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({ action: "tab.unpin", params: { tab: "t2" } });
+	});
+
+	it("sends tab.unpin with empty params when not specified", async () => {
 		const home = setupTempHome();
 		const { plan, calls } = await sendWithCapture("tab.unpin", {}, home);
 		expect(plan.code).toBe(0);
@@ -234,14 +273,14 @@ describe("tab.open", () => {
 });
 
 describe("tab.close", () => {
-	it("sends tab.close with optional tabId", async () => {
+	it("sends tab.close with an optional logical tab handle", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("tab.close", { tabId: 3 }, home);
+		const { plan, calls } = await sendWithCapture("tab.close", { tab: "t3" }, home);
 		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({ action: "tab.close", params: { tabId: 3 } });
+		expect(calls[0]!.body).toMatchObject({ action: "tab.close", params: { tab: "t3" } });
 	});
 
-	it("sends tab.close without tabId when not specified", async () => {
+	it("sends tab.close without a tab handle when not specified", async () => {
 		const home = setupTempHome();
 		const { plan, calls } = await sendWithCapture("tab.close", {}, home);
 		expect(plan.code).toBe(0);
@@ -399,11 +438,11 @@ describe("HUMAN_REQUIRED handling", () => {
 // ─── Validation edge cases ─────────────────────────────────────────────
 
 describe("argument validation", () => {
-	it("session.bind accepts valid numeric tabId", async () => {
+	it("session.bind accepts valid logical tab handles", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("session.bind", { tabId: 99 }, home);
+		const { plan, calls } = await sendWithCapture("session.bind", { tab: "t99" }, home);
 		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({ params: { tabId: 99 } });
+		expect(calls[0]!.body).toMatchObject({ params: { tab: "t99" } });
 	});
 
 	it("debug.last with count sends correct params", async () => {

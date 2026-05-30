@@ -27,14 +27,17 @@ const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"session.create",
 	"session.bind",
 	"session.unbind",
 	"session.resume",
+	"session.close",
 	"require-human",
 ]);
 
 const NON_DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",

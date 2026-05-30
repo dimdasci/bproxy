@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { isDestructive } from "./command-registry.js";
 import type { ExitPlan } from "./exit.js";
 import { exitFromResponse, exitUsageError } from "./exit.js";
+import { parseSessionId } from "./globals.js";
 import { generateRequestId } from "./ids.js";
 import { type VerboseEntry, writeVerbose } from "./output.js";
 import { resolveStatePaths, type StatePaths } from "./paths.js";
@@ -93,7 +94,7 @@ export async function sendAction<A extends Action>(
 // ─── Preflight / context resolution ───────────────────────────────────
 
 function resolveContext(
-	action: string,
+	action: Action,
 	globals: ClientGlobalArgs,
 	paths: StatePaths,
 	opts: SendOptions,
@@ -110,10 +111,13 @@ function resolveContext(
 	const deadlineMs = parseDeadline(globals.timeout);
 	if (deadlineMs === null) return exitUsageError(`Invalid timeout value: ${globals.timeout}`);
 
+	const session = resolveSession(action, globals);
+	if (typeof session !== "string") return session;
+
 	return {
 		requestId: opts.requestId ?? generateRequestId(),
 		action,
-		session: globals.session ?? "default",
+		session,
 		port,
 		token: tokenResult.token,
 		deadlineMs,
@@ -130,6 +134,31 @@ function parseDeadline(timeout: string | undefined): number | null {
 	return ms;
 }
 
+function isSessionExempt(action: Action): boolean {
+	return (
+		action === "session.create" ||
+		action === "session.list" ||
+		action === "debug.last" ||
+		action === "debug.status"
+	);
+}
+
+function resolveSession(action: Action, globals: ClientGlobalArgs): string | ExitPlan {
+	if (typeof globals.session === "string") {
+		const session = parseSessionId(globals.session);
+		if (session) return session;
+		return exitUsageError(
+			`Invalid session id: ${globals.session}. Must match /^[a-z2-7]{6}$/.`,
+		);
+	}
+
+	if (action === "tab.open" || isSessionExempt(action)) return "";
+
+	return exitUsageError(
+		`Missing required session id for '${action}'. Use -s <id> or --session <id>. Create one with 'bproxy session create' or bootstrap with 'bproxy tab open --url ...'.`,
+	);
+}
+
 // ─── Request building ──────────────────────────────────────────────────
 
 function buildRequest<A extends Action>(
@@ -142,7 +171,7 @@ function buildRequest<A extends Action>(
 		id: ctx.requestId,
 		action,
 		params,
-		session: ctx.session,
+		session: ctx.session as BproxyRequest<A>["session"],
 		deadline: Date.now() + ctx.deadlineMs,
 		destructive: isDestructive(action),
 	};
@@ -256,7 +285,21 @@ async function processResponse(
 		writeVerbose(postEntry, ctx.stderr);
 	}
 
-	return exitFromResponse(validated.response);
+	const plan = exitFromResponse(validated.response);
+	if (isSessionClosePartialFailure(ctx.action, validated.response)) {
+		plan.stderr =
+			"Warning: session terminated but some Chrome tabs may not have been closed. Do not retry session close; a retry will return SESSION_NOT_FOUND.";
+	}
+	return plan;
+}
+
+function isSessionClosePartialFailure(action: string, response: BproxyResponse): boolean {
+	if (action !== "session.close" || response.ok) return false;
+	return ![
+		"SESSION_REQUIRED",
+		"INVALID_SESSION_ID",
+		"SESSION_NOT_FOUND",
+	].includes(response.error.code);
 }
 
 async function parseBody(response: Response): Promise<unknown | null> {

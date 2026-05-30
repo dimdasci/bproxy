@@ -30,6 +30,7 @@ const main = defineCommand({
 	subCommands: {
 		navigate: () => import("./commands/navigate.js").then((m) => m.default),
 		text: () => import("./commands/text.js").then((m) => m.default),
+		links: () => import("./commands/links.js").then((m) => m.default),
 		images: () => import("./commands/images.js").then((m) => m.default),
 		elements: () => import("./commands/elements.js").then((m) => m.default),
 		outline: () => import("./commands/outline.js").then((m) => m.default),

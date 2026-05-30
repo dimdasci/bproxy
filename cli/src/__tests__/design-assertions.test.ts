@@ -29,11 +29,11 @@ function setupTempHome(): string {
 }
 
 function makeGlobals(home: string): ClientGlobalArgs {
-	return { session: "test-session", timeout: "5000", home, verbose: false };
+	return { session: "m4q7z2", timeout: "5000", home, verbose: false };
 }
 
 function makeVerboseGlobals(home: string): ClientGlobalArgs {
-	return { session: "test-session", timeout: "5000", home, verbose: true };
+	return { session: "m4q7z2", timeout: "5000", home, verbose: true };
 }
 
 function successResponse(id: string) {
@@ -97,6 +97,7 @@ describe("action coverage", () => {
 	const ACTION_TO_COMMAND: Record<Action, string> = {
 		navigate: "commands/navigate.ts",
 		text: "commands/text.ts",
+		links: "commands/links.ts",
 		images: "commands/images.ts",
 		elements: "commands/elements.ts",
 		outline: "commands/outline.ts",
@@ -114,10 +115,12 @@ describe("action coverage", () => {
 		"tab.unpin": "commands/tab/unpin.ts",
 		"tab.open": "commands/tab/open.ts",
 		"tab.close": "commands/tab/close.ts",
+		"session.create": "commands/session/create.ts",
 		"session.list": "commands/session/list.ts",
 		"session.bind": "commands/session/bind.ts",
 		"session.unbind": "commands/session/unbind.ts",
 		"session.resume": "commands/session/resume.ts",
+		"session.close": "commands/session/close.ts",
 		"debug.log": "commands/debug/log.ts",
 		"debug.last": "commands/debug/last.ts",
 		"debug.status": "commands/debug/status.ts",

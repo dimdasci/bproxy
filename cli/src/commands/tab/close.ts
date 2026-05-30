@@ -1,28 +1,28 @@
 import { defineCommand } from "citty";
 import { sendAction } from "../../client.js";
 import { executeExitPlan, exitUsageError } from "../../exit.js";
-import { extractGlobals, globalArgs } from "../../globals.js";
+import { extractGlobals, globalArgs, parseTabHandle } from "../../globals.js";
 import type { ActionParams } from "../../types.js";
 
 export default defineCommand({
-	meta: { description: "Close a tab" },
+	meta: { description: "Close a session-owned tab" },
 	args: {
 		...globalArgs,
-		"tab-id": { type: "string", description: "Tab ID to close" },
+		tab: { type: "string", description: "Logical tab handle (defaults to bound tab)" },
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
 		const params: ActionParams["tab.close"] = {};
 
-		if (typeof args["tab-id"] === "string") {
-			const tabId = Number.parseInt(args["tab-id"], 10);
-			if (Number.isNaN(tabId) || tabId <= 0) {
+		if (typeof args.tab === "string") {
+			const tab = parseTabHandle(args.tab);
+			if (!tab) {
 				executeExitPlan(
-					exitUsageError(`Invalid tab-id: ${args["tab-id"]}. Must be a positive integer.`),
+					exitUsageError(`Invalid tab handle: ${args.tab}. Must look like t1.`),
 				);
 				return;
 			}
-			params.tabId = tabId;
+			params.tab = tab;
 		}
 
 		const plan = await sendAction("tab.close", params, globals);

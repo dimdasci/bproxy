@@ -28,7 +28,7 @@ node cli/dist/bproxy.mjs --help
 ## Output contract
 
 - **stdout** — exactly one JSON object (single line, trailing newline) for protocol commands. Lifecycle commands (`service start/stop/status`) produce lifecycle JSON.
-- **stderr** — human diagnostics on exit `2`, structured verbose logs with `--verbose`. Never polluted with color or progress.
+- **stderr** — human diagnostics on exit `2`, structured verbose logs with `--verbose`, and rare exit `1` warnings for partial-success cases like `session close`. Never polluted with color or progress.
 - No positional arguments anywhere. Every value is a named flag.
 
 ## Exit codes
@@ -52,7 +52,7 @@ node cli/dist/bproxy.mjs --help
 
 ### Action commands (protocol POST)
 
-`navigate`, `text`, `images`, `elements`, `outline`, `dom`, `scroll`, `screenshot`, `fill`, `fill-form`, `select`, `wait`, `require-human`, `eval`
+`navigate`, `text`, `links`, `images`, `elements`, `outline`, `dom`, `scroll`, `screenshot`, `fill`, `fill-form`, `select`, `wait`, `require-human`, `eval`
 
 ### Service lifecycle (token-free)
 
@@ -60,11 +60,15 @@ node cli/dist/bproxy.mjs --help
 
 ### Session management
 
-`session list`, `session bind`, `session unbind`, `session resume`
+`session create`, `session list`, `session bind`, `session unbind`, `session resume`, `session close`
 
 ### Tab management
 
 `tab list`, `tab pin`, `tab unpin`, `tab open`, `tab close`
+
+- Browser-control commands require `-s/--session <id>`.
+- `tab open --url ...` is the only bootstrap exception and may omit `-s`.
+- Tab arguments use logical handles like `--tab t1`, never raw Chrome ids.
 
 ### Debug/observability
 
@@ -112,10 +116,10 @@ pnpm --filter @bproxy/cli test -- src/__tests__/smoke.integration.test.ts
 The smoke test:
 1. Starts a real daemon in a temp `BPROXY_HOME` via `bproxy service start`
 2. Verifies start output (pairing code, PID, port) and token file permissions
-3. Runs `session list`, `session bind`, `session unbind` (daemon-local, no extension)
+3. Runs `session create`, `session list`, `session close` (daemon-local, no extension)
 4. Runs `debug status` and `debug last` for observability
 5. Connects a mock WebSocket client (claims pairing code → extension token → WS auth)
-6. Binds a tab, sends a forwarded `text` command, verifies mock response
+6. Creates a session, opens a tab, sends a forwarded `text` command, verifies mock response
 7. Stops the daemon and verifies clean shutdown
 
 To reproduce manually:

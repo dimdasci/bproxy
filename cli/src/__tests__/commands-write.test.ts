@@ -26,7 +26,7 @@ function setupTempHome(): string {
 
 function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
 	return {
-		session: "test-session",
+		session: "m4q7z2",
 		timeout: "5000",
 		home,
 		verbose: false,

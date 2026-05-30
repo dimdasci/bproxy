@@ -6,12 +6,24 @@
  * - `globalArgs`: arg definitions to spread into command `args`
  * - `extractGlobals`: extract ClientGlobalArgs from parsed citty args
  */
+import type { SessionId, TabHandle } from "./types.js";
 import type { ClientGlobalArgs } from "./client.js";
 
 /**
  * Global arg definitions for leaf commands.
  * Spread these into each command's args object.
  */
+export const SESSION_ID_PATTERN = /^[a-z2-7]{6}$/;
+export const TAB_HANDLE_PATTERN = /^t[1-9]\d*$/;
+
+export function parseSessionId(value: string): SessionId | null {
+	return SESSION_ID_PATTERN.test(value) ? (value as SessionId) : null;
+}
+
+export function parseTabHandle(value: string): TabHandle | null {
+	return TAB_HANDLE_PATTERN.test(value) ? (value as TabHandle) : null;
+}
+
 export const globalArgs = {
 	session: {
 		type: "string" as const,

@@ -1,28 +1,26 @@
 import { defineCommand } from "citty";
 import { sendAction } from "../../client.js";
 import { executeExitPlan, exitUsageError } from "../../exit.js";
-import { extractGlobals, globalArgs } from "../../globals.js";
+import { extractGlobals, globalArgs, parseTabHandle } from "../../globals.js";
 import type { ActionParams } from "../../types.js";
 
 export default defineCommand({
-	meta: { description: "Bind session to a tab" },
+	meta: { description: "Bind session to a logical tab handle" },
 	args: {
 		...globalArgs,
-		"tab-id": { type: "string", description: "Tab ID to bind", required: true },
+		tab: { type: "string", description: "Logical tab handle (e.g. t1)", required: true },
 		pacing: { type: "string", description: "Pacing mode: human or fast" },
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
 
-		const tabId = Number.parseInt(args["tab-id"] as string, 10);
-		if (Number.isNaN(tabId) || tabId <= 0) {
-			executeExitPlan(
-				exitUsageError(`Invalid tab-id: ${args["tab-id"]}. Must be a positive integer.`),
-			);
+		const tab = parseTabHandle(args.tab as string);
+		if (!tab) {
+			executeExitPlan(exitUsageError(`Invalid tab handle: ${args.tab}. Must look like t1.`));
 			return;
 		}
 
-		const params: ActionParams["session.bind"] = { tabId };
+		const params: ActionParams["session.bind"] = { tab };
 
 		if (typeof args.pacing === "string") {
 			if (args.pacing !== "human" && args.pacing !== "fast") {

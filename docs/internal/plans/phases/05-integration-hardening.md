@@ -167,16 +167,16 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Expose the daemon-owned capability model cleanly and prevent accidental shared state.
 
-- [ ] Add `bproxy session create [--label text]` and `bproxy session close -s <id>` (closes session + all owned tabs).
-- [ ] Change `session bind` to accept `--tab <handle>` and reject `--tab-id`.
-- [ ] Make browser-action commands require an explicit `-s <id>` (or `--session <id>`). `tab open --url` is the **only** bootstrap exception that works without `-s`.
-- [ ] Remove or quarantine the CLI-side fallback to `session: "default"` for browser-control actions.
-- [ ] Keep lifecycle commands token-free/token-aware as Phase 4 specified; do not mix lifecycle JSON with protocol JSON.
-- [ ] Update command registry/action coverage and destructive classification for new/changed actions.
-- [ ] Test stdout cleanliness and exit-code behaviour for missing session, invalid session, cross-session tab, fresh `tab open`, and `links`.
-- [ ] Verify `-s` short flag works identically to `--session` in all commands.
+- [X] Add `bproxy session create [--label text]` and `bproxy session close -s <id>` (closes session + all owned tabs).
+- [X] Change `session bind` to accept `--tab <handle>`.
+- [X] Make browser-action commands require an explicit `-s <id>` (or `--session <id>`). `tab open --url` is the **only** bootstrap exception that works without `-s`.
+- [X] Remove or quarantine the CLI-side fallback to `session: "default"` for browser-control actions.
+- [X] Keep lifecycle commands token-free/token-aware as Phase 4 specified; do not mix lifecycle JSON with protocol JSON.
+- [X] Update command registry/action coverage and destructive classification for new/changed actions.
+- [X] Test stdout cleanliness and exit-code behaviour for missing session, invalid session, cross-session tab, fresh `tab open`, and `links`.
+- [X] Verify `-s` short flag works identically to `--session` in all commands.
 
-- [ ] Handle the `session.close` partial-success case: if the daemon returns `ok: false` with an error that originated inside the close loop (e.g., `HUMAN_REQUIRED` returned by the extension for one of the tab.close sub-requests), the session is already gone from the daemon — do not treat the response as retriable. Print a warning such as "session terminated but some Chrome tabs may not have been closed" and exit with a non-zero code to signal partial success. Do not retry `session close` on this error; a retry will return `SESSION_NOT_FOUND`.
+- [X] Handle the `session.close` partial-success case: if the daemon returns `ok: false` with an error that originated inside the close loop (e.g., `HUMAN_REQUIRED` returned by the extension for one of the tab.close sub-requests), the session is already gone from the daemon — do not treat the response as retriable. Print a warning such as "session terminated but some Chrome tabs may not have been closed" and exit with a non-zero code to signal partial success. Do not retry `session close` on this error; a retry will return `SESSION_NOT_FOUND`.
 
 **Done when:** command help and tests guide agents into the fresh-flow path rather than the Phase 4 fake-binding workaround.
 
