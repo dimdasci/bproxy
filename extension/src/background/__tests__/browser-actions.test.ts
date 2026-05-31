@@ -158,6 +158,9 @@ describe("createBrowserActionHandler", () => {
 		await expect(h.handler.handleBrowserAction(evalRequest())).rejects.toMatchObject({
 			code: "EVAL_DISABLED",
 			category: "policy",
+			message: "Eval mode is off in the browser extension.",
+			suggestedAction:
+				"Ask a human to open the bproxy extension popup, enable Eval mode, then retry with --allow-eval.",
 		});
 		expect(h.mainWorld.executeEval).not.toHaveBeenCalled();
 	});

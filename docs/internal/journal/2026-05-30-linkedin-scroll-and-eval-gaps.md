@@ -1,5 +1,7 @@
 # LinkedIn Scenario 2 findings — scroll false-success and missing eval enable path
 
+> Update 2026-05-31: the missing eval enable path from this note has now been addressed via an extension popup Eval mode control. Follow-up debugging and the current LinkedIn MAIN-world `result: null` finding are recorded in [`2026-05-31-linkedin-eval-mode-and-main-world-null-result.md`](./2026-05-31-linkedin-eval-mode-and-main-world-null-result.md).
+
 Date: 2026-05-30
 Status: proposed
 
@@ -86,4 +88,4 @@ This is not a hidden workaround issue; it is an intentionally deferred control-p
 ## Follow-up classification
 
 - **Phase 5 in-scope blocker:** `scroll` false-success on LinkedIn Scenario 2.
-- **Deferred control-plane gap:** shipped way to enable `eval` for debugging/inspection does not exist; revisit only if we decide to bring eval control into product scope in a later phase.
+- **Historical control-plane gap (now addressed on 2026-05-31):** this note originally recorded that no shipped eval-enable path existed. That is no longer true; see [`2026-05-31-linkedin-eval-mode-and-main-world-null-result.md`](./2026-05-31-linkedin-eval-mode-and-main-world-null-result.md) for the shipped popup control and the remaining real-site runtime finding.

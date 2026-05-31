@@ -4,6 +4,7 @@ import type { PageSnapshot } from "./main-world-injected-types";
 type MainWorldErrorData = {
 	code: BproxyError["code"];
 	message: string;
+	details?: Record<string, unknown>;
 };
 
 type MainWorldEvalResult =
@@ -31,15 +32,27 @@ export function injectedEval(code: string): MainWorldEvalResult {
 	try {
 		const result = globalThis.Function(code).call(globalThis);
 		return { ok: true, result, page: page() };
-	} catch {
+	} catch (error) {
+		const details = describeThrown(error);
 		return {
 			ok: false,
 			error: {
 				code: "SCRIPT_ERROR",
-				message: "MAIN-world eval failed",
+				message: `MAIN-world eval failed: ${details.message}`,
+				details,
 			},
 			page: page(),
 		};
+	}
+
+	function describeThrown(error: unknown): Record<string, unknown> & { message: string } {
+		if (error instanceof Error) {
+			return {
+				name: error.name,
+				message: error.message,
+			};
+		}
+		return { message: String(error) };
 	}
 
 	function hasBusyHint(): boolean {

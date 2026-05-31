@@ -30,10 +30,9 @@ export function evalDisabledError(): BproxyError {
 		code: "EVAL_DISABLED",
 		category: "policy",
 		retry: "never",
-		message:
-			"eval is disabled until an explicit allow-eval flag is wired through daemon and extension config",
+		message: "Eval mode is off in the browser extension.",
 		suggestedAction:
-			"Phase 4 must wire an explicit allow-eval control to extension config before eval can run.",
+			"Ask a human to open the bproxy extension popup, enable Eval mode, then retry with --allow-eval.",
 	};
 }
 
