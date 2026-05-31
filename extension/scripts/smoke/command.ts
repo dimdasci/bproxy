@@ -3,9 +3,9 @@ import type { Action, ActionParams } from "@bproxy/shared";
 import { parseJsonObject, printJson, sendCommand, trimPnpmDoubleDash } from "./common.ts";
 
 const usageLines = [
-	"usage: smoke:command [--home <dir>] [--session <name>] [--id <request-id>] [--timeout <ms>] [--destructive] [--raw] <action> [params-json]",
+	"usage: smoke:command [--home <dir>] [--session <id>] [--id <request-id>] [--timeout <ms>] [--destructive] [--raw] <action> [params-json]",
 	"example: smoke:command --home /tmp/bproxy-smoke debug.status",
-	'example: smoke:command --home /tmp/bproxy-smoke text \'{"selector":"#smoke-text"}\'',
+	'example: smoke:command --home /tmp/bproxy-smoke --session m4q7z2 text \'{"selector":"main"}\'',
 ] as const;
 
 const { values, positionals } = parseArgs({
@@ -13,7 +13,7 @@ const { values, positionals } = parseArgs({
 	allowPositionals: true,
 	options: {
 		home: { type: "string" },
-		session: { type: "string", default: "smoke" },
+		session: { type: "string" },
 		id: { type: "string" },
 		timeout: { type: "string", default: "30000" },
 		destructive: { type: "boolean" },

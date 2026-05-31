@@ -225,12 +225,27 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Validate that the hardened API solves real workflows, not just unit tests.
 
-- [ ] Add or update a local smoke script for fresh paired setup: `service start` → pair extension → `tab open` → `navigate` → `text` → `links` → `session close`.
+- [X] Add or update a local smoke script for fresh paired setup: `service start` → pair extension → `tab open` → `navigate` → `text` → `links` → `session close`.
 - [ ] Run the Phase 5 scenario transcripts (written in Task 1) as the acceptance scripts. The transcripts define the exact commands and expected response shapes.
-- [ ] Run Scenario 1 (Google topic research) with a real Chrome profile. The human handles any login/CAPTCHA. Document the command transcript and results.
+  - [X] Scenario 1 transcript was executed against a real Google SERP and completed successfully.
+  - [ ] Scenario 2 transcript is still blocked; see the blocker subtasks below before re-running.
+  - [X] Scenario 3 transcript was executed to the human-review boundary and completed without any submit action.
+- [X] Run Scenario 1 (Google topic research) with a real Chrome profile. The human handles any login/CAPTCHA. Document the command transcript and results.
+  - [X] Fresh `tab open` bootstrap returned generated session + logical tab handle.
+  - [X] Real Google SERP validated `links` extraction and rendered-text reads.
+  - [X] Real run showed the transcript should use `#search`, not `main`, for this page shape.
 - [ ] Run Scenario 2 (LinkedIn snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
-- [ ] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
-- [ ] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5.
+  - [X] Feed loads in a real signed-in Chrome profile and stays usable in the foreground; screenshot confirmed the expected feed view.
+  - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
+  - [X] Reproduced tooling gap: `eval --allow-eval` exists at the CLI but has no supported shipped enable path; it returns `EVAL_DISABLED` unless extension storage is edited manually, which is not acceptable for scenario validation.
+  - [ ] Fix the LinkedIn scroll false-success bug, then re-run the Scenario 2 transcript. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md`.
+  - [ ] Decide whether Scenario 2 truly requires a shipped eval-enable path for inspection/debugging, or explicitly keep eval out of scope and continue with non-eval observability only. Note: adding a shipped eval enable path is currently a scope change because Phase 5 still lists eval control-path wiring as out of scope.
+- [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
+  - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
+  - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
+  - [X] `fill --method paste --world isolated` successfully inserted visible draft text into the composer.
+  - [X] No submit/publish action was used; validation stopped at human review.
+- [X] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5. Current findings to preserve: Google false-positive `busy` reporting, LinkedIn `scroll` false-success, missing shipped eval-enable control path for runtime inspection, and screenshot file-output UX gap.
 
 **Done when:** the phase's success criteria are demonstrated against the documented workflows or explicitly deferred with a journaled reason and a follow-up plan.
 
@@ -246,8 +261,10 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Ensure timeout/deadline behaviour is correct for extension-control actions (those sent with `tabId: null`) as well as tab-targeted actions. Test: action with no extension connected times out within the configured deadline and returns `EXTENSION_NOT_CONNECTED` error.
 - [ ] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
 - [ ] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields.
+- [ ] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
+- [ ] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. Require evidence of actual movement before reporting success, and add a regression test for this false-success shape.
 - [ ] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented.
-- [ ] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, and malformed extension responses under the new model.
+- [ ] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
 
 **Done when:** agents receive actionable protocol errors and operators can correlate failures without exposing broader browser state.
 
@@ -288,6 +305,24 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ---
 
+## Task 12: Screenshot file-output UX hardening
+
+**Files:** `cli/src/commands/screenshot.ts`, CLI output helpers, screenshot tests, relevant shared types if the public CLI result shape changes, docs, and the validating journal note `docs/internal/journal/2026-05-30-screenshot-output-gap.md`.
+
+**Purpose:** Make screenshots usable in real operator-guided workflows without requiring manual base64 decoding outside bproxy.
+
+- [ ] Add a screenshot destination flag (for example `--output-dir <dir>`) to the CLI.
+- [ ] Materialize screenshot bytes into a real image file in that directory.
+- [ ] Return file metadata/path in the agent-facing CLI result instead of an inlined base64 blob.
+- [ ] Keep the daemon↔extension transport free to stay base64 internally if that is still the simplest wire format; the UX requirement is at the CLI boundary.
+- [ ] Generate deterministic, collision-safe filenames suitable for repeated smoke/manual runs.
+- [ ] Add tests for directory creation, filename shape, stdout JSON cleanliness, and error handling when the destination is missing/unwritable.
+- [ ] Update docs/examples so manual scenario validation uses the file-output form.
+
+**Done when:** a real-site validation run can call `bproxy screenshot -s <id> --output-dir <dir>` and immediately inspect the returned file path without any external decode step.
+
+---
+
 ## Final verification checklist
 
 - [ ] `bproxy tab open --url https://google.com` from a fresh paired setup returns a 6-char base32 session id and logical tab handle `t1`, and binds it by default.
@@ -298,6 +333,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Browser-control commands reject missing/invalid sessions instead of silently using `default`.
 - [ ] `links --selector "#search"` returns structured URLs for a search-results page.
 - [ ] `elements` succeeds on labels with newlines/quotes/backslashes and does not fail the whole command because of selector generation.
+- [ ] `screenshot -s <id> --output-dir <dir>` returns a directly inspectable file path, not only base64 payload text.
 - [ ] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
 - [ ] Error envelopes are complete for every new error path.
 - [ ] `debug.status` and `debug.last` show useful logical session/tab state.

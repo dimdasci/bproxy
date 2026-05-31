@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>bproxy smoke fixture</title>
+		<title>bproxy phase 5 smoke fixture</title>
 		<style>
 			:root {
 				color-scheme: light;
@@ -31,95 +31,66 @@
 				box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
 			}
 
-			form {
+			.results {
 				display: grid;
 				gap: 0.75rem;
 			}
 
-			label {
-				font-weight: 600;
+			.results a {
+				display: inline-block;
+				color: #1d4ed8;
+				text-decoration: none;
 			}
 
-			input,
-			textarea,
-			select,
-			button {
-				font: inherit;
-				padding: 0.65rem 0.75rem;
-				border-radius: 0.5rem;
-				border: 1px solid #94a3b8;
+			.results a:hover {
+				text-decoration: underline;
 			}
 
-			button {
-				width: fit-content;
-				background: #0f172a;
-				color: white;
-				cursor: pointer;
-			}
-
-			#scroll-sentinel {
-				margin-top: 1600px;
-				padding: 1rem;
-				background: #dbeafe;
-				border-radius: 0.75rem;
+			.hidden-result {
+				display: none;
 			}
 		</style>
 	</head>
 	<body>
 		<main>
 			<section class="card">
-				<h1 id="smoke-text">bproxy extension smoke fixture</h1>
+				<h1 id="smoke-text">bproxy phase 5 smoke fixture</h1>
 				<p>
-					Local-only page for Phase 3 Task 15. It exercises reads, paste fill,
-					scroll, and debug-log correlation without hitting external sites.
+					Local-only page for the Phase 5 acceptance-shaped smoke workflow. It exercises
+					fresh tab bootstrap, rendered text reads, structured links extraction, URL-driven
+					navigation, and session close without hitting third-party sites.
 				</p>
 			</section>
 
-			<section class="card" style="margin-top: 1rem">
-				<form>
-					<div>
-						<label for="smoke-name">Name</label>
-						<input id="smoke-name" name="name" placeholder="Paste target" />
-					</div>
-
-					<div>
-						<label for="smoke-notes">Notes</label>
-						<textarea id="smoke-notes" name="notes" rows="4"></textarea>
-					</div>
-
-					<div>
-						<label for="smoke-role">Role</label>
-						<select id="smoke-role" name="role">
-							<option>Agent</option>
-							<option>Operator</option>
-							<option>Reviewer</option>
-						</select>
-					</div>
-
-					<button id="smoke-button" type="button">Idle button</button>
-				</form>
-			</section>
-
-			<section class="card" style="margin-top: 1rem">
-				<h2>Paste echo</h2>
-				<p id="smoke-output">empty</p>
-			</section>
-
-			<section id="scroll-sentinel">
-				<h2>Scroll sentinel</h2>
-				<p>The smoke workflow should scroll this page before finishing.</p>
+			<section id="search" class="card" style="margin-top: 1rem">
+				<h2>Search results</h2>
+				<div class="results">
+					<article>
+						<h3><a href="/detail/alpha">Alpha result</a></h3>
+						<p>Visible result used by the smoke workflow.</p>
+					</article>
+					<article>
+						<h3><a href="/detail/beta?from=search" target="_blank" rel="noopener">Beta result</a></h3>
+						<p>Second visible result with target and rel metadata.</p>
+					</article>
+					<article class="hidden-result">
+						<h3><a href="/detail/hidden">Hidden result</a></h3>
+						<p>This should be filtered when --visible-only is used.</p>
+					</article>
+					<div id="shadow-links"></div>
+				</div>
 			</section>
 		</main>
 
 		<script>
-			const input = document.querySelector("#smoke-name");
-			const output = document.querySelector("#smoke-output");
-			const render = () => {
-				output.textContent = input.value || "empty";
-			};
-			input.addEventListener("input", render);
-			input.addEventListener("change", render);
-			render();
+			const host = document.querySelector("#shadow-links");
+			const root = host.attachShadow({ mode: "open" });
+			root.innerHTML = `
+				<article>
+					<h3><a href="/detail/shadow">Shadow result</a></h3>
+					<p>Open-shadow-root result to exercise links traversal.</p>
+				</article>
+			`;
 		</script>
 	</body>
 </html>

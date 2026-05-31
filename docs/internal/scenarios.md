@@ -6,6 +6,15 @@ These scenarios drive the design choices captured in [`journal/2026-04-30-defaul
 
 The framing assumption across all scenarios: **the user is in front of the browser**. The agent does data reads, copy-paste relief, and bounded autonomous batch work. Login, CAPTCHA, and consent screens are handed back to the human via `HUMAN_REQUIRED`.
 
+## Phase 5 local smoke harness
+
+For fast localhost validation before running the real-site transcripts, use
+`extension/scripts/smoke/workflow.ts`. It mirrors the Scenario 1 command shape
+against the local fixture server: wait for a paired extension, `tab open`,
+`text`, `links`, `navigate`, `text`, then `session close`. Real Google,
+LinkedIn, and form-flow transcripts still belong in journal entries because
+those runs depend on live accounts, consent, and site conditions.
+
 ---
 
 ## Scenario 1 — Google topic research
