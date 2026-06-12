@@ -36,7 +36,7 @@ cli/
     │   ├── elements.ts       # elements [--form]
     │   ├── outline.ts        # outline
     │   ├── dom.ts            # dom [--selector] [--depth N]
-    │   ├── scroll.ts         # scroll [--by] [--direction] [--until-stable]
+    │   ├── scroll.ts         # scroll [--selector/--route-json] [--by] [--direction] [--until-stable]
     │   ├── screenshot.ts     # screenshot [--activate] [--debugger]
     │   ├── fill.ts           # fill --selector/--route-json --value --method --world
     │   ├── fill-form.ts      # fill-form --json/--file/--stdin
@@ -226,6 +226,12 @@ Forwarded to extension (require connected WS client + bound session):
 Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `method`, `world`.
 
 ### `select --selector/--route-json --option-text`
+
+### `scroll [--selector/--route-json] [--by] [--direction] [--until-stable]`
+
+- Target omitted: scroll the viewport/document only.
+- `--selector` / `--route-json`: scroll exactly that resolved element. bproxy does not infer or fall back to other scroll containers.
+- Result includes `moved`, `before`, `after`, and `scrolledPx` so agents can tell whether anything actually moved.
 
 There is intentionally no `eval` command. Arbitrary page/runtime investigation belongs to browser debugging tools such as CDP/devtools, not bproxy.
 

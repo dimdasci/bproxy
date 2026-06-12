@@ -120,7 +120,7 @@ export interface ActionParams {
   elements: { form?: boolean };
   outline: {};
   dom: { selector?: string; depth?: number };
-  scroll: { by?: string; direction?: 'up' | 'down'; untilStable?: boolean };
+  scroll: { target?: ElementTarget; by?: string; direction?: 'up' | 'down'; untilStable?: boolean };
   screenshot: { activate?: boolean; debugger?: boolean };
   fill: { 
     target: ElementTarget;  // replaces selector-only
@@ -162,7 +162,16 @@ export interface ActionResult {
   elements: { elements: Array<ElementInfo> };
   outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
   dom: { html: string };
-  scroll: { before: number; after: number; scrolledPx: number; stable: boolean };
+  scroll: {
+    target: 'viewport' | 'element';
+    before: number;
+    after: number;
+    scrolledPx: number;
+    moved: boolean;
+    stable: boolean;
+    scrollHeight?: number;
+    clientHeight?: number;
+  };
   screenshot: { base64: string; format: 'png' | 'jpeg' };
   fill: { filled: boolean; verifiedValue: string };
   'fill-form': { results: Array<{ target: ElementTarget; filled: boolean; verifiedValue: string }> };

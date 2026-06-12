@@ -8,7 +8,7 @@ type MainWorldErrorData = {
 	details?: Record<string, unknown>;
 };
 
-type MainWorldFillResult =
+export type MainWorldFillResult =
 	| {
 			ok: true;
 			filled: boolean;

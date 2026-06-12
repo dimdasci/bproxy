@@ -114,6 +114,8 @@ bproxy tab open --url https://www.linkedin.com/feed/
 # user resolves login / consent in the visible tab if LinkedIn requires it
 
 bproxy scroll -s p7k2qm --by viewport --direction down --until-stable
+# If moved=false, inspect the page and retry with an explicit target, for example:
+# bproxy scroll -s p7k2qm --selector 'main#workspace' --by viewport --direction down --until-stable
 bproxy text -s p7k2qm --selector main
 bproxy links -s p7k2qm --selector main --visible-only --limit 50
 bproxy session close -s p7k2qm
@@ -123,14 +125,16 @@ bproxy session close -s p7k2qm
 
 Belongs in concept B's read-mode toolkit alongside `navigate` and `text`. Implementation lives entirely in ISOLATED world — no MAIN-world presence needed.
 
-- `window.scrollBy({ top: distance, behavior: 'smooth' })` triggers Chrome's native animated scroll. The page's IntersectionObserver fires normally; lazy-load triggers.
-- After scroll completes, the extension polls the DOM (`setInterval` 200 ms, count target elements like `[data-id^="urn:li:activity"]`, stop when count stable for two intervals or 5 s elapsed). No listener install. No fingerprint.
-- Returns `{ before: 6, after: 14, scrolledPx: 800, stable: true }`.
+- With no target, bproxy scrolls only the viewport/document using `window.scrollBy({ top: distance, behavior: 'smooth' })`.
+- With `--selector` or `--route-json`, bproxy scrolls exactly that resolved element. It does not infer or fall back to other scroll containers.
+- When `--until-stable` is set, the extension uses jittered DOM polling after the requested scroll. No listener install. No fingerprint.
+- Returns honest movement data such as `{ target: "element", before: 6, after: 14, scrolledPx: 800, moved: true, stable: true }`. A viewport no-op returns `moved: false` so the agent can choose an explicit target.
 
 CLI surface kept narrow:
 
 ```
 bproxy scroll -s p7k2qm \
+  --selector 'main#workspace' \
   --by viewport \
   --direction down \
   --until-stable
@@ -175,7 +179,7 @@ This is genuinely the cleanest technical solution and a real legal grey zone. Ph
 
 ### Recommended posture
 
-1. **Default:** read mode + paced `bproxy scroll -s p7k2qm --by viewport --direction down --until-stable` + DOM polling + truncated-body digest. URLs to permalinks captured but not visited unless the user asks. Pacing 4–8 s between scrolls, ~30 posts max per snapshot, hard stop on `HUMAN_REQUIRED`.
+1. **Default:** read mode + paced explicit scroll (`bproxy scroll -s p7k2qm --by viewport --direction down --until-stable`, then retry with `--selector ...` if `moved:false`) + DOM polling + truncated-body digest. URLs to permalinks captured but not visited unless the user asks. Pacing 4–8 s between scrolls, ~30 posts max per snapshot, hard stop on `HUMAN_REQUIRED`.
 2. **Escalate only when needed:** the three hatches above, in order, based on what real usage reveals.
 
 ---

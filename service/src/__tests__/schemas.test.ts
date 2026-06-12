@@ -28,8 +28,19 @@ describe("request schemas", () => {
 	});
 
 	it("accepts links params with selector, visibility filter, and limit", () => {
+		expect(parse("links", { selector: "#search", visibleOnly: true, limit: 10 }).success).toBe(
+			true,
+		);
+	});
+
+	it("accepts scroll params with an explicit element target", () => {
 		expect(
-			parse("links", { selector: "#search", visibleOnly: true, limit: 10 }).success,
+			parse("scroll", {
+				target: { selector: "main#workspace" },
+				by: "viewport",
+				direction: "down",
+				untilStable: true,
+			}).success,
 		).toBe(true);
 	});
 

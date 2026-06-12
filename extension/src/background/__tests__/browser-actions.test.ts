@@ -1,4 +1,4 @@
-import type { BproxyError, BproxyForwardedRequest, PageState } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserActionHandler } from "../browser-actions";
 import type { TabLike } from "../tabs";
@@ -9,6 +9,7 @@ const PAGE: PageState = {
 	state: "ready",
 	busy: false,
 };
+const TEST_SESSION = "m4q7z2" as SessionId;
 
 type TargetTab = TabLike & { id: number };
 
@@ -31,7 +32,6 @@ interface HarnessOverrides {
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
 	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
-	isEvalEnabled?: () => boolean | Promise<boolean>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
 		tab: TargetTab,
@@ -48,7 +48,6 @@ function createHarness(overrides: HarnessOverrides = {}) {
 		tabRuntime,
 		tabs,
 		now: () => now.value,
-		isEvalEnabled: overrides.isEvalEnabled,
 		isDebuggerScreenshotEnabled: overrides.isDebuggerScreenshotEnabled,
 		captureDebuggerScreenshot: overrides.captureDebuggerScreenshot,
 	});
@@ -67,7 +66,6 @@ function createMainWorldSeam() {
 			data: { filled: true, verifiedValue: "x" },
 			page: PAGE,
 		})),
-		executeEval: vi.fn(async () => ({ data: { result: "ok" }, page: PAGE })),
 	};
 }
 
@@ -150,19 +148,6 @@ describe("createBrowserActionHandler", () => {
 			message: 'fill method runtime-api requires world "main"',
 		});
 		expect(h.mainWorld.executeRuntimeApiFill).not.toHaveBeenCalled();
-	});
-
-	it("returns EVAL_DISABLED by default and does not execute MAIN-world eval", async () => {
-		const h = createHarness();
-
-		await expect(h.handler.handleBrowserAction(evalRequest())).rejects.toMatchObject({
-			code: "EVAL_DISABLED",
-			category: "policy",
-			message: "Eval mode is off in the browser extension.",
-			suggestedAction:
-				"Ask a human to open the bproxy extension popup, enable Eval mode, then retry with --allow-eval.",
-		});
-		expect(h.mainWorld.executeEval).not.toHaveBeenCalled();
 	});
 
 	it("navigates the daemon-targeted tab and waits for load completion", async () => {
@@ -348,22 +333,7 @@ function fillRequest(
 			method: "runtime-api",
 			world: "main",
 		},
-		session: overrides.session ?? "default",
-		deadline: overrides.deadline ?? 10_000,
-		destructive: overrides.destructive ?? true,
-		target: overrides.target ?? { tabId: 42 },
-	};
-}
-
-function evalRequest(
-	overrides: Partial<BproxyForwardedRequest<"eval">> = {},
-): BproxyForwardedRequest<"eval"> {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? "req-eval",
-		action: "eval",
-		params: overrides.params ?? { code: "return 1;" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -378,7 +348,7 @@ function navigateRequest(
 		id: overrides.id ?? "req-nav",
 		action: "navigate",
 		params: overrides.params ?? { url: "https://example.test/" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -393,7 +363,7 @@ function screenshotRequest(
 		id: overrides.id ?? "req-shot",
 		action: "screenshot",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },
@@ -408,7 +378,7 @@ function tabOpenRequest(
 		id: overrides.id ?? "req-open",
 		action: "tab.open",
 		params: overrides.params ?? { url: "https://opened.test/" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -423,7 +393,7 @@ function tabCloseRequest(
 		id: overrides.id ?? "req-close",
 		action: "tab.close",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -438,7 +408,7 @@ function tabPinRequest(
 		id: overrides.id ?? "req-pin",
 		action: "tab.pin",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -453,7 +423,7 @@ function tabUnpinRequest(
 		id: overrides.id ?? "req-unpin",
 		action: "tab.unpin",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -468,7 +438,7 @@ function requireHumanRequest(
 		id: overrides.id ?? "req-human",
 		action: "require-human",
 		params: overrides.params ?? { reason: "Need manual step" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },

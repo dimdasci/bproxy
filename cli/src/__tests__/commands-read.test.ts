@@ -301,6 +301,18 @@ describe("scroll command", () => {
 			params: { by: "500px", direction: "down", untilStable: true },
 		});
 	});
+
+	it("sends scroll with an explicit element target", async () => {
+		const home = setupTempHome();
+		const params = { target: { selector: "main#workspace" }, by: "viewport", direction: "down" };
+		const { plan, calls } = await sendWithCapture("scroll", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params,
+		});
+	});
 });
 
 describe("screenshot command", () => {

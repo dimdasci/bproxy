@@ -62,7 +62,6 @@ describe("bproxy CLI shell", () => {
 			"select",
 			"wait",
 			"require-human",
-			"eval",
 			"status",
 			"service",
 			"session",

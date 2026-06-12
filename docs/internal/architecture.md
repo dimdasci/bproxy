@@ -162,7 +162,7 @@ Errors use a single RFC 9457-aligned envelope:
 | `elements`   | Interactive elements with stable selectors. `--form` variant for form fields.        |
 | `outline`    | Landmarks + heading hierarchy.                                                        |
 | `dom`        | Simplified subtree at controlled depth.                                               |
-| `scroll`     | Explicit scroll actuator with honest movement/no-op reporting; agent owns target choice. |
+| `scroll`     | Explicit viewport or element-target scroll actuator with honest movement/no-op reporting; agent owns target choice. |
 | `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` opt-ins.                            |
 | `fill`       | Three explicit methods: `direct` (DOM), `paste` (events), `runtime-api` (editor).      |
 | `fill-form`  | Bulk fill in one round-trip with internal pacing.                                    |

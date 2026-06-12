@@ -19,10 +19,6 @@ describe("isDestructive", () => {
 		expect(isDestructive("fill-form")).toBe(true);
 	});
 
-	it("classifies eval as destructive", () => {
-		expect(isDestructive("eval")).toBe(true);
-	});
-
 	it("classifies tab.open as destructive", () => {
 		expect(isDestructive("tab.open")).toBe(true);
 	});
@@ -112,7 +108,6 @@ describe("allRegisteredActions", () => {
 			"select",
 			"wait",
 			"require-human",
-			"eval",
 			"tab.list",
 			"tab.pin",
 			"tab.unpin",

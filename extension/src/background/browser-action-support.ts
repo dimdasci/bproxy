@@ -25,17 +25,6 @@ export function parseCapturedImage(value: string): { base64: string; format: "pn
 	return { format: "png", base64: value };
 }
 
-export function evalDisabledError(): BproxyError {
-	return {
-		code: "EVAL_DISABLED",
-		category: "policy",
-		retry: "never",
-		message: "Eval mode is off in the browser extension.",
-		suggestedAction:
-			"Ask a human to open the bproxy extension popup, enable Eval mode, then retry with --allow-eval.",
-	};
-}
-
 export function debuggerDisabledError(): BproxyError {
 	return {
 		code: "DEBUGGER_DISABLED",

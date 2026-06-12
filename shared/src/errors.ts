@@ -15,7 +15,6 @@ export type ErrorCode =
 	| "TAB_NOT_IN_SESSION"
 	// Policy
 	| "HUMAN_REQUIRED"
-	| "EVAL_DISABLED"
 	| "DEBUGGER_DISABLED"
 	| "SESSION_REQUIRED"
 	// Execution

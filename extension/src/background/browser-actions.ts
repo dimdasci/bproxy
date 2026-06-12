@@ -3,7 +3,6 @@ import { detectInterstitial } from "./browser-action-interstitials";
 import {
 	debuggerDisabledError,
 	errorMessage,
-	evalDisabledError,
 	humanRequiredError,
 	navigationFailed,
 	pageStateFromTab,
@@ -28,7 +27,6 @@ export interface BrowserActionHandlerDeps {
 	tabRuntime: Pick<TabRuntime, "resolveTargetTab" | "waitForLoad">;
 	tabs: BrowserTabsSeam;
 	now?: () => number;
-	isEvalEnabled?: () => boolean | Promise<boolean>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
 		tab: TabLike & { id: number },
@@ -40,7 +38,7 @@ export interface BrowserActionHandler {
 	handleMainWorldFill(request: BproxyForwardedRequest<"fill">): Promise<ExecutedAction>;
 }
 
-type RoutedBrowserAction = Exclude<BrowserAction, "eval" | "require-human">;
+type RoutedBrowserAction = Exclude<BrowserAction, "require-human">;
 type BrowserActionFn<A extends RoutedBrowserAction> = (
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<A>,
@@ -74,10 +72,6 @@ async function handleBrowserAction(
 	if (request.action === "require-human") {
 		throw await buildRequireHumanError(deps, request as BproxyForwardedRequest<"require-human">);
 	}
-	if (request.action === "eval") {
-		if (!(await evalEnabled(deps))) throw evalDisabledError();
-		return deps.mainWorld.executeEval(request as BproxyForwardedRequest<"eval">);
-	}
 	const handler = ROUTED_BROWSER_ACTIONS[request.action];
 	return handler(deps, request as never);
 }
@@ -86,7 +80,9 @@ async function handleNavigate(
 	deps: BrowserActionHandlerDeps,
 	request: BproxyForwardedRequest<"navigate">,
 ): Promise<ExecutedAction> {
-	const target = await deps.tabRuntime.resolveTargetTab(requireTargetTabId(request, request.action));
+	const target = await deps.tabRuntime.resolveTargetTab(
+		requireTargetTabId(request, request.action),
+	);
 	const startedAt = now(deps);
 	try {
 		await deps.tabs.update(target.id, { url: request.params.url });
@@ -221,10 +217,6 @@ async function safeResolveTargetTab(
 	} catch {
 		return null;
 	}
-}
-
-async function evalEnabled(deps: BrowserActionHandlerDeps): Promise<boolean> {
-	return (await deps.isEvalEnabled?.()) ?? false;
 }
 
 async function debuggerScreenshotEnabled(deps: BrowserActionHandlerDeps): Promise<boolean> {

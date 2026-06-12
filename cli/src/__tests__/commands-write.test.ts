@@ -1,12 +1,11 @@
 /**
- * Tests for write, select, human-handoff, and eval commands.
+ * Tests for write, select, and human-handoff commands.
  *
  * Verifies:
  * - Target parsing (selector / route-json) for fill and select
- * - Value/code source resolution (--value, --value-file, --value-stdin, etc.)
+ * - Value source resolution (--value, --value-file, --value-stdin, etc.)
  * - Method/world validation (fill never invents values)
  * - Payload validation (fill-form)
- * - Eval --allow-eval guard
  * - Request params sent to daemon
  */
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -331,52 +330,6 @@ describe("require-human command", () => {
 		const home = setupTempHome();
 		const { calls } = await sendWithCapture("require-human", { reason: "x" }, home);
 		expect(calls[0]!.body["destructive"]).toBe(true);
-	});
-});
-
-// ─── eval command tests ────────────────────────────────────────────────
-
-describe("eval command", () => {
-	it("sends eval action with code", async () => {
-		const home = setupTempHome();
-		const params = { code: "document.title" };
-		const { plan, calls } = await sendWithCapture("eval", params, home);
-
-		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({
-			action: "eval",
-			params: { code: "document.title" },
-		});
-	});
-
-	it("marks eval as destructive", async () => {
-		const home = setupTempHome();
-		const { calls } = await sendWithCapture("eval", { code: "1+1" }, home);
-		expect(calls[0]!.body["destructive"]).toBe(true);
-	});
-
-	it("passes through EVAL_DISABLED error response with exit 1", async () => {
-		const home = setupTempHome();
-		const requestId = "test-id-001";
-		const errorResponse = {
-			protocol_version: 1,
-			id: requestId,
-			ok: false,
-			error: {
-				code: "EVAL_DISABLED",
-				category: "policy",
-				retry: "none",
-				message: "Eval is disabled by extension policy",
-			},
-		};
-		const { fetch } = createMockFetch(errorResponse);
-		const opts: SendOptions = { fetch, requestId };
-
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test
-		const plan = await sendAction("eval" as any, { code: "x" } as any, makeGlobals(home), opts);
-
-		expect(plan.code).toBe(1);
-		expect(plan.stdout).toEqual(errorResponse);
 	});
 });
 

@@ -243,7 +243,7 @@ Handled through `src/content/**` and routed via background/content RPC.
 | Action | Notes |
 |---|---|
 | `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, and can filter to visible/in-viewport anchors |
-| `scroll`, `wait` | Jittered polling only; no `MutationObserver` |
+| `scroll`, `wait` | Jittered polling only; no `MutationObserver`. `scroll` targets only the viewport/document by default or an explicit agent-supplied `ElementTarget`; it never infers scroll containers. |
 | `fill(method="direct")` | Native DOM state write, no events |
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
 | `fill-form` | Multi-field isolated-world writes with hidden-field guard and read-back verification |

@@ -93,7 +93,6 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 			},
 		},
 		now: () => Date.now(),
-		isEvalEnabled: async () => (await configFlagsItem.getValue())["evalEnabled"] === true,
 		isDebuggerScreenshotEnabled: async () =>
 			(await configFlagsItem.getValue())["debuggerScreenshot"] === true,
 	});

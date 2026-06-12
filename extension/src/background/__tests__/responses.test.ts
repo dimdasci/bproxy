@@ -1,6 +1,8 @@
-import type { BproxyError, BproxyForwardedRequest, PageState } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import { errorResponse, successResponse } from "../responses";
+
+const TEST_SESSION = "m4q7z2" as SessionId;
 
 function req(id: string): BproxyForwardedRequest<"text"> {
 	return {
@@ -8,7 +10,7 @@ function req(id: string): BproxyForwardedRequest<"text"> {
 		id,
 		action: "text",
 		params: {},
-		session: "default",
+		session: TEST_SESSION,
 		deadline: 0,
 		destructive: false,
 		target: { tabId: 17 },

@@ -35,7 +35,6 @@ const PARAMS_BY_ACTION: Partial<Record<Action, BproxyRequest["params"]>> = {
 	select: { trigger: { selector: "#country" }, optionText: "USA" },
 	wait: { strategy: "selector", target: "#ready" },
 	"require-human": { reason: "captcha" },
-	eval: { code: "1+1" },
 	"tab.open": { url: "https://example.com" },
 };
 
@@ -180,7 +179,6 @@ describe("action contract coverage — GAP A", () => {
 			"select",
 			"wait",
 			"require-human",
-			"eval",
 			"debug.log",
 		];
 

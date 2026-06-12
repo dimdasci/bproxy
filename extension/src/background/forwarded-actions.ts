@@ -15,14 +15,7 @@ export type ForwardedAction = Exclude<
 
 export type BrowserAction = Extract<
 	ForwardedAction,
-	| "navigate"
-	| "screenshot"
-	| "require-human"
-	| "eval"
-	| "tab.pin"
-	| "tab.unpin"
-	| "tab.open"
-	| "tab.close"
+	"navigate" | "screenshot" | "require-human" | "tab.pin" | "tab.unpin" | "tab.open" | "tab.close"
 >;
 
 export type DomAction = Exclude<ForwardedAction, BrowserAction | "debug.log">;
@@ -42,7 +35,6 @@ const FORWARDED_ACTIONS = [
 	"select",
 	"wait",
 	"require-human",
-	"eval",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
@@ -54,7 +46,6 @@ const BROWSER_ACTIONS = [
 	"navigate",
 	"screenshot",
 	"require-human",
-	"eval",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",

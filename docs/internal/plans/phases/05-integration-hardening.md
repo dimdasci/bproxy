@@ -238,7 +238,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
   - [X] Feed loads in a real signed-in Chrome profile and stays usable in the foreground; screenshot confirmed the expected feed view.
   - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
   - [X] Reproduced deviation: `eval --allow-eval` existed as a tempting debugging path, but the 2026-06-12 course correction rejects arbitrary eval as a bproxy feature. Use CDP/devtools for page investigation instead.
-  - [ ] Fix the LinkedIn scroll false-success bug without adding scroll-container inference; bproxy should expose explicit actuator semantics and honest no-movement reporting. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
+  - [X] Fixed the LinkedIn scroll false-success class without adding scroll-container inference: `scroll` now supports explicit `ElementTarget` and returns honest `moved`/before/after data. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
 - [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
   - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
   - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
@@ -261,7 +261,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
 - [ ] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields.
 - [ ] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
-- [ ] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. Require evidence of actual movement before reporting success, add a regression test for this false-success shape, and avoid generalized container-inference heuristics.
+- [X] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. `scroll` now reports `moved`, supports explicit element targets, and avoids generalized container-inference heuristics.
 - [ ] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented.
 - [ ] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
 

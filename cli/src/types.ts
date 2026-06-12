@@ -12,4 +12,6 @@ export type {
 	ElementTarget,
 	ExecutionWorld,
 	FillMethod,
+	SessionId,
+	TabHandle,
 } from "@bproxy/shared";

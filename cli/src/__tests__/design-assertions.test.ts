@@ -109,7 +109,6 @@ describe("action coverage", () => {
 		select: "commands/select.ts",
 		wait: "commands/wait.ts",
 		"require-human": "commands/require-human.ts",
-		eval: "commands/eval.ts",
 		"tab.list": "commands/tab/list.ts",
 		"tab.pin": "commands/tab/pin.ts",
 		"tab.unpin": "commands/tab/unpin.ts",

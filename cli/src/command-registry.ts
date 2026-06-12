@@ -13,7 +13,7 @@ import type { Action } from "./types.js";
 /**
  * Classification of an action's destructive nature.
  *
- * Destructive actions modify page state, navigation, tabs, or execute code.
+ * Destructive actions modify page state, navigation, or tabs.
  * Non-destructive actions only read state or query daemon metadata.
  */
 const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
@@ -22,7 +22,6 @@ const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"fill",
 	"fill-form",
 	"select",
-	"eval",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",

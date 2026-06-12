@@ -16,7 +16,6 @@ export type Action =
 	| "select"
 	| "wait"
 	| "require-human"
-	| "eval"
 	| "tab.list"
 	| "tab.pin"
 	| "tab.unpin"
@@ -122,7 +121,7 @@ export interface ActionParams {
 	elements: { form?: boolean };
 	outline: Record<string, never>;
 	dom: { selector?: string; depth?: number };
-	scroll: { by?: string; direction?: "up" | "down"; untilStable?: boolean };
+	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down"; untilStable?: boolean };
 	screenshot: { activate?: boolean; debugger?: boolean };
 	fill: {
 		target: ElementTarget;
@@ -141,7 +140,6 @@ export interface ActionParams {
 	select: { trigger: ElementTarget; optionText: string };
 	wait: { strategy: "selector" | "url" | "navigation"; target: string; timeout?: number };
 	"require-human": { reason: string; forAttach?: string };
-	eval: { code: string };
 	"tab.list": Record<string, never>;
 	"tab.pin": { tab?: TabHandle };
 	"tab.unpin": { tab?: TabHandle };
@@ -168,7 +166,16 @@ export interface ActionResult {
 	elements: { elements: Array<ElementInfo> };
 	outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
 	dom: { html: string };
-	scroll: { before: number; after: number; scrolledPx: number; stable: boolean };
+	scroll: {
+		target: "viewport" | "element";
+		before: number;
+		after: number;
+		scrolledPx: number;
+		moved: boolean;
+		stable: boolean;
+		scrollHeight?: number;
+		clientHeight?: number;
+	};
 	screenshot: { base64: string; format: "png" | "jpeg" };
 	fill: { filled: boolean; verifiedValue: string };
 	"fill-form": {
@@ -177,7 +184,6 @@ export interface ActionResult {
 	select: { selected: boolean; optionText: string };
 	wait: { matched: boolean; elapsed: number };
 	"require-human": { resumed: boolean };
-	eval: { result: unknown };
 	"tab.list": { session: SessionId; tabs: Array<TabInfo> };
 	"tab.pin": { tab: TabHandle; pinned: true };
 	"tab.unpin": { tab: TabHandle; pinned: false };

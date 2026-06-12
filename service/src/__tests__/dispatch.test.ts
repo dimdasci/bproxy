@@ -100,7 +100,7 @@ describe("dispatch", () => {
 			data: { tabId: 42, url: "https://google.com" },
 			page: { url: "https://google.com", title: "Google", state: "ready", busy: false },
 			replay: false,
-		});
+		} as unknown as BproxyResponse);
 		await expect(promise).resolves.toMatchObject({ ok: true });
 	});
 

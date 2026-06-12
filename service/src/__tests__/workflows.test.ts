@@ -84,7 +84,9 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 			let forwardedTarget: number | null = 123;
 
 			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest & { target?: { tabId: number | null } };
+				const req = JSON.parse(String(raw)) as BproxyRequest & {
+					target?: { tabId: number | null };
+				};
 				forwardedTarget = req.target?.tabId ?? null;
 				ws.send(
 					JSON.stringify({
@@ -99,12 +101,16 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 							busy: false,
 						},
 						replay: false,
-					} satisfies BproxyResponse),
+					}),
 				);
 			});
 
 			const res = await postCommand(
-				makeCmd({ action: "tab.open", params: { url: "https://google.com" }, session: "" as never }),
+				makeCmd({
+					action: "tab.open",
+					params: { url: "https://google.com" },
+					session: "" as never,
+				}),
 			);
 			const body = (await res.json()) as BproxyResponse<"tab.open">;
 			expect(body.ok).toBe(true);
@@ -128,7 +134,9 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 			let nextTabId = 42;
 
 			ws.on("message", (raw: unknown) => {
-				const req = JSON.parse(String(raw)) as BproxyRequest & { target?: { tabId: number | null } };
+				const req = JSON.parse(String(raw)) as BproxyRequest & {
+					target?: { tabId: number | null };
+				};
 				expect(req.target?.tabId).toBeNull();
 				openedUrls.push((req.params as { url: string }).url);
 				ws.send(
@@ -144,13 +152,17 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 							busy: false,
 						},
 						replay: false,
-					} satisfies BproxyResponse),
+					}),
 				);
 			});
 
 			const first = (await (
 				await postCommand(
-					makeCmd({ action: "tab.open", params: { url: "https://one.test" }, session: currentSession }),
+					makeCmd({
+						action: "tab.open",
+						params: { url: "https://one.test" },
+						session: currentSession,
+					}),
 				)
 			).json()) as BproxyResponse<"tab.open">;
 			expect(first.ok).toBe(true);
@@ -159,7 +171,11 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 
 			const second = (await (
 				await postCommand(
-					makeCmd({ action: "tab.open", params: { url: "https://two.test" }, session: currentSession }),
+					makeCmd({
+						action: "tab.open",
+						params: { url: "https://two.test" },
+						session: currentSession,
+					}),
 				)
 			).json()) as BproxyResponse<"tab.open">;
 			expect(second.ok).toBe(true);

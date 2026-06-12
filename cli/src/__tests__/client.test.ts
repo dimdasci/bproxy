@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
-import type { ActionParams } from "../types.js";
+import type { ActionParams, TabHandle } from "../types.js";
+
+const T1 = "t1" as TabHandle;
 
 // ─── Test helpers ──────────────────────────────────────────────────────
 
@@ -333,7 +335,7 @@ describe("sendAction", () => {
 
 		const result = await sendAction(
 			"tab.close",
-			{ tab: "t1" } as ActionParams["tab.close"],
+			{ tab: T1 } as ActionParams["tab.close"],
 			makeGlobals({ home: dir }),
 			{ fetch, requestId: reqId },
 		);
@@ -479,12 +481,10 @@ describe("sendAction", () => {
 		const reqId = "invalid-session";
 		const { fetch, calls } = createMockFetch(successResponse(reqId));
 
-		const result = await sendAction(
-			"text",
-			{},
-			makeGlobals({ home: dir, session: "invalid" }),
-			{ fetch, requestId: reqId },
-		);
+		const result = await sendAction("text", {}, makeGlobals({ home: dir, session: "invalid" }), {
+			fetch,
+			requestId: reqId,
+		});
 
 		expect(result.code).toBe(2);
 		expect(result.stderr).toContain("Invalid session id");
@@ -560,15 +560,15 @@ describe("sendAction", () => {
 		const dir = setupTempHome();
 		const reqId = "session-close-partial";
 		const responseBody = errorResponse(reqId, "HUMAN_REQUIRED");
-		const result = await sendAction(
-			"session.close",
-			{},
-			makeGlobals({ home: dir }),
-			{ fetch: createMockFetch(responseBody).fetch, requestId: reqId },
-		);
+		const result = await sendAction("session.close", {}, makeGlobals({ home: dir }), {
+			fetch: createMockFetch(responseBody).fetch,
+			requestId: reqId,
+		});
 
 		expect(result.code).toBe(1);
 		expect(result.stdout).toEqual(responseBody);
-		expect(result.stderr).toContain("session terminated but some Chrome tabs may not have been closed");
+		expect(result.stderr).toContain(
+			"session terminated but some Chrome tabs may not have been closed",
+		);
 	});
 });

@@ -17,7 +17,6 @@ const DESTRUCTIVE_ACTIONS = new Set<Action>([
 	"fill-form",
 	"select",
 	"scroll",
-	"eval",
 	"tab.open",
 	"tab.close",
 	"tab.pin",

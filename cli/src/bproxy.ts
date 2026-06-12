@@ -42,7 +42,6 @@ const main = defineCommand({
 		select: () => import("./commands/select.js").then((m) => m.default),
 		wait: () => import("./commands/wait.js").then((m) => m.default),
 		"require-human": () => import("./commands/require-human.js").then((m) => m.default),
-		eval: () => import("./commands/eval.js").then((m) => m.default),
 		status: () => import("./commands/status.js").then((m) => m.default),
 		service: () => import("./commands/service/index.js").then((m) => m.default),
 		session: () => import("./commands/session.js").then((m) => m.default),

@@ -20,7 +20,6 @@ export const ACTIONS = [
 	"select",
 	"wait",
 	"require-human",
-	"eval",
 	"tab.list",
 	"tab.pin",
 	"tab.unpin",
@@ -76,6 +75,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 	dom: z.object({ selector: z.string().optional(), depth: z.number().int().optional() }).strict(),
 	scroll: z
 		.object({
+			target: elementTarget.optional(),
 			by: z.string().optional(),
 			direction: z.enum(["up", "down"]).optional(),
 			untilStable: z.boolean().optional(),
@@ -118,7 +118,6 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 		})
 		.strict(),
 	"require-human": z.object({ reason: z.string(), forAttach: z.string().optional() }).strict(),
-	eval: z.object({ code: z.string() }).strict(),
 	"tab.list": z.object({}).strict(),
 	"tab.pin": z.object({ tab: tabHandle.optional() }).strict(),
 	"tab.unpin": z.object({ tab: tabHandle.optional() }).strict(),
