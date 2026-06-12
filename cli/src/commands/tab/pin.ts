@@ -1,29 +1,3 @@
-import { defineCommand } from "citty";
-import { sendAction } from "../../client.js";
-import { executeExitPlan, exitUsageError } from "../../exit.js";
-import { extractGlobals, globalArgs, parseTabHandle } from "../../globals.js";
-import type { ActionParams } from "../../types.js";
+import { defineTabHandleCommand } from "./shared.js";
 
-export default defineCommand({
-	meta: { description: "Pin a session-owned tab" },
-	args: {
-		...globalArgs,
-		tab: { type: "string", description: "Logical tab handle (defaults to bound tab)" },
-	},
-	async run({ args }) {
-		const globals = extractGlobals(args);
-		const params: ActionParams["tab.pin"] = {};
-
-		if (typeof args.tab === "string") {
-			const tab = parseTabHandle(args.tab);
-			if (!tab) {
-				executeExitPlan(exitUsageError(`Invalid tab handle: ${args.tab}. Must look like t1.`));
-				return;
-			}
-			params.tab = tab;
-		}
-
-		const plan = await sendAction("tab.pin", params, globals);
-		executeExitPlan(plan);
-	},
-});
+export default defineTabHandleCommand("tab.pin", "Pin a session-owned tab");
