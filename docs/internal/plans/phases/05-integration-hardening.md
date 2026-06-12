@@ -239,6 +239,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
   - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
   - [X] Reproduced deviation: `eval --allow-eval` existed as a tempting debugging path, but the 2026-06-12 course correction rejects arbitrary eval as a bproxy feature. Use CDP/devtools for page investigation instead.
   - [X] Fixed the LinkedIn scroll false-success class without adding scroll-container inference: `scroll` now supports explicit `ElementTarget` and returns honest `moved`/before/after data. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
+  - [ ] Re-run Scenario 2 using explicit-target scroll (e.g. `--selector 'main#workspace'`) and validate pacing, foreground-tab, and `HUMAN_REQUIRED`/pause handling.
 - [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
   - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
   - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
@@ -333,12 +334,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] `links --selector "#search"` returns structured URLs for a search-results page.
 - [ ] `elements` succeeds on labels with newlines/quotes/backslashes and does not fail the whole command because of selector generation.
 - [ ] `screenshot -s <id> --output-dir <dir>` returns a directly inspectable file path, not only base64 payload text.
+- [ ] `scroll --selector 'main#workspace' --direction down` scrolls an explicit element and reports `moved: true`.
+- [ ] `scroll --direction down` with no target scrolls viewport only and reports `moved: false` honestly on SPA pages without viewport scroll.
 - [ ] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
 - [ ] Error envelopes are complete for every new error path.
 - [ ] `debug.status` and `debug.last` show useful logical session/tab state.
 - [ ] Public and internal docs match shipped behaviour.
 - [ ] `pnpm views:regen` is current and generated SVGs are committed.
-- [ ] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
+- [X] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---
 
