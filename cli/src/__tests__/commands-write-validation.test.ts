@@ -3,10 +3,9 @@
  *
  * Tests the validation that happens at the command layer BEFORE sendAction:
  * - Target parsing (selector vs route-json exclusivity)
- * - Value/code source exclusivity
+ * - Value source exclusivity
  * - Method/world enum validation
  * - fill-form JSON payload validation
- * - eval --allow-eval guard
  */
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -145,57 +144,6 @@ describe("fill-form payload validation", () => {
 
 	it("rejects non-array fields", () => {
 		expect(validatePayload('{"fields":"not-array"}').ok).toBe(false);
-	});
-});
-
-// ─── eval --allow-eval guard logic ─────────────────────────────────────
-
-describe("eval --allow-eval guard", () => {
-	it("requires explicit true to proceed", () => {
-		const allowEval = true;
-		expect(allowEval === true).toBe(true);
-	});
-
-	it("blocks when false (default)", () => {
-		const allowEval = false as boolean | undefined;
-		expect(allowEval === true).toBe(false);
-	});
-
-	it("blocks when undefined", () => {
-		const allowEval = undefined as boolean | undefined;
-		expect(allowEval === true).toBe(false);
-	});
-});
-
-// ─── Code source exclusivity (eval) ───────────────────────────────────
-
-describe("eval code source exclusivity", () => {
-	function countCodeSources(
-		code: string | undefined,
-		file: string | undefined,
-		stdin: boolean,
-	): number {
-		return [code !== undefined, file !== undefined, stdin].filter(Boolean).length;
-	}
-
-	it("accepts exactly one source: --code", () => {
-		expect(countCodeSources("document.title", undefined, false)).toBe(1);
-	});
-
-	it("accepts exactly one source: --file", () => {
-		expect(countCodeSources(undefined, "/tmp/script.js", false)).toBe(1);
-	});
-
-	it("accepts exactly one source: --stdin", () => {
-		expect(countCodeSources(undefined, undefined, true)).toBe(1);
-	});
-
-	it("rejects no sources", () => {
-		expect(countCodeSources(undefined, undefined, false)).toBe(0);
-	});
-
-	it("rejects multiple sources", () => {
-		expect(countCodeSources("code", "/tmp/f", false)).toBe(2);
 	});
 });
 

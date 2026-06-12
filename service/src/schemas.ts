@@ -1,5 +1,6 @@
 import type { Action, BproxyRequest } from "@bproxy/shared";
 import { z } from "zod";
+import { TAB_HANDLE_PATTERN } from "./sessions";
 
 // Runtime list of every action. `satisfies readonly Action[]` makes the
 // compiler verify that ACTIONS only contains valid Action literals; the
@@ -7,10 +8,13 @@ import { z } from "zod";
 export const ACTIONS = [
 	"navigate",
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"screenshot",
 	"fill",
@@ -18,16 +22,17 @@ export const ACTIONS = [
 	"select",
 	"wait",
 	"require-human",
-	"eval",
 	"tab.list",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"session.create",
 	"session.list",
 	"session.bind",
 	"session.unbind",
 	"session.resume",
+	"session.close",
 	"debug.log",
 	"debug.last",
 	"debug.status",
@@ -54,19 +59,41 @@ const elementTarget = z.union([
 const fillMethod = z.enum(["direct", "paste", "runtime-api"]);
 const executionWorld = z.enum(["isolated", "main"]);
 const pacingMode = z.enum(["human", "fast"]);
+const tabHandle = z.string().regex(TAB_HANDLE_PATTERN);
 
 export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 	navigate: z.object({ url: z.string() }).strict(),
 	text: z.object({ selector: z.string().optional() }).strict(),
+	links: z
+		.object({
+			selector: z.string().optional(),
+			visibleOnly: z.boolean().optional(),
+			limit: z.number().int().optional(),
+		})
+		.strict(),
 	images: z.object({ selector: z.string().optional() }).strict(),
 	elements: z.object({ form: z.boolean().optional() }).strict(),
 	outline: z.object({}).strict(),
 	dom: z.object({ selector: z.string().optional(), depth: z.number().int().optional() }).strict(),
+	inspect: z
+		.object({
+			selector: z.string(),
+			properties: z.array(z.string()).optional(),
+			limit: z.number().int().min(1).max(50).optional(),
+		})
+		.strict(),
+	snapshot: z
+		.object({
+			selector: z.string().optional(),
+			maxDepth: z.number().int().min(1).max(12).optional(),
+			interactiveOnly: z.boolean().optional(),
+		})
+		.strict(),
 	scroll: z
 		.object({
+			target: elementTarget.optional(),
 			by: z.string().optional(),
 			direction: z.enum(["up", "down"]).optional(),
-			untilStable: z.boolean().optional(),
 		})
 		.strict(),
 	screenshot: z
@@ -106,16 +133,17 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 		})
 		.strict(),
 	"require-human": z.object({ reason: z.string(), forAttach: z.string().optional() }).strict(),
-	eval: z.object({ code: z.string() }).strict(),
 	"tab.list": z.object({}).strict(),
-	"tab.pin": z.object({ tabId: z.number().int().optional() }).strict(),
-	"tab.unpin": z.object({}).strict(),
+	"tab.pin": z.object({ tab: tabHandle.optional() }).strict(),
+	"tab.unpin": z.object({ tab: tabHandle.optional() }).strict(),
 	"tab.open": z.object({ url: z.string() }).strict(),
-	"tab.close": z.object({ tabId: z.number().int().optional() }).strict(),
+	"tab.close": z.object({ tab: tabHandle.optional() }).strict(),
+	"session.create": z.object({ label: z.string().optional() }).strict(),
 	"session.list": z.object({}).strict(),
-	"session.bind": z.object({ tabId: z.number().int(), pacing: pacingMode.optional() }).strict(),
+	"session.bind": z.object({ tab: tabHandle, pacing: pacingMode.optional() }).strict(),
 	"session.unbind": z.object({}).strict(),
 	"session.resume": z.object({}).strict(),
+	"session.close": z.object({}).strict(),
 	"debug.log": z.object({ id: z.string().optional(), limit: z.number().int().optional() }).strict(),
 	"debug.last": z.object({ count: z.number().int().optional() }).strict(),
 	"debug.status": z.object({}).strict(),
@@ -126,7 +154,7 @@ const ENVELOPE_BASE = z.object({
 	id: z.string().min(1),
 	action: z.string(),
 	params: z.unknown(),
-	session: z.string().min(1),
+	session: z.string(),
 	deadline: z.number().int(),
 	destructive: z.boolean(),
 });

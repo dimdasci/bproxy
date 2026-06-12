@@ -15,21 +15,24 @@ import { readFileSync } from "node:fs";
 import { isDestructive } from "./command-registry.js";
 import type { ExitPlan } from "./exit.js";
 import { exitFromResponse, exitUsageError } from "./exit.js";
+import { parseSessionId } from "./globals.js";
 import { generateRequestId } from "./ids.js";
 import { type VerboseEntry, writeVerbose } from "./output.js";
 import { resolveStatePaths, type StatePaths } from "./paths.js";
+import { validateResponse } from "./response-validation.js";
 import { preflightToken } from "./token.js";
-import type { Action, ActionParams, BproxyRequest, BproxyResponse } from "./types.js";
+import type {
+	Action,
+	ActionParams,
+	BproxyRequest,
+	BproxyResponse,
+	ClientGlobalArgs,
+} from "./types.js";
+
+export { validateResponse } from "./response-validation.js";
+export type { ClientGlobalArgs } from "./types.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────
-
-/** Global args resolved from citty context. */
-export interface ClientGlobalArgs {
-	session?: string;
-	timeout?: string;
-	home?: string;
-	verbose?: boolean;
-}
 
 /** Options for the send function, enabling test injection. */
 export interface SendOptions {
@@ -93,7 +96,7 @@ export async function sendAction<A extends Action>(
 // ─── Preflight / context resolution ───────────────────────────────────
 
 function resolveContext(
-	action: string,
+	action: Action,
 	globals: ClientGlobalArgs,
 	paths: StatePaths,
 	opts: SendOptions,
@@ -110,10 +113,13 @@ function resolveContext(
 	const deadlineMs = parseDeadline(globals.timeout);
 	if (deadlineMs === null) return exitUsageError(`Invalid timeout value: ${globals.timeout}`);
 
+	const session = resolveSession(action, globals);
+	if (typeof session !== "string") return session;
+
 	return {
 		requestId: opts.requestId ?? generateRequestId(),
 		action,
-		session: globals.session ?? "default",
+		session,
 		port,
 		token: tokenResult.token,
 		deadlineMs,
@@ -130,6 +136,29 @@ function parseDeadline(timeout: string | undefined): number | null {
 	return ms;
 }
 
+function isSessionExempt(action: Action): boolean {
+	return (
+		action === "session.create" ||
+		action === "session.list" ||
+		action === "debug.last" ||
+		action === "debug.status"
+	);
+}
+
+function resolveSession(action: Action, globals: ClientGlobalArgs): string | ExitPlan {
+	if (typeof globals.session === "string") {
+		const session = parseSessionId(globals.session);
+		if (session) return session;
+		return exitUsageError(`Invalid session id: ${globals.session}. Must match /^[a-z2-7]{6}$/.`);
+	}
+
+	if (action === "tab.open" || isSessionExempt(action)) return "";
+
+	return exitUsageError(
+		`Missing required session id for '${action}'. Use -s <id> or --session <id>. Create one with 'bproxy session create' or bootstrap with 'bproxy tab open --url ...'.`,
+	);
+}
+
 // ─── Request building ──────────────────────────────────────────────────
 
 function buildRequest<A extends Action>(
@@ -142,7 +171,7 @@ function buildRequest<A extends Action>(
 		id: ctx.requestId,
 		action,
 		params,
-		session: ctx.session,
+		session: ctx.session as BproxyRequest<A>["session"],
 		deadline: Date.now() + ctx.deadlineMs,
 		destructive: isDestructive(action),
 	};
@@ -256,7 +285,19 @@ async function processResponse(
 		writeVerbose(postEntry, ctx.stderr);
 	}
 
-	return exitFromResponse(validated.response);
+	const plan = exitFromResponse(validated.response);
+	if (isSessionClosePartialFailure(ctx.action, validated.response)) {
+		plan.stderr =
+			"Warning: session terminated but some Chrome tabs may not have been closed. Do not retry session close; a retry will return SESSION_NOT_FOUND.";
+	}
+	return plan;
+}
+
+function isSessionClosePartialFailure(action: string, response: BproxyResponse): boolean {
+	if (action !== "session.close" || response.ok) return false;
+	return !["SESSION_REQUIRED", "INVALID_SESSION_ID", "SESSION_NOT_FOUND"].includes(
+		response.error.code,
+	);
 }
 
 async function parseBody(response: Response): Promise<unknown | null> {
@@ -285,78 +326,6 @@ function emitVerboseOnError(
 		},
 		ctx.stderr,
 	);
-}
-
-// ─── Response validation ───────────────────────────────────────────────
-
-interface ValidationOk {
-	ok: true;
-	response: BproxyResponse;
-}
-
-interface ValidationError {
-	ok: false;
-	reason: string;
-}
-
-type ValidationResult = ValidationOk | ValidationError;
-
-/**
- * Minimal CLI-side guard for BproxyResponse shape.
- * Does not import service schemas. Only checks the structural contract.
- */
-export function validateResponse(body: unknown, expectedId: string): ValidationResult {
-	if (body === null || typeof body !== "object") {
-		return { ok: false, reason: "Daemon response is not a JSON object" };
-	}
-
-	const obj = body as Record<string, unknown>;
-
-	const headerCheck = validateHeaders(obj, expectedId);
-	if (headerCheck) return headerCheck;
-
-	if (obj["ok"] === true) return validateSuccessBranch(obj);
-	return validateErrorBranch(obj);
-}
-
-function validateHeaders(obj: Record<string, unknown>, expectedId: string): ValidationError | null {
-	if (obj["protocol_version"] !== 1) {
-		return {
-			ok: false,
-			reason: `Unexpected protocol_version: ${JSON.stringify(obj["protocol_version"])}`,
-		};
-	}
-	if (typeof obj["id"] !== "string") {
-		return { ok: false, reason: "Daemon response missing 'id' field" };
-	}
-	if (obj["id"] !== expectedId) {
-		return { ok: false, reason: `Response id mismatch: expected ${expectedId}, got ${obj["id"]}` };
-	}
-	if (typeof obj["ok"] !== "boolean") {
-		return { ok: false, reason: "Daemon response missing 'ok' field" };
-	}
-	return null;
-}
-
-function validateSuccessBranch(obj: Record<string, unknown>): ValidationResult {
-	if (!("data" in obj)) {
-		return { ok: false, reason: "Success response missing 'data' field" };
-	}
-	if (!("page" in obj)) {
-		return { ok: false, reason: "Success response missing 'page' field" };
-	}
-	return { ok: true, response: obj as unknown as BproxyResponse };
-}
-
-function validateErrorBranch(obj: Record<string, unknown>): ValidationResult {
-	if (!("error" in obj) || typeof obj["error"] !== "object" || obj["error"] === null) {
-		return { ok: false, reason: "Error response missing 'error' object" };
-	}
-	const error = obj["error"] as Record<string, unknown>;
-	if (typeof error["code"] !== "string") {
-		return { ok: false, reason: "Error response missing 'error.code' string" };
-	}
-	return { ok: true, response: obj as unknown as BproxyResponse };
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────

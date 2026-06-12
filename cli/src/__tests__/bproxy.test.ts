@@ -50,6 +50,7 @@ describe("bproxy CLI shell", () => {
 		const commands = [
 			"navigate",
 			"text",
+			"links",
 			"images",
 			"elements",
 			"outline",
@@ -61,7 +62,6 @@ describe("bproxy CLI shell", () => {
 			"select",
 			"wait",
 			"require-human",
-			"eval",
 			"status",
 			"service",
 			"session",
@@ -85,10 +85,12 @@ describe("bproxy CLI shell", () => {
 	it("session subcommands are reachable", () => {
 		const result = run(["session", "--help"]);
 		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("create");
 		expect(result.stdout).toContain("list");
 		expect(result.stdout).toContain("bind");
 		expect(result.stdout).toContain("unbind");
 		expect(result.stdout).toContain("resume");
+		expect(result.stdout).toContain("close");
 	});
 
 	it("tab subcommands are reachable", () => {

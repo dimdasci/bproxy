@@ -8,7 +8,7 @@ import {
 	matchesSelectorSafe,
 	normalizeText,
 } from "./dom-helpers";
-import { createElementTarget } from "./targeting";
+import { safeCreateElementTarget } from "./targeting";
 
 export interface DiscoveryPoint {
 	x: number;
@@ -93,7 +93,8 @@ function discoverWithinRoots(
 		for (const element of collectInteractiveElements(root, options.formOnly === true)) {
 			if (seen.has(element)) continue;
 			seen.add(element);
-			discovered.push(toElementInfo(element));
+			const info = toElementInfo(element);
+			if (info) discovered.push(info);
 		}
 	}
 
@@ -144,28 +145,31 @@ function fallbackScope(doc: Document): DiscoveryRoot {
 	return doc.body ?? doc.documentElement ?? doc;
 }
 
-function toElementInfo(element: Element): ElementInfo {
-	const target = createElementTarget(element);
-	const tag = element.tagName.toLowerCase();
-	const value = readValue(element);
-	const label = readLabel(element);
-	const runtimeHandle = isShadowRootLike(element.shadowRoot)
-		? probeRuntimeHandle(element.shadowRoot)
-		: probeRuntimeHandle(element);
-	const info: ElementInfo = {
-		...target,
-		tag,
+function toElementInfo(element: Element): ElementInfo | undefined {
+	const target = safeCreateElementTarget(element);
+	if (!target) return undefined;
+
+	const info = {
+		tag: element.tagName.toLowerCase(),
 		type: element.getAttribute("type") ?? undefined,
-		label: label || undefined,
-		value: value || undefined,
+		label: readLabel(element) || undefined,
+		value: readValue(element) || undefined,
 		placeholder: element.getAttribute("placeholder") ?? undefined,
 		required: isRequired(element) || undefined,
 		options: readOptions(element),
 		role: element.getAttribute("role") ?? undefined,
 		hasShadowRoot: isShadowRootLike(element.shadowRoot) || undefined,
-		runtimeHandle,
+		runtimeHandle: runtimeHandleFor(element),
 	};
-	return info;
+	return typeof target.selector === "string"
+		? { ...info, selector: target.selector }
+		: { ...info, route: target.route };
+}
+
+function runtimeHandleFor(element: Element): RuntimeHandle | undefined {
+	return isShadowRootLike(element.shadowRoot)
+		? probeRuntimeHandle(element.shadowRoot)
+		: probeRuntimeHandle(element);
 }
 
 function readLabel(element: Element): string {
@@ -205,7 +209,10 @@ function readOptions(element: Element): string[] | undefined {
 
 function readValue(element: Element): string {
 	const candidate = element as Element & { value?: unknown; isContentEditable?: boolean };
-	if (typeof candidate.value === "string") return candidate.value;
+	// <button>.value is always "" (the HTML value attribute, not visual content).
+	// For buttons, the meaningful content is textContent.
+	const tag = element.tagName.toLowerCase();
+	if (tag !== "button" && typeof candidate.value === "string") return candidate.value;
 	if (candidate.isContentEditable === true) return normalizeText(element.textContent ?? "");
 	return normalizeText(element.textContent ?? "");
 }

@@ -1,5 +1,16 @@
 {
-	"extends": ["../tsconfig.base.json", "astro/tsconfigs/strict"],
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"forceConsistentCasingInFileNames": true,
+		"esModuleInterop": true,
+		"allowJs": true,
+		"jsx": "preserve"
+	},
 	"include": [".astro/types.d.ts", "**/*.ts", "**/*.tsx", "**/*.astro", "src/**/*.css"],
 	"exclude": ["dist", "node_modules"]
 }

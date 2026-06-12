@@ -50,8 +50,10 @@ pnpm --filter @bproxy/extension test
 
 ## Local smoke workflow (real daemon + real Chrome)
 
-This smoke stays on localhost: one fixture page, one temp `BPROXY_HOME`, one real
-Chrome profile with the unpacked extension.
+This smoke stays on localhost: one fixture server, one temp `BPROXY_HOME`, one
+real Chrome profile with the unpacked extension. It mirrors the Phase 5
+acceptance shape: fresh pairing → `tab.open` bootstrap → `text` → `links` →
+`navigate` → `text` → `session.close`.
 
 ### 0. Build the service and extension
 
@@ -60,14 +62,13 @@ pnpm --filter @bproxy/service build
 pnpm --filter @bproxy/extension build
 ```
 
-### 1. Start the local fixture page
+### 1. Start the local fixture server
 
 ```bash
 pnpm --filter @bproxy/extension smoke:fixture
 ```
 
-Keep the printed `http://127.0.0.1:<port>/` open in Chrome and keep that tab
-active while running the workflow.
+The helper prints a `Base URL`, `Search URL`, and `Detail URL`.
 
 ### 2. Start a smoke daemon in a temp `BPROXY_HOME`
 
@@ -99,39 +100,25 @@ pnpm --filter @bproxy/extension smoke:command -- --home <BPROXY_HOME> debug.stat
 
 Expect `response.data.wsClients.length > 0`.
 
-### 4. Find the fixture tab id
-
-Open the extension service-worker console from `chrome://extensions`, then run:
-
-```js
-chrome.tabs
-	.query({ active: true, lastFocusedWindow: true })
-	.then((tabs) => tabs.map(({ id, url, title }) => ({ id, url, title })));
-```
-
-Use the `id` for the active fixture tab.
-
-### 5. Run the end-to-end smoke
+### 4. Run the Phase 5 local workflow
 
 ```bash
-pnpm --filter @bproxy/extension smoke:workflow -- --home <BPROXY_HOME> --tabId <TAB_ID>
+pnpm --filter @bproxy/extension smoke:workflow -- --home <BPROXY_HOME> --baseUrl http://127.0.0.1:<fixture-port>
 ```
 
-The workflow performs:
+The workflow waits for the paired extension and then performs:
 
-- `session.bind`
-- `wait` for `#smoke-text`
-- `text`
-- `elements --form`
-- `fill` with `method: "paste"`
-- `text` against the paste echo
-- `scroll --until-stable`
-- `debug.log --id <fill-request-id>`
+- `tab.open --url <baseUrl>/search?q=bproxy+smoke`
+- `text -s <generated> --selector main`
+- `links -s <generated> --selector #search --visible-only --limit 10`
+- `navigate -s <generated> --url <baseUrl>/detail/alpha`
+- `text -s <generated> --selector main`
+- `session close -s <generated>`
 
-It exits non-zero if any step fails and prints the request ids plus a compact
-result summary on success.
+It exits non-zero if any step fails and prints a JSON transcript including the
+generated session id, logical tab handle, request ids, and responses.
 
-### 6. Reconnect smoke
+### 5. Reconnect smoke
 
 #### Daemon restart
 
@@ -144,10 +131,10 @@ pnpm --filter @bproxy/extension smoke:daemon -- --home <BPROXY_HOME>
 
 3. Run `debug.status` again and confirm `wsClients.length > 0` without
    re-pairing
-4. Re-run `smoke:workflow` with the same `--tabId`
+4. Re-run `smoke:workflow`
 
-Note: daemon restart clears daemon session state by design, so rebinding the tab
-is expected; re-pairing is not.
+Note: daemon restart clears daemon session state by design, so a new generated
+session id is expected; re-pairing is not.
 
 #### Service-worker restart
 
@@ -160,20 +147,6 @@ pnpm --filter @bproxy/extension smoke:command -- --home <BPROXY_HOME> debug.stat
 ```
 
 Expect `wsClients.length > 0` again after the worker reconnects.
-
-### 7. Optional dedupe/replay spot-check
-
-Send the same destructive request twice with the same id, then inspect
-`debug.log`:
-
-```bash
-REQ_ID=smoke-fill-replay-1
-pnpm --filter @bproxy/extension smoke:command -- --home <BPROXY_HOME> --session smoke --id "$REQ_ID" fill '{"target":{"selector":"#smoke-name"},"value":"Replay check","method":"paste","world":"isolated"}'
-pnpm --filter @bproxy/extension smoke:command -- --home <BPROXY_HOME> --session smoke --id "$REQ_ID" fill '{"target":{"selector":"#smoke-name"},"value":"Replay check","method":"paste","world":"isolated"}'
-pnpm --filter @bproxy/extension smoke:command -- --home <BPROXY_HOME> debug.log '{"id":"smoke-fill-replay-1","limit":5}'
-```
-
-The second `fill` should come back from extension dedupe (`replay: true`).
 
 ## Loading the built extension into Chrome
 

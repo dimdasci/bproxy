@@ -42,6 +42,33 @@ interface ObjectGraph {
 	newClientId: () => string;
 	startedAt: number;
 	traces: () => readonly DaemonRequestTrace[];
+	pushTrace: (entry: DaemonRequestTrace) => void;
+}
+
+interface TraceRing {
+	push: (entry: DaemonRequestTrace) => void;
+	read: () => readonly DaemonRequestTrace[];
+}
+
+function createTraceRing(capacity = 200): TraceRing {
+	const buffer: DaemonRequestTrace[] = [];
+	let start = 0;
+	let size = 0;
+	return {
+		push(entry) {
+			if (size < capacity) {
+				buffer.push(entry);
+				size++;
+			} else {
+				buffer[start] = entry;
+				start = (start + 1) % capacity;
+			}
+		},
+		read() {
+			if (size < capacity) return buffer.slice();
+			return [...buffer.slice(start), ...buffer.slice(0, start)];
+		},
+	};
 }
 
 function createDeps(opts: BuildServerOptions): ObjectGraph {
@@ -74,7 +101,9 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	let clientCounter = 0;
 	const newClientId = (): string => `client-${++clientCounter}`;
-	const traces = opts.traces ?? (() => [] as readonly DaemonRequestTrace[]);
+	const ring = createTraceRing();
+	const traces = opts.traces ?? (() => ring.read());
+
 	return {
 		clients,
 		pending,
@@ -85,6 +114,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		newClientId,
 		startedAt: Date.now(),
 		traces,
+		pushTrace: ring.push,
 	};
 }
 
@@ -101,6 +131,7 @@ async function registerRoutes(
 			pacing: deps.pacing,
 			logger: opts.logger,
 			sessions: deps.sessions,
+			trace: deps.pushTrace,
 			debug: {
 				clients: deps.clients,
 				sessions: deps.sessions,

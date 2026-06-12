@@ -1,4 +1,4 @@
-import type { BproxyError, BproxyForwardedRequest, PageState } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserActionHandler } from "../browser-actions";
 import type { TabLike } from "../tabs";
@@ -9,6 +9,7 @@ const PAGE: PageState = {
 	state: "ready",
 	busy: false,
 };
+const TEST_SESSION = "m4q7z2" as SessionId;
 
 type TargetTab = TabLike & { id: number };
 
@@ -27,13 +28,10 @@ function tab(overrides: Partial<TargetTab> = {}): TargetTab {
 interface HarnessOverrides {
 	resolveTargetTab?: (tabId: number) => Promise<TargetTab>;
 	waitForLoad?: (tabId: number, options: { timeoutMs: number }) => Promise<TargetTab>;
-	getInjectedTabs?: () => Promise<number[]>;
 	update?: (tabId: number, updateProperties: Record<string, unknown>) => Promise<TabLike>;
-	query?: (queryInfo?: Record<string, unknown>) => Promise<TabLike[]>;
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
 	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
-	isEvalEnabled?: () => boolean | Promise<boolean>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
 		tab: TargetTab,
@@ -50,7 +48,6 @@ function createHarness(overrides: HarnessOverrides = {}) {
 		tabRuntime,
 		tabs,
 		now: () => now.value,
-		isEvalEnabled: overrides.isEvalEnabled,
 		isDebuggerScreenshotEnabled: overrides.isDebuggerScreenshotEnabled,
 		captureDebuggerScreenshot: overrides.captureDebuggerScreenshot,
 	});
@@ -69,7 +66,6 @@ function createMainWorldSeam() {
 			data: { filled: true, verifiedValue: "x" },
 			page: PAGE,
 		})),
-		executeEval: vi.fn(async () => ({ data: { result: "ok" }, page: PAGE })),
 	};
 }
 
@@ -84,21 +80,15 @@ function createTabRuntimeSeam(overrides: HarnessOverrides, now: { value: number 
 				return tab({ id: tabId, url: "https://example.test/next", title: "Next" });
 			}),
 	);
-	const getInjectedTabs = vi.fn(overrides.getInjectedTabs ?? (async () => []));
 	return {
 		resolveTargetTab,
 		waitForLoad,
-		getInjectedTabs,
 	};
 }
 
 function createTabsSeam(overrides: HarnessOverrides) {
 	const target = tab({ active: false, status: "loading" });
 	const update = vi.fn(overrides.update ?? createUpdateResult(target));
-	const query = vi.fn(
-		overrides.query ??
-			(async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })]),
-	);
 	const create = vi.fn(overrides.create ?? createTabCreator());
 	const remove = vi.fn(overrides.remove ?? (async () => undefined));
 	const captureVisibleTab = vi.fn(
@@ -106,7 +96,6 @@ function createTabsSeam(overrides: HarnessOverrides) {
 	);
 	return {
 		update,
-		query,
 		create,
 		remove,
 		captureVisibleTab,
@@ -159,16 +148,6 @@ describe("createBrowserActionHandler", () => {
 			message: 'fill method runtime-api requires world "main"',
 		});
 		expect(h.mainWorld.executeRuntimeApiFill).not.toHaveBeenCalled();
-	});
-
-	it("returns EVAL_DISABLED by default and does not execute MAIN-world eval", async () => {
-		const h = createHarness();
-
-		await expect(h.handler.handleBrowserAction(evalRequest())).rejects.toMatchObject({
-			code: "EVAL_DISABLED",
-			category: "policy",
-		});
-		expect(h.mainWorld.executeEval).not.toHaveBeenCalled();
 	});
 
 	it("navigates the daemon-targeted tab and waits for load completion", async () => {
@@ -274,37 +253,6 @@ describe("createBrowserActionHandler", () => {
 		});
 	});
 
-	it("lists tabs with injected state and the current session binding where available", async () => {
-		const h = createHarness({
-			getInjectedTabs: async () => [7],
-			query: async () => [tab({ id: 42 }), tab({ id: 7, url: "https://two.test/", title: "Two" })],
-		});
-
-		const result = await h.handler.handleBrowserAction(tabListRequest());
-
-		expect(result).toEqual({
-			data: {
-				tabs: [
-					{
-						id: 42,
-						url: "https://example.test/",
-						title: "Example",
-						session: "default",
-						injected: false,
-					},
-					{
-						id: 7,
-						url: "https://two.test/",
-						title: "Two",
-						session: null,
-						injected: true,
-					},
-				],
-			},
-			page: PAGE,
-		});
-	});
-
 	it("opens, pins, unpins, and closes tabs without mutating daemon session state", async () => {
 		const h = createHarness();
 
@@ -345,7 +293,7 @@ describe("createBrowserActionHandler", () => {
 		});
 
 		await expect(
-			h.handler.handleBrowserAction(tabCloseRequest({ params: { tabId: 99 } })),
+			h.handler.handleBrowserAction(tabCloseRequest({ target: { tabId: 99 } })),
 		).rejects.toMatchObject({ code: "TAB_NOT_FOUND" });
 		expect(h.remove).not.toHaveBeenCalled();
 	});
@@ -385,22 +333,7 @@ function fillRequest(
 			method: "runtime-api",
 			world: "main",
 		},
-		session: overrides.session ?? "default",
-		deadline: overrides.deadline ?? 10_000,
-		destructive: overrides.destructive ?? true,
-		target: overrides.target ?? { tabId: 42 },
-	};
-}
-
-function evalRequest(
-	overrides: Partial<BproxyForwardedRequest<"eval">> = {},
-): BproxyForwardedRequest<"eval"> {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? "req-eval",
-		action: "eval",
-		params: overrides.params ?? { code: "return 1;" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -415,7 +348,7 @@ function navigateRequest(
 		id: overrides.id ?? "req-nav",
 		action: "navigate",
 		params: overrides.params ?? { url: "https://example.test/" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -430,22 +363,7 @@ function screenshotRequest(
 		id: overrides.id ?? "req-shot",
 		action: "screenshot",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
-		deadline: overrides.deadline ?? 10_000,
-		destructive: overrides.destructive ?? false,
-		target: overrides.target ?? { tabId: 42 },
-	};
-}
-
-function tabListRequest(
-	overrides: Partial<BproxyForwardedRequest<"tab.list">> = {},
-): BproxyForwardedRequest<"tab.list"> {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? "req-list",
-		action: "tab.list",
-		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },
@@ -460,7 +378,7 @@ function tabOpenRequest(
 		id: overrides.id ?? "req-open",
 		action: "tab.open",
 		params: overrides.params ?? { url: "https://opened.test/" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -475,7 +393,7 @@ function tabCloseRequest(
 		id: overrides.id ?? "req-close",
 		action: "tab.close",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -490,7 +408,7 @@ function tabPinRequest(
 		id: overrides.id ?? "req-pin",
 		action: "tab.pin",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -505,7 +423,7 @@ function tabUnpinRequest(
 		id: overrides.id ?? "req-unpin",
 		action: "tab.unpin",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
@@ -520,7 +438,7 @@ function requireHumanRequest(
 		id: overrides.id ?? "req-human",
 		action: "require-human",
 		params: overrides.params ?? { reason: "Need manual step" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },

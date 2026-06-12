@@ -3,10 +3,13 @@ import type { Action, ActionParams, ActionResult, BproxyError, PageState } from 
 export type ContentAction = Extract<
 	Action,
 	| "text"
+	| "links"
 	| "images"
 	| "elements"
 	| "outline"
 	| "dom"
+	| "inspect"
+	| "snapshot"
 	| "scroll"
 	| "fill"
 	| "fill-form"
@@ -64,10 +67,13 @@ export interface ContentRpcHost {
 
 const CONTENT_ACTIONS = [
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"fill",
 	"fill-form",

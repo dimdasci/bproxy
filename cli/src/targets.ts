@@ -18,6 +18,22 @@ export interface TargetError {
 
 export type TargetResult = TargetOk | TargetError;
 
+export type OptionalTargetResult = TargetResult | { ok: true; target: undefined };
+
+/**
+ * Parse an optional ElementTarget from CLI args.
+ *
+ * Omitted target args mean the command should use its own default target.
+ * Providing both target strategies is still an error.
+ */
+export function parseOptionalTarget(
+	selector: string | undefined,
+	routeJson: string | undefined,
+): OptionalTargetResult {
+	if (!selector && !routeJson) return { ok: true, target: undefined };
+	return parseTarget(selector, routeJson);
+}
+
 /**
  * Parse an ElementTarget from CLI args.
  *

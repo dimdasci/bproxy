@@ -1,15 +1,13 @@
 import { bootstrapItem } from "../../background/storage";
 import { type PairingErrorCode, type PairingResult, runPairing } from "./pairing";
 
-// Thin DOM wiring for the pairing popup. All real flow logic lives in
-// `pairing.ts` (testable without jsdom). This file is responsible only for:
+// Thin DOM wiring for the popup. Real flow logic lives in small helpers:
 //
-//   - reading the code from the form,
-//   - calling `runPairing` with the production dependencies (real `fetch`,
-//     the typed `bootstrapItem`, `chrome.runtime.sendMessage`, `Date.now`),
-//   - rendering success / failure into the status area.
+//   - `pairing.ts` handles the claim/bootstrap flow.
 //
-// The popup never speaks to the page DOM and never injects MAIN-world code.
+// This file only binds DOM events, calls that helper with production
+// dependencies, and renders status text. The popup never speaks to the page
+// DOM and never injects MAIN-world code.
 
 const STATUS_FRIENDLY: Record<PairingErrorCode, string> = {
 	PAIRING_CODE_INVALID: "Code not recognized. Re-issue a code in the daemon and try again.",

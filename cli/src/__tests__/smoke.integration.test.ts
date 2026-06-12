@@ -9,10 +9,10 @@
  * - Token file is 0600
  * - `service status` reports live PID/port
  * - `session list` returns valid JSON (daemon-local, no extension needed)
- * - `session bind` + `session unbind` work against running daemon
+ * - `session create` + `session close` work against running daemon
  * - `debug status` returns daemon status
  * - `debug last` returns request history
- * - Forwarded action via mock WS client (bind → text → verify response)
+ * - Forwarded action via mock WS client (session create → tab open → text → verify response)
  * - Stop through CLI, verify status becomes running:false
  */
 import { execSync, spawn } from "node:child_process";
@@ -47,6 +47,7 @@ function cleanEnv(): NodeJS.ProcessEnv {
 	delete env["TEST"];
 	delete env["VITEST"];
 	delete env["NODE_ENV"];
+	env["BPROXY_PORT"] = "0";
 	return env;
 }
 
@@ -183,20 +184,24 @@ describe("CLI integration smoke", () => {
 		expect(Array.isArray(data["sessions"])).toBe(true);
 	});
 
-	it("session bind and unbind work against running daemon", () => {
+	it("session create and close work against running daemon", () => {
 		runCli(["service", "start"], tempHome);
 
-		const bindResult = runCli(["session", "bind", "--tab-id", "42"], tempHome);
-		expect(bindResult.exitCode).toBe(0);
-		const bindParsed = parseJson(bindResult.stdout) as Record<string, unknown>;
-		expect(bindParsed["ok"]).toBe(true);
-		const bindData = bindParsed["data"] as Record<string, unknown>;
-		expect(bindData["tabId"]).toBe(42);
+		const createResult = runCli(["session", "create", "--label", "research"], tempHome);
+		expect(createResult.exitCode).toBe(0);
+		const createParsed = parseJson(createResult.stdout) as Record<string, unknown>;
+		expect(createParsed["ok"]).toBe(true);
+		const createData = createParsed["data"] as Record<string, unknown>;
+		expect(createData["session"]).toMatch(/^[a-z2-7]{6}$/);
+		expect(createData["label"]).toBe("research");
 
-		const unbindResult = runCli(["session", "unbind"], tempHome);
-		expect(unbindResult.exitCode).toBe(0);
-		const unbindParsed = parseJson(unbindResult.stdout) as Record<string, unknown>;
-		expect(unbindParsed["ok"]).toBe(true);
+		const sessionId = createData["session"] as string;
+		const closeResult = runCli(["session", "close", "-s", sessionId], tempHome);
+		expect(closeResult.exitCode).toBe(0);
+		const closeParsed = parseJson(closeResult.stdout) as Record<string, unknown>;
+		expect(closeParsed["ok"]).toBe(true);
+		const closeData = closeParsed["data"] as Record<string, unknown>;
+		expect(closeData["session"]).toBe(sessionId);
 	});
 
 	it("debug status returns daemon info without extension", () => {
@@ -277,26 +282,51 @@ describe("CLI integration smoke", () => {
 		// Set up WS to respond to forwarded requests
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as Record<string, unknown>;
-			// Only respond to forwarded protocol requests (not pings)
-			if (req["protocol_version"] === 1) {
-				const resp = {
+			if (req["protocol_version"] !== 1) return;
+			if (req["action"] === "tab.open") {
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req["id"],
+						ok: true,
+						data: { tabId: 99, url: "https://example.com" },
+						page: {
+							url: "https://example.com",
+							title: "Mock",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					}),
+				);
+				return;
+			}
+			ws.send(
+				JSON.stringify({
 					protocol_version: 1,
 					id: req["id"],
 					ok: true,
 					data: { text: "mock-response-text" },
 					page: { url: "https://example.com", title: "Mock", state: "ready", busy: false },
 					replay: false,
-				};
-				ws.send(JSON.stringify(resp));
-			}
+				}),
+			);
 		});
 
-		// Bind a session to a tab
-		const bindResult = runCli(["session", "bind", "--tab-id", "99"], tempHome);
-		expect(bindResult.exitCode).toBe(0);
+		const createResult = runCli(["session", "create"], tempHome);
+		expect(createResult.exitCode).toBe(0);
+		const createParsed = parseJson(createResult.stdout) as Record<string, unknown>;
+		const sessionId = (createParsed["data"] as Record<string, unknown>)["session"] as string;
+
+		const openResult = await runCliAsync(
+			["tab", "open", "-s", sessionId, "--url", "https://example.com"],
+			tempHome,
+			10_000,
+		);
+		expect(openResult.exitCode).toBe(0);
 
 		// Send a forwarded read command (text) using async spawn
-		const textResult = await runCliAsync(["text"], tempHome, 10_000);
+		const textResult = await runCliAsync(["text", "-s", sessionId], tempHome, 10_000);
 		expect(textResult.exitCode).toBe(0);
 
 		const textParsed = parseJson(textResult.stdout) as Record<string, unknown>;

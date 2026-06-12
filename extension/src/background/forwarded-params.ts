@@ -8,10 +8,13 @@ export function paramsValidForAction<A extends ForwardedAction>(
 	const validators: { [K in ForwardedAction]: (input: unknown) => input is ActionParams[K] } = {
 		navigate: isNavigateParams,
 		text: isSelectorParams,
+		links: isLinksParams,
 		images: isSelectorParams,
 		elements: isElementsParams,
 		outline: isEmptyParams,
 		dom: isDomParams,
+		inspect: isInspectParams,
+		snapshot: isSnapshotParams,
 		scroll: isScrollParams,
 		screenshot: isScreenshotParams,
 		fill: isFillParams,
@@ -19,12 +22,10 @@ export function paramsValidForAction<A extends ForwardedAction>(
 		select: isSelectParams,
 		wait: isWaitParams,
 		"require-human": isRequireHumanParams,
-		eval: isEvalParams,
-		"tab.list": isEmptyParams,
-		"tab.pin": isOptionalTabIdParams,
-		"tab.unpin": isEmptyParams,
+		"tab.pin": isOptionalTabHandleParams,
+		"tab.unpin": isOptionalTabHandleParams,
 		"tab.open": isNavigateParams,
-		"tab.close": isOptionalTabIdParams,
+		"tab.close": isOptionalTabHandleParams,
 		"debug.log": isDebugLogParams,
 	};
 	return validators[action](value);
@@ -36,6 +37,15 @@ function isNavigateParams(value: unknown): value is ActionParams["navigate"] {
 
 function isSelectorParams(value: unknown): value is ActionParams["text"] {
 	return isOptionalStringObject(value, ["selector"]);
+}
+
+function isLinksParams(value: unknown): value is ActionParams["links"] {
+	return (
+		isStrictObject(value, ["selector", "visibleOnly", "limit"]) &&
+		(value["selector"] === undefined || typeof value["selector"] === "string") &&
+		(value["visibleOnly"] === undefined || typeof value["visibleOnly"] === "boolean") &&
+		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
 }
 
 function isElementsParams(value: unknown): value is ActionParams["elements"] {
@@ -56,12 +66,12 @@ function isDomParams(value: unknown): value is ActionParams["dom"] {
 
 function isScrollParams(value: unknown): value is ActionParams["scroll"] {
 	return (
-		isStrictObject(value, ["by", "direction", "untilStable"]) &&
+		isStrictObject(value, ["target", "by", "direction"]) &&
+		(value["target"] === undefined || isElementTarget(value["target"])) &&
 		(value["by"] === undefined || typeof value["by"] === "string") &&
 		(value["direction"] === undefined ||
 			value["direction"] === "up" ||
-			value["direction"] === "down") &&
-		(value["untilStable"] === undefined || typeof value["untilStable"] === "boolean")
+			value["direction"] === "down")
 	);
 }
 
@@ -125,13 +135,11 @@ function isRequireHumanParams(value: unknown): value is ActionParams["require-hu
 	);
 }
 
-function isEvalParams(value: unknown): value is ActionParams["eval"] {
-	return isStrictObject(value, ["code"]) && typeof value["code"] === "string";
-}
-
-function isOptionalTabIdParams(value: unknown): value is ActionParams["tab.pin"] {
+function isOptionalTabHandleParams(value: unknown): value is ActionParams["tab.pin"] {
 	return (
-		isStrictObject(value, ["tabId"]) && (value["tabId"] === undefined || isInteger(value["tabId"]))
+		isStrictObject(value, ["tab"]) &&
+		(value["tab"] === undefined ||
+			(typeof value["tab"] === "string" && /^t[1-9]\d*$/.test(value["tab"])))
 	);
 }
 
@@ -140,6 +148,26 @@ function isDebugLogParams(value: unknown): value is ActionParams["debug.log"] {
 		isStrictObject(value, ["id", "limit"]) &&
 		(value["id"] === undefined || typeof value["id"] === "string") &&
 		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
+}
+
+function isInspectParams(value: unknown): value is ActionParams["inspect"] {
+	return (
+		isStrictObject(value, ["selector", "properties", "limit"]) &&
+		typeof value["selector"] === "string" &&
+		(value["properties"] === undefined ||
+			(Array.isArray(value["properties"]) &&
+				value["properties"].every((p: unknown) => typeof p === "string"))) &&
+		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
+}
+
+function isSnapshotParams(value: unknown): value is ActionParams["snapshot"] {
+	return (
+		isStrictObject(value, ["selector", "maxDepth", "interactiveOnly"]) &&
+		(value["selector"] === undefined || typeof value["selector"] === "string") &&
+		(value["maxDepth"] === undefined || isInteger(value["maxDepth"])) &&
+		(value["interactiveOnly"] === undefined || typeof value["interactiveOnly"] === "boolean")
 	);
 }
 
@@ -200,5 +228,5 @@ function isInteger(value: unknown): value is number {
 }
 
 export function isTarget(value: unknown): value is BproxyForwardedRequest["target"] {
-	return isStrictObject(value, ["tabId"]) && isInteger(value["tabId"]);
+	return isStrictObject(value, ["tabId"]) && (value["tabId"] === null || isInteger(value["tabId"]));
 }

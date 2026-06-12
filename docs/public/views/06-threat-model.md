@@ -96,7 +96,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 |---|---|---|
 | Bootstrap token in extension storage | Long-lived WS auth material could leak through loose storage handling | Popup validates payload shape before write; bootstrap is stored as one atomic `chrome.storage.local` record; daemon still limits auth to localhost WS with subprotocol token |
 | Runtime content script | Page-visible extension presence or broad ambient listeners | No declarative `content_scripts`; runtime script is injected only on first command per tab; content host keeps one `chrome.runtime.onMessage` listener and no page-global hooks |
-| MAIN-world execution | Page learns about the extension or receives raw extension errors/stacks | MAIN world is one-shot only via `chrome.scripting.executeScript({ world: "MAIN" })`; injected functions catch/normalize errors and contain no identifying literals (ADR-013, ADR-015) |
+| MAIN-world execution | Page learns about the extension or receives raw extension errors/stacks | MAIN world is one-shot only for narrow product actions such as `runtime-api` writes via `chrome.scripting.executeScript({ world: "MAIN" })`; injected functions catch/normalize errors and contain no identifying literals (ADR-013, ADR-015, ADR-024) |
 | Trace / dedupe ring buffer | `debug.log` could expose stale or over-broad extension data | Trace is bounded in `chrome.storage.session`, queryable only through authenticated daemon forwarding, filtered by `id`/`limit`, and stamped with `extensionVersion` |
 | Polling / DOM settle | High-signal instrumentation or bundle hygiene regressions | No `MutationObserver`; jittered polling only; Task 16 scans the production artifact to keep `MutationObserver` out of shipped output |
 | Screenshot escalation | `chrome.debugger` would widen capability and show a user-visible Chrome banner | Normal screenshots use `captureVisibleTab`; debugger screenshots remain gated behind `DEBUGGER_DISABLED`, with no `debugger` permission in the manifest today |
@@ -110,7 +110,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 - Cross-host operation or TLS; bproxy remains localhost-only
 - Closed shadow-root support
 - A shipped opt-in path for `chrome.debugger` screenshots
-- A daemon/CLI control path that enables `eval`; default behavior remains `EVAL_DISABLED`
+- Arbitrary page eval; page/runtime investigation belongs to CDP/devtools outside bproxy
 
 ## See also
 

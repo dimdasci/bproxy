@@ -113,9 +113,41 @@ Each workspace package defines its own `typecheck` script (`tsc --noEmit`); the 
 
 | Stage | Behaviour |
 |---|---|
-| During active development | Run `pnpm <step>` or `pnpm check` on demand. No auto-run on save or on commit. |
+| During active development | Run `pnpm <step>` or `pnpm check` on demand. |
+| Pre-commit hooks | Biome format (auto-fix) + ESLint (check-only) on staged files. Fast (~1.5 s). Skip with `git commit --no-verify`. |
 | CI (every PR and push to main) | `pnpm check` runs the full suite. Failures block merge. No auto-fix in CI. |
-| Pre-commit hooks | **Deferred to Phase 5** (integration & hardening). Pre-commit machinery during active development is friction; introduce it once the codebase stabilizes. |
+
+## Pre-commit hook details
+
+The hook uses [Husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/lint-staged/lint-staged). Configuration lives at the repo root:
+
+- `.husky/pre-commit` — runs `pnpm lint-staged`.
+- `lint-staged.config.js` — defines which tools run on which staged file patterns.
+
+What runs on each commit:
+
+| Pattern | Tool | Mode |
+|---|---|---|
+| `*.{ts,tsx,mts,js,json}` | Biome | Format fix (auto-stages corrected files) |
+| `*.{ts,tsx,mts}` | ESLint | Check only (`--max-warnings 0`) |
+
+Typecheck (`tsc --noEmit`) is **not** included in pre-commit because it requires whole-project context and is too slow for individual commits. It remains part of `pnpm check` and CI.
+
+### Installing hooks
+
+Hooks install automatically on `pnpm install` via the `prepare` script. No manual setup needed.
+
+### Skipping hooks
+
+For emergency or WIP commits:
+
+```sh
+git commit --no-verify -m "wip: emergency fix"
+# or the short form:
+git commit -n -m "wip: emergency fix"
+```
+
+CI remains authoritative — skipped hooks do not bypass CI gates.
 
 ## When to relax a rule
 

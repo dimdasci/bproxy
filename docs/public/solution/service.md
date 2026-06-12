@@ -13,16 +13,29 @@ service/
 ├── package.json              # deps: fastify, @fastify/websocket
 ├── tsconfig.json
 └── src/
-    ├── index.ts              # entry: build server, register plugins, listen
+    ├── index.ts              # entry: start/stop/status CLI
+    ├── server.ts             # buildServer() — Fastify setup, object graph, route registration
     ├── auth.ts               # onRequest hook: four-layer gate
     ├── routes/
-    │   ├── command.ts        # POST / — CLI command intake
+    │   ├── command.ts        # POST / — CLI command intake + trace emission
     │   ├── pair.ts           # POST /pair/claim — one-time pairing claim
-    │   └── ws.ts             # GET /ws — extension WebSocket upgrade
+    │   ├── ws.ts             # GET /ws — extension WebSocket upgrade
+    │   ├── session-actions.ts # daemon-local session.* handlers
+    │   ├── tab-actions.ts    # tab.* forwarding with session scoping
+    │   ├── responses.ts      # error envelope builders
+    │   └── types.ts          # CommandRouteDeps interface
+    ├── clients.ts            # WS client registry
+    ├── config.ts             # env-based configuration
+    ├── debug-actions.ts      # debug.status / debug.last handlers
     ├── dispatch.ts           # route command to correct WS client + tab
+    ├── logger.ts             # structured JSON logger (pino-compatible)
     ├── pacing.ts             # per-session delay enforcement
+    ├── pairing.ts            # pairing code generation and validation
+    ├── pairing-file.ts       # pairing.json file I/O
     ├── pending.ts            # pending-request map, timeout, replay-on-reconnect
-    ├── sessions.ts           # session state management
+    ├── schemas.ts            # Zod schemas for ActionParams validation
+    ├── session-identifiers.ts # SessionId + TabHandle generation
+    ├── sessions.ts           # session registry (create, bind, close, tab ownership)
     └── lifecycle.ts          # PID file, lockfile, daemonize, log rotation, token gen
 ```
 
@@ -86,7 +99,7 @@ Failure at any layer → 401, connection closed.
 ## HTTP Route: `POST /`
 
 `debug.*` actions are handled here as first-class protocol actions:
-- `debug.last`: read/parse daemon lifecycle log and return last N request traces.
+- `debug.last`: return last N request traces from the daemon's in-memory ring buffer.
 - `debug.status`: return daemon + WS + session state snapshot.
 - `debug.log`: proxy request to extension and return ring-buffer entries.
 
@@ -127,7 +140,7 @@ The route is synchronous from the CLI's perspective: POST blocks until the exten
 
 ### Session authority
 
-Daemon is the source of truth for session state (`tabId`, `pacing`, `paused`, `pauseReason`).
+Daemon is the source of truth for session state (tab ownership, pacing, paused, pauseReason).
 This state is in-memory only and resets on daemon restart.
 
 ### Routing matrix
@@ -135,16 +148,19 @@ This state is in-memory only and resets on daemon restart.
 | Action family | Handled by daemon | Forwarded to extension |
 |---|---:|---:|
 | `debug.last`, `debug.status` | ✅ | ❌ |
-| `session.list`, `session.bind`, `session.unbind`, `session.resume` | ✅ | ❌ |
+| `session.create`, `session.list`, `session.bind`, `session.unbind`, `session.resume`, `session.close` | ✅ | ❌ (session.close forwards tab.close sub-requests) |
+| `tab.list` | ✅ (reads session tab registry) | ❌ |
 | `debug.log` | ❌ | ✅ |
-| browser and tab actions (`navigate`, `text`, `fill`, `tab.*`, ...) | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, ...) | ❌ | ✅ |
 
 ### `session.*` semantics
 
+- `session.create` — generates a new 6-character base32 `SessionId` with default pacing; returns `{ session, label? }`.
 - `session.list` — returns daemon's current in-memory session snapshot.
-- `session.bind` — must work even when session is currently unbound; sets `tabId`; optional `pacing` updates mode. Rebinding is immediate: the very next forwarded command for that session uses the new `tabId`.
-- `session.unbind` — clears `tabId`; idempotent.
+- `session.bind` — binds a session to a logical `TabHandle`. Rebinding is immediate: the very next forwarded command resolves the new tab.
+- `session.unbind` — clears tab binding; idempotent.
 - `session.resume` — clears paused state/reason; idempotent.
+- `session.close` — closes all Chrome tabs owned by the session (forwards `tab.close` per tab), then destroys the session. Returns `{ session, closedTabs }`.
 
 ### Preconditions and error precedence
 
@@ -346,16 +362,19 @@ Bounded map of in-flight requests. Features:
 **File:** `src/sessions.ts`
 
 ```typescript
-interface Session {
-  name: string;
-  tabId: number | null;         // pinned tab
-  pacing: SessionPacing;
-  paused: boolean;              // true after HUMAN_REQUIRED
-  pauseReason?: string;
+interface InternalSession extends SessionInfo {
+  // SessionInfo fields: id, label?, tab (bound handle or null), pacing, paused, pauseReason?
+  lastActionAt: Record<string, number>;       // pacing timestamps per action category
+  tabs: Map<TabHandle, InternalTabInfo>;       // logical handle → tab metadata + Chrome id
+  nextTabOrdinal: number;                     // counter for generating t1, t2, ...
+}
+
+interface InternalTabInfo extends TabInfo {
+  chromeTabId: number;   // internal Chrome tab id, never exposed in protocol
 }
 ```
 
-Sessions are created implicitly on first command with `--session <name>`. Bound to a tab via `bproxy session bind` or implicitly on first `navigate`.
+Sessions are created explicitly via `session.create` or implicitly via `tab open` (which auto-creates when `-s` is omitted). Bound to a tab via `session.bind --tab tN` or automatically on `tab open`. Raw Chrome tab ids are internal — only logical `TabHandle` values appear in protocol responses.
 
 ## Lifecycle
 
@@ -384,7 +403,7 @@ At startup CLI prints machine-readable output including `pairingCode`. Extension
 
 The daemon writes `pairing.json` (mode `0600`) atomically before the port file, containing `{pairingCode, pairingExpiresAt, issuedAt}`. The detached parent reads this file after readiness to build the start output JSON. The daemon removes `pairing.json` when the code is claimed or on shutdown.
 
-Eval/debugger control-plane wiring is deferred. The service binary does **not** accept `--allow-eval` or `--enable-debugger-mode` flags. Extension policy responses (`EVAL_DISABLED`, `DEBUGGER_DISABLED`) are passed through to the CLI unchanged.
+Debugger control-plane wiring is deferred. The service binary does **not** accept `--enable-debugger-mode` flags. Extension `DEBUGGER_DISABLED` policy responses are passed through to the CLI unchanged. Arbitrary page eval is out of scope for bproxy.
 
 ### Shutdown (`bproxy service stop`)
 
@@ -464,9 +483,13 @@ The daemon wraps extension errors and adds its own:
 | `NO_EXTENSION` | transport | No WS client connected |
 | `TIMEOUT` | transport | Deadline exceeded, extension didn't respond |
 | `OVERLOADED` | transport | Pending map full |
-| `TAB_NOT_FOUND` | target | Session's pinned tab was closed |
-| `HUMAN_REQUIRED` | policy | Extension detected interstitial (passthrough) |
-| `PACING_VIOLATION` | policy | Internal — shouldn't surface (pacing is enforced, not rejected) |
+| `SESSION_REQUIRED` | policy | Browser-control command sent without `-s` |
+| `INVALID_SESSION_ID` | target | Session id doesn't match `/^[a-z2-7]{6}$/` |
+| `SESSION_NOT_FOUND` | target | Session id not in daemon registry |
+| `TAB_NOT_FOUND` | target | Session has no bound tab |
+| `TAB_HANDLE_NOT_FOUND` | target | Logical tab handle not registered in any session |
+| `TAB_NOT_IN_SESSION` | target | Tab exists but belongs to another session |
+| `HUMAN_REQUIRED` | policy | Session is paused (interstitial detected) |
 | `PAIRING_CODE_INVALID` | policy | Pair claim used unknown code |
 | `PAIRING_CODE_EXPIRED` | policy | Pair claim used expired code |
 | `PAIRING_CODE_CONSUMED` | policy | Pair claim reused one-time code |
@@ -481,7 +504,7 @@ The daemon is the central point of visibility — all requests flow through it.
 Structured JSON via Fastify's pino logger. Every log line includes the request `id` when applicable.
 
 ```
-{"level":"info","id":"01HZX9C2K8","action":"scroll","session":"default","event":"received","ts":1714000027000}
+{"level":"info","id":"01HZX9C2K8","action":"scroll","session":"m4q7z2","event":"received","ts":1714000027000}
 {"level":"info","id":"01HZX9C2K8","event":"pacing_wait","delay_ms":2400}
 {"level":"info","id":"01HZX9C2K8","event":"forwarded","ws_client":"client-1","tab":1234}
 {"level":"info","id":"01HZX9C2K8","event":"response","ok":true,"elapsed_ms":377}
@@ -517,7 +540,7 @@ Logs are plain JSON lines in `~/.bproxy/logs/YYYY-MM-DD.log`. Grep by `id`:
 grep '01HZX9C2K8' ~/.bproxy/logs/2026-05-08.log
 ```
 
-Or use `bproxy debug last` which reads the daemon log and returns the last N requests with their full lifecycle.
+Or use `bproxy debug last` which returns the last N request traces from the daemon's in-memory ring buffer (capacity 200). Each trace records `{ id, action, session, receivedAt, elapsedMs, ok, errorCode? }`. The ring buffer is populated on every command response and survives across requests but resets on daemon restart.
 
 ## Testing
 

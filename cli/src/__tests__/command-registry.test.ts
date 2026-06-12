@@ -19,10 +19,6 @@ describe("isDestructive", () => {
 		expect(isDestructive("fill-form")).toBe(true);
 	});
 
-	it("classifies eval as destructive", () => {
-		expect(isDestructive("eval")).toBe(true);
-	});
-
 	it("classifies tab.open as destructive", () => {
 		expect(isDestructive("tab.open")).toBe(true);
 	});
@@ -31,8 +27,16 @@ describe("isDestructive", () => {
 		expect(isDestructive("tab.close")).toBe(true);
 	});
 
+	it("classifies session.create as destructive", () => {
+		expect(isDestructive("session.create")).toBe(true);
+	});
+
 	it("classifies session.bind as destructive", () => {
 		expect(isDestructive("session.bind")).toBe(true);
+	});
+
+	it("classifies session.close as destructive", () => {
+		expect(isDestructive("session.close")).toBe(true);
 	});
 
 	it("classifies require-human as destructive", () => {
@@ -41,6 +45,10 @@ describe("isDestructive", () => {
 
 	it("classifies text as non-destructive", () => {
 		expect(isDestructive("text")).toBe(false);
+	});
+
+	it("classifies links as non-destructive", () => {
+		expect(isDestructive("links")).toBe(false);
 	});
 
 	it("classifies images as non-destructive", () => {
@@ -88,10 +96,13 @@ describe("allRegisteredActions", () => {
 		const expected: Action[] = [
 			"navigate",
 			"text",
+			"links",
 			"images",
 			"elements",
 			"outline",
 			"dom",
+			"inspect",
+			"snapshot",
 			"scroll",
 			"screenshot",
 			"fill",
@@ -99,16 +110,17 @@ describe("allRegisteredActions", () => {
 			"select",
 			"wait",
 			"require-human",
-			"eval",
 			"tab.list",
 			"tab.pin",
 			"tab.unpin",
 			"tab.open",
 			"tab.close",
+			"session.create",
 			"session.list",
 			"session.bind",
 			"session.unbind",
 			"session.resume",
+			"session.close",
 			"debug.log",
 			"debug.last",
 			"debug.status",

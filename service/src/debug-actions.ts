@@ -32,6 +32,10 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 		};
 	}
 	const sessions = deps.sessions.list();
+	const sessionTabs = sessions.map((session) => ({
+		session: session.id,
+		tabs: deps.sessions.listTabs(session.id),
+	}));
 	return {
 		protocol_version: 1,
 		id: cmd.id,
@@ -44,9 +48,10 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 			},
 			wsClients: deps.clients.all().map((c) => ({ id: c.id, connectedAt: 0 })),
 			sessions,
+			sessionTabs,
 			pausedSessions: sessions
 				.filter((s) => s.paused)
-				.map((s) => ({ session: s.name, reason: s.pauseReason })),
+				.map((s) => ({ session: s.id, reason: s.pauseReason })),
 		},
 		page: pageOk(),
 		replay: false,

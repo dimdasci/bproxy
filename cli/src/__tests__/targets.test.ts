@@ -2,7 +2,24 @@
  * Tests for the target parser (--selector / --route-json).
  */
 import { describe, expect, it } from "vitest";
-import { parseTarget } from "../targets.js";
+import { parseOptionalTarget, parseTarget } from "../targets.js";
+
+describe("parseOptionalTarget", () => {
+	it("allows omitted targets", () => {
+		const result = parseOptionalTarget(undefined, undefined);
+		expect(result).toEqual({ ok: true });
+	});
+
+	it("parses provided selector targets", () => {
+		const result = parseOptionalTarget("main", undefined);
+		expect(result).toEqual({ ok: true, target: { selector: "main" } });
+	});
+
+	it("rejects competing target strategies", () => {
+		const result = parseOptionalTarget("main", '{"hosts":[],"target":"main"}');
+		expect(result.ok).toBe(false);
+	});
+});
 
 describe("parseTarget", () => {
 	it("returns target with selector when --selector provided", () => {

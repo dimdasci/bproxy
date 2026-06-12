@@ -17,11 +17,11 @@ const DESTRUCTIVE_ACTIONS = new Set<Action>([
 	"fill-form",
 	"select",
 	"scroll",
-	"eval",
 	"tab.open",
 	"tab.close",
 	"tab.pin",
 	"tab.unpin",
+	"session.close",
 ]);
 
 export interface SendCommandOptions {
@@ -89,7 +89,7 @@ export function buildRequest<A extends Action>(
 		id: options.id ?? randomUUID(),
 		action,
 		params,
-		session: options.session ?? "smoke",
+		session: (options.session ?? "") as BproxyRequest<A>["session"],
 		deadline: Date.now() + (options.timeoutMs ?? 30_000),
 		destructive: options.destructive ?? isDestructive(action),
 	};

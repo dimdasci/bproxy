@@ -3,12 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
+import type { ActionParams, TabHandle } from "../types.js";
+
+const T1 = "t1" as TabHandle;
 
 // ─── Test helpers ──────────────────────────────────────────────────────
 
 function makeGlobals(overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
 	return {
-		session: "test-session",
+		session: "m4q7z2",
 		timeout: "5000",
 		home: "/tmp/bproxy-test",
 		verbose: false,
@@ -249,7 +252,7 @@ describe("sendAction", () => {
 		const result = await sendAction(
 			"text",
 			{ selector: ".content" },
-			makeGlobals({ home: dir, session: "my-session" }),
+			makeGlobals({ home: dir, session: "k7m2q4" }),
 			{ fetch, requestId: reqId },
 		);
 
@@ -264,7 +267,7 @@ describe("sendAction", () => {
 		expect(body.id).toBe(reqId);
 		expect(body.action).toBe("text");
 		expect(body.params).toEqual({ selector: ".content" });
-		expect(body.session).toBe("my-session");
+		expect(body.session).toBe("k7m2q4");
 		expect(body.destructive).toBe(false);
 		expect(body.deadline).toBeGreaterThan(Date.now() - 10_000);
 	});
@@ -322,6 +325,24 @@ describe("sendAction", () => {
 
 		expect(result.code).toBe(1);
 		expect(result.stdout).toEqual(responseBody);
+	});
+
+	it("preserves cross-session tab errors as stdout-only protocol failures", async () => {
+		const dir = setupTempHome();
+		const reqId = "cross-session-tab";
+		const responseBody = errorResponse(reqId, "TAB_NOT_IN_SESSION");
+		const { fetch } = createMockFetch(responseBody);
+
+		const result = await sendAction(
+			"tab.close",
+			{ tab: T1 } as ActionParams["tab.close"],
+			makeGlobals({ home: dir }),
+			{ fetch, requestId: reqId },
+		);
+
+		expect(result.code).toBe(1);
+		expect(result.stdout).toEqual(responseBody);
+		expect(result.stderr).toBeUndefined();
 	});
 
 	it("returns exit 2 on HTTP 401", async () => {
@@ -416,19 +437,58 @@ describe("sendAction", () => {
 		expect(result.stderr).toContain("timed out");
 	});
 
-	it("uses default session when not provided", async () => {
+	it("returns exit 2 when a required session is missing", async () => {
 		const dir = setupTempHome();
-		const reqId = "default-session";
+		const reqId = "missing-session";
 		const responseBody = successResponse(reqId);
 		const { fetch, calls } = createMockFetch(responseBody);
 
-		await sendAction("text", {}, makeGlobals({ home: dir, session: undefined }), {
+		const result = await sendAction("text", {}, makeGlobals({ home: dir, session: undefined }), {
 			fetch,
 			requestId: reqId,
 		});
 
+		expect(result.code).toBe(2);
+		expect(result.stderr).toContain("Missing required session id");
+		expect(calls).toHaveLength(0);
+	});
+
+	it("allows tab.open without a session and sends an empty session field", async () => {
+		const dir = setupTempHome();
+		const reqId = "tab-open-bootstrap";
+		const responseBody = successResponse(reqId, {
+			session: "m4q7z2",
+			tab: "t1",
+			bound: true,
+			url: "https://example.com",
+		});
+		const { fetch, calls } = createMockFetch(responseBody);
+
+		const result = await sendAction(
+			"tab.open",
+			{ url: "https://example.com" },
+			makeGlobals({ home: dir, session: undefined }),
+			{ fetch, requestId: reqId },
+		);
+
+		expect(result.code).toBe(0);
 		const body = JSON.parse(calls[0]!.init.body as string);
-		expect(body.session).toBe("default");
+		expect(body.session).toBe("");
+	});
+
+	it("returns exit 2 for an invalid session id before sending", async () => {
+		const dir = setupTempHome();
+		const reqId = "invalid-session";
+		const { fetch, calls } = createMockFetch(successResponse(reqId));
+
+		const result = await sendAction("text", {}, makeGlobals({ home: dir, session: "invalid" }), {
+			fetch,
+			requestId: reqId,
+		});
+
+		expect(result.code).toBe(2);
+		expect(result.stderr).toContain("Invalid session id");
+		expect(calls).toHaveLength(0);
 	});
 
 	it("uses default deadline when timeout not provided", async () => {
@@ -459,7 +519,7 @@ describe("sendAction", () => {
 		await sendAction(
 			"navigate",
 			{ url: "https://example.com" },
-			makeGlobals({ home: dir, verbose: true, session: "s1" }),
+			makeGlobals({ home: dir, verbose: true, session: "m4q7z2" }),
 			{ fetch, requestId: reqId, stderr: stream },
 		);
 
@@ -469,7 +529,7 @@ describe("sendAction", () => {
 		const pre = JSON.parse(lines[0]!);
 		expect(pre.requestId).toBe(reqId);
 		expect(pre.action).toBe("navigate");
-		expect(pre.session).toBe("s1");
+		expect(pre.session).toBe("m4q7z2");
 		expect(pre.url).toBe("http://127.0.0.1:9615/");
 
 		const post = JSON.parse(lines[1]!);
@@ -494,5 +554,21 @@ describe("sendAction", () => {
 		const lines = output().trim().split("\n");
 		const post = JSON.parse(lines[1]!);
 		expect(post.errorCode).toBe("TIMEOUT");
+	});
+
+	it("warns on session.close partial success without changing the protocol payload", async () => {
+		const dir = setupTempHome();
+		const reqId = "session-close-partial";
+		const responseBody = errorResponse(reqId, "HUMAN_REQUIRED");
+		const result = await sendAction("session.close", {}, makeGlobals({ home: dir }), {
+			fetch: createMockFetch(responseBody).fetch,
+			requestId: reqId,
+		});
+
+		expect(result.code).toBe(1);
+		expect(result.stdout).toEqual(responseBody);
+		expect(result.stderr).toContain(
+			"session terminated but some Chrome tabs may not have been closed",
+		);
 	});
 });

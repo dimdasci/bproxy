@@ -144,6 +144,29 @@ describe("executeExitPlan", () => {
 		expect(exitCode).toBe(1);
 	});
 
+	it("can write both stdout and stderr for exit 1 partial-success warnings", () => {
+		const stdout = fakeStream();
+		const stderr = fakeStream();
+		let exitCode: number | undefined;
+
+		const plan: ExitPlan = {
+			code: 1,
+			stdout: { ok: false, error: { code: "HUMAN_REQUIRED" } },
+			stderr: "Warning: session terminated but some Chrome tabs may not have been closed.",
+		};
+		executeExitPlan(plan, {
+			stdout,
+			stderr,
+			exit: (code) => {
+				exitCode = code;
+			},
+		});
+
+		expect(JSON.parse(stdout.data)).toEqual({ ok: false, error: { code: "HUMAN_REQUIRED" } });
+		expect(stderr.data).toContain("session terminated");
+		expect(exitCode).toBe(1);
+	});
+
 	it("does not pollute stdout when only stderr is present", () => {
 		const stdout = fakeStream();
 		const stderr = fakeStream();

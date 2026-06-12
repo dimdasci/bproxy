@@ -31,7 +31,7 @@ export const bootstrapItem = storage.defineItem<PairingBootstrap | null>("local:
 });
 
 // Optional feature flags persisted across SW restarts. Specific keys (e.g.
-// `evalEnabled`, `debuggerScreenshot`) are added in their feature task.
+// `debuggerScreenshot`) are added in their feature task.
 export type ConfigFlags = Record<string, boolean>;
 export const configFlagsItem = storage.defineItem<ConfigFlags>("local:configFlags", {
 	fallback: {},

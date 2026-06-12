@@ -2,25 +2,20 @@ import type { Action } from "@bproxy/shared";
 
 export type ForwardedAction = Exclude<
 	Action,
+	| "tab.list"
+	| "session.create"
 	| "session.list"
 	| "session.bind"
 	| "session.unbind"
 	| "session.resume"
+	| "session.close"
 	| "debug.last"
 	| "debug.status"
 >;
 
 export type BrowserAction = Extract<
 	ForwardedAction,
-	| "navigate"
-	| "screenshot"
-	| "require-human"
-	| "eval"
-	| "tab.list"
-	| "tab.pin"
-	| "tab.unpin"
-	| "tab.open"
-	| "tab.close"
+	"navigate" | "screenshot" | "require-human" | "tab.pin" | "tab.unpin" | "tab.open" | "tab.close"
 >;
 
 export type DomAction = Exclude<ForwardedAction, BrowserAction | "debug.log">;
@@ -28,10 +23,13 @@ export type DomAction = Exclude<ForwardedAction, BrowserAction | "debug.log">;
 const FORWARDED_ACTIONS = [
 	"navigate",
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"screenshot",
 	"fill",
@@ -39,8 +37,6 @@ const FORWARDED_ACTIONS = [
 	"select",
 	"wait",
 	"require-human",
-	"eval",
-	"tab.list",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
@@ -52,8 +48,6 @@ const BROWSER_ACTIONS = [
 	"navigate",
 	"screenshot",
 	"require-human",
-	"eval",
-	"tab.list",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
@@ -62,10 +56,13 @@ const BROWSER_ACTIONS = [
 
 const DOM_ACTIONS = [
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"fill",
 	"fill-form",

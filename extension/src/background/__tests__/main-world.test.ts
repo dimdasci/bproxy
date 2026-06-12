@@ -1,4 +1,4 @@
-import type { BproxyForwardedRequest } from "@bproxy/shared";
+import type { BproxyForwardedRequest, SessionId } from "@bproxy/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { doc, el, type FakeDocument, type FakeElement } from "../../test/fixtures/fake-dom";
 import {
@@ -6,6 +6,8 @@ import {
 	type MainWorldExecuteDetails,
 	type MainWorldScriptingSeam,
 } from "../main-world";
+
+const TEST_SESSION = "m4q7z2" as SessionId;
 
 type GlobalSnapshot = {
 	document: Document | undefined;
@@ -111,7 +113,7 @@ function fillRequest(
 			method: "runtime-api",
 			world: "main",
 		},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },

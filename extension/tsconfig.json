@@ -1,10 +1,21 @@
 {
-	"extends": ["../tsconfig.base.json", "./.wxt/tsconfig.json"],
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
 		"types": ["chrome", "node"],
-		"allowImportingTsExtensions": true
+		"allowImportingTsExtensions": true,
+		"baseUrl": ".",
+		"paths": {
+			"@": ["src"],
+			"@/*": ["src/*"],
+			"~": ["src"],
+			"~/*": ["src/*"],
+			"@@": ["."],
+			"@@/*": ["*"],
+			"~~": ["."],
+			"~~/*": ["*"]
+		}
 	},
 	"include": ["src", "scripts", ".wxt/**/*"]
 }

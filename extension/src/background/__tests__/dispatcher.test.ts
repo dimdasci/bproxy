@@ -19,7 +19,7 @@ function makeRequest(overrides: Partial<BproxyForwardedRequest> = {}): BproxyFor
 		id: overrides.id ?? "req-1",
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
-		session: overrides.session ?? "default",
+		session: overrides.session ?? ("m4q8z2" as BproxyForwardedRequest["session"]),
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },
@@ -87,9 +87,37 @@ describe("parseForwardedRequest", () => {
 		expect(parsed.success).toBe(true);
 	});
 
+	it("accepts links params for forwarded DOM reads", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify(
+				makeRequest({
+					action: "links",
+					params: { selector: "#search", visibleOnly: true, limit: 10 },
+				}),
+			),
+		);
+		expect(parsed.success).toBe(true);
+	});
+
 	it("rejects daemon-local actions", () => {
 		const parsed = parseForwardedRequest(
 			JSON.stringify(makeRequest({ action: "debug.status", params: {} })),
+		);
+		expect(parsed).toMatchObject({ success: false, id: "req-1" });
+	});
+
+	it("rejects tab.list so the extension cannot enumerate browser tabs", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify({
+				protocol_version: 1,
+				id: "req-1",
+				action: "tab.list",
+				params: {},
+				session: "default",
+				deadline: 10_000,
+				destructive: false,
+				target: { tabId: null },
+			}),
 		);
 		expect(parsed).toMatchObject({ success: false, id: "req-1" });
 	});

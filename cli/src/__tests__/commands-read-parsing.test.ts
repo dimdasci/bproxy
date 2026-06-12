@@ -5,20 +5,20 @@
  * used by the read/navigation commands.
  */
 import { describe, expect, it } from "vitest";
-import { extractGlobals } from "../globals.js";
+import { extractGlobals, parseSessionId, parseTabHandle } from "../globals.js";
 
 // ─── extractGlobals tests ──────────────────────────────────────────────
 
 describe("extractGlobals", () => {
 	it("extracts all global args when present", () => {
 		const result = extractGlobals({
-			session: "my-session",
+			session: "m4q7z2",
 			timeout: "5000",
 			home: "/tmp/home",
 			verbose: true,
 		});
 		expect(result).toEqual({
-			session: "my-session",
+			session: "m4q7z2",
 			timeout: "5000",
 			home: "/tmp/home",
 			verbose: true,
@@ -48,6 +48,28 @@ describe("extractGlobals", () => {
 			home: undefined,
 			verbose: undefined,
 		});
+	});
+});
+
+describe("Phase 5 id parsing", () => {
+	it("accepts valid session ids", () => {
+		expect(parseSessionId("m4q7z2")).toBe("m4q7z2");
+	});
+
+	it("rejects invalid session ids", () => {
+		expect(parseSessionId("default")).toBeNull();
+		expect(parseSessionId("abc1234")).toBeNull();
+	});
+
+	it("accepts logical tab handles", () => {
+		expect(parseTabHandle("t1")).toBe("t1");
+		expect(parseTabHandle("t42")).toBe("t42");
+	});
+
+	it("rejects raw chrome tab ids and malformed handles", () => {
+		expect(parseTabHandle("42")).toBeNull();
+		expect(parseTabHandle("t0")).toBeNull();
+		expect(parseTabHandle("tab-1")).toBeNull();
 	});
 });
 
@@ -162,11 +184,10 @@ describe("optional param omission patterns", () => {
 	});
 
 	it("scroll command omits all params when none provided", () => {
-		const args: Record<string, unknown> = { verbose: false, "until-stable": false };
+		const args: Record<string, unknown> = { verbose: false };
 		const params: Record<string, unknown> = {};
 		if (typeof args["by"] === "string") params["by"] = args["by"];
 		if (typeof args["direction"] === "string") params["direction"] = args["direction"];
-		if (args["until-stable"] === true) params["untilStable"] = true;
 		expect(params).toEqual({});
 	});
 

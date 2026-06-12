@@ -1,23 +1,25 @@
-import type { ActionResult, BproxyError, Landmark } from "@bproxy/shared";
+import type { ActionResult, Landmark } from "@bproxy/shared";
 import { discoverInteractiveElements } from "../discovery";
 import {
-	childElements,
 	escapeCssString,
 	isElementVisible,
-	isShadowRootLike,
 	normalizeText,
+	walkComposedElements,
 } from "../dom-helpers";
 import { readDeepText, serializeElementTree } from "../read-tree";
+import { resolveReadRoot } from "../read-utils";
 import type { ContentRpcHandlers, ContentRpcRequest } from "../rpc";
-import { resolveSelectorTarget } from "../targeting";
+import { handleInspect } from "./inspect";
+import { handleLinks } from "./links";
+import { handleSnapshot } from "./snapshot";
 
-export interface ReadActionDeps {
-	document?: Document;
-}
+export type { ReadActionDeps } from "./read-deps";
+
+import type { ReadActionDeps } from "./read-deps";
 
 type ReadActionName = Extract<
 	keyof ContentRpcHandlers,
-	"text" | "images" | "elements" | "outline" | "dom"
+	"text" | "links" | "images" | "elements" | "outline" | "dom" | "inspect" | "snapshot"
 >;
 
 type ReadActionHandlers = Required<Pick<ContentRpcHandlers, ReadActionName>>;
@@ -50,10 +52,13 @@ const MAX_DOM_DEPTH = 6;
 export function createReadHandlers(deps: ReadActionDeps = {}): ReadActionHandlers {
 	return {
 		text: (request) => ({ text: handleText(request, deps) }),
+		links: (request) => ({ links: handleLinks(request, deps) }),
 		images: (request) => ({ images: handleImages(request, deps) }),
 		elements: (request) => ({ elements: handleElements(request, deps) }),
 		outline: (_request) => handleOutline(deps),
 		dom: (request) => ({ html: handleDom(request, deps) }),
+		inspect: (request) => handleInspect(request, deps),
+		snapshot: (request) => handleSnapshot(request, deps),
 	};
 }
 
@@ -61,7 +66,7 @@ export function handleText(
 	request: ContentRpcRequest<"text">,
 	deps: ReadActionDeps = {},
 ): ActionResult["text"]["text"] {
-	const root = resolveReadRoot(request.params.selector, deps);
+	const root = resolveReadRoot(request.params.selector, getDocument(deps));
 	if (!isElementVisible(root)) return readDeepText(root, { visibleOnly: false, isNoiseTag });
 	return readDeepText(root, { visibleOnly: true, isNoiseTag });
 }
@@ -70,10 +75,10 @@ export function handleImages(
 	request: ContentRpcRequest<"images">,
 	deps: ReadActionDeps = {},
 ): ActionResult["images"]["images"] {
-	const root = resolveReadRoot(request.params.selector, deps);
+	const root = resolveReadRoot(request.params.selector, getDocument(deps));
 	const images: ActionResult["images"]["images"] = [];
 
-	for (const element of walkComposedElements(root, { includeRoot: isElementLike(root) })) {
+	for (const element of walkComposedElements(root, { includeRoot: true })) {
 		if (isNoiseTag(element)) continue;
 		if (element.tagName.toLowerCase() !== "img") continue;
 		if (!isElementVisible(element)) continue;
@@ -106,7 +111,7 @@ export function handleOutline(deps: ReadActionDeps = {}): ActionResult["outline"
 	const landmarks: ActionResult["outline"]["landmarks"] = [];
 	const headings: ActionResult["outline"]["headings"] = [];
 
-	for (const element of walkComposedElements(root, { includeRoot: isElementLike(root) })) {
+	for (const element of walkComposedElements(root, { includeRoot: isElementRoot(root) })) {
 		if (isNoiseTag(element) || !isElementVisible(element)) continue;
 
 		const landmark = toLandmark(element);
@@ -123,7 +128,7 @@ export function handleDom(
 	request: ContentRpcRequest<"dom">,
 	deps: ReadActionDeps = {},
 ): ActionResult["dom"]["html"] {
-	const root = resolveReadRoot(request.params.selector, deps);
+	const root = resolveReadRoot(request.params.selector, getDocument(deps));
 	return (
 		serializeElementTree(root, {
 			depth: normalizeDepth(request.params.depth),
@@ -131,14 +136,6 @@ export function handleDom(
 			isNoiseTag,
 		}) ?? ""
 	);
-}
-
-function resolveReadRoot(selector: string | undefined, deps: ReadActionDeps): Element {
-	if (selector) return resolveSelectorTarget(selector, { document: getDocument(deps) });
-	const doc = getDocument(deps);
-	const root = doc.body ?? doc.documentElement;
-	if (root) return root;
-	throw elementNotFound("Document body is not available");
 }
 
 function resolveDocumentReadRoot(deps: ReadActionDeps): ReadRoot {
@@ -226,24 +223,7 @@ function normalizeDepth(depth: number | undefined): number {
 	return Math.min(MAX_DOM_DEPTH, Math.max(0, Math.floor(depth)));
 }
 
-function* walkComposedElements(
-	root: ReadRoot,
-	options: { includeRoot: boolean },
-): Iterable<Element> {
-	const queue: Element[] =
-		options.includeRoot && isElementLike(root) ? [root] : [...childElements(root)];
-
-	while (queue.length > 0) {
-		const current = queue.shift() as Element;
-		yield current;
-		if (isShadowRootLike(current.shadowRoot)) {
-			for (const child of childElements(current.shadowRoot)) queue.unshift(child);
-		}
-		for (const child of [...childElements(current)].reverse()) queue.unshift(child);
-	}
-}
-
-function isElementLike(root: ReadRoot): root is Element {
+function isElementRoot(root: ReadRoot): root is Element {
 	return "tagName" in root;
 }
 
@@ -253,13 +233,4 @@ function isNoiseTag(element: Element): boolean {
 
 function asPositiveNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function elementNotFound(message: string): BproxyError {
-	return {
-		code: "ELEMENT_NOT_FOUND",
-		category: "target",
-		retry: "conditional",
-		message,
-	};
 }

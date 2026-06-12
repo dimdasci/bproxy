@@ -10,7 +10,7 @@ function req(id: string, deadline = BASE + 5000): BproxyForwardedRequest {
 		id,
 		action: "text",
 		params: {},
-		session: "default",
+		session: "m4q8z2" as BproxyForwardedRequest["session"],
 		deadline,
 		destructive: false,
 		target: { tabId: 42 },

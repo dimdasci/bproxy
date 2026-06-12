@@ -13,7 +13,7 @@ import type { Action } from "./types.js";
 /**
  * Classification of an action's destructive nature.
  *
- * Destructive actions modify page state, navigation, tabs, or execute code.
+ * Destructive actions modify page state, navigation, or tabs.
  * Non-destructive actions only read state or query daemon metadata.
  */
 const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
@@ -22,23 +22,27 @@ const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"fill",
 	"fill-form",
 	"select",
-	"eval",
 	"tab.pin",
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"session.create",
 	"session.bind",
 	"session.unbind",
 	"session.resume",
+	"session.close",
 	"require-human",
 ]);
 
 const NON_DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"text",
+	"links",
 	"images",
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"screenshot",
 	"wait",
 	"tab.list",
@@ -74,5 +78,4 @@ type _AssertCoverage = {
 		: never;
 };
 // Suppress unused warning — exists only for the compile-time check.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _Use = _AssertCoverage;

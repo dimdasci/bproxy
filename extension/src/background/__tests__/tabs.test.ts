@@ -1,4 +1,4 @@
-import type { BproxyForwardedRequest, PageState } from "@bproxy/shared";
+import type { BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeStorageItem } from "../../test/fakes/storage";
 import { createContentInjector } from "../injection";
@@ -10,6 +10,7 @@ const PAGE: PageState = {
 	state: "ready",
 	busy: false,
 };
+const TEST_SESSION = "m4q7z2" as SessionId;
 
 function makeRequest(
 	overrides: Partial<BproxyForwardedRequest<"text">> = {},
@@ -19,7 +20,7 @@ function makeRequest(
 		id: overrides.id ?? "req-1",
 		action: overrides.action ?? "text",
 		params: overrides.params ?? { selector: "main" },
-		session: overrides.session ?? "default",
+		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
 		target: overrides.target ?? { tabId: 42 },

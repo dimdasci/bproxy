@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { doc, el } from "../../test/fixtures/fake-dom";
+import { doc, el, type FakeElement, shadow } from "../../test/fixtures/fake-dom";
 import { handleScroll, handleWait, type ScrollWaitDocument } from "../actions/scroll-wait";
 import type { ContentRpcRequest } from "../rpc";
 
@@ -83,19 +83,150 @@ describe("scroll and wait actions", () => {
 		expect(result).toEqual({ matched: true, elapsed: 540 });
 	});
 
+	it("reports no movement when viewport scroll does not move", async () => {
+		const page = withPageState(doc(el("html", { children: [el("body")] })), "visible", "complete");
+		const win = {
+			innerHeight: 1000,
+			scrollY: 0,
+			scrollBy: vi.fn(), // no-op — scrollY stays at 0
+		};
+		const clock = createVirtualClock([0]);
+
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
+
+		expect(result).toEqual({
+			target: "viewport",
+			before: 0,
+			after: 0,
+			scrolledPx: 0,
+			moved: false,
+			stable: false,
+		});
+	});
+
 	it("returns before/after scroll math and viewport default distance", async () => {
 		const page = withPageState(doc(el("html", { children: [el("body")] })), "visible", "complete");
 		const win = createWindow(1000, 100);
+		const clock = createVirtualClock([0]);
+
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
+
+		expect(result).toEqual({
+			target: "viewport",
+			before: 100,
+			after: 950,
+			scrolledPx: 850,
+			moved: true,
+			stable: true,
+		});
+	});
+
+	it("does not infer an element scroll target when viewport scroll does not move", async () => {
+		const scrollable = makeScrollable(el("main", { attrs: { id: "workspace" } }), 0, 200, 2000);
+		const page = withPageState(
+			doc(el("html", { children: [el("body", { children: [scrollable] })] })),
+			"visible",
+			"complete",
+		);
+		const win = {
+			innerHeight: 1000,
+			scrollY: 0,
+			scrollBy: vi.fn(),
+		};
+		const clock = createVirtualClock([0]);
+
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
+
+		expect(scrollable.scrollBy).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ target: "viewport", moved: false, scrolledPx: 0 });
+	});
+
+	it("scrolls an explicit selector target", async () => {
+		const scrollable = makeScrollable(el("main", { attrs: { id: "workspace" } }), 100, 400, 2400);
+		const page = withPageState(
+			doc(el("html", { children: [el("body", { children: [scrollable] })] })),
+			"visible",
+			"complete",
+		);
+		const win = createWindow(1000, 0);
+		const clock = createVirtualClock([0]);
 
 		const result = await handleScroll(
-			request("scroll", { by: "viewport", direction: "down", untilStable: false }),
+			request("scroll", {
+				target: { selector: "#workspace" },
+				by: "viewport",
+				direction: "down",
+			}),
 			{
 				document: page as unknown as ScrollWaitDocument,
 				window: win,
+				...clock,
 			},
 		);
 
-		expect(result).toEqual({ before: 100, after: 950, scrolledPx: 850, stable: false });
+		expect(win.scrollBy).not.toHaveBeenCalled();
+		expect(result).toEqual({
+			target: "element",
+			before: 100,
+			after: 440,
+			scrolledPx: 340,
+			moved: true,
+			stable: true,
+			scrollHeight: 2400,
+			clientHeight: 400,
+		});
+	});
+
+	it("scrolls an explicit shadow-route target", async () => {
+		const scrollable = makeScrollable(el("section", { attrs: { id: "pane" } }), 10, 300, 1200);
+		const page = withPageState(
+			doc(
+				el("html", {
+					children: [el("body", { children: [el("x-shell", { shadow: shadow(scrollable) })] })],
+				}),
+			),
+			"visible",
+			"complete",
+		);
+		const clock = createVirtualClock([0]);
+
+		const result = await handleScroll(
+			request("scroll", {
+				target: { route: { hosts: [{ selector: "x-shell" }], target: "#pane" } },
+				by: "100px",
+				direction: "down",
+			}),
+			{
+				document: page as unknown as ScrollWaitDocument,
+				window: createWindow(1000, 0),
+				...clock,
+			},
+		);
+
+		expect(result).toMatchObject({ target: "element", before: 10, after: 110, moved: true });
+	});
+
+	it("returns target errors for explicit missing selector targets", async () => {
+		const page = withPageState(doc(el("html", { children: [el("body")] })), "visible", "complete");
+
+		await expect(
+			handleScroll(request("scroll", { target: { selector: "#missing" } }), {
+				document: page as unknown as ScrollWaitDocument,
+				window: createWindow(1000, 0),
+			}),
+		).rejects.toMatchObject({ code: "ELEMENT_NOT_FOUND" });
 	});
 });
 
@@ -126,6 +257,31 @@ function withPageState(
 	typed.visibilityState = visibilityState;
 	typed.readyState = readyState;
 	return typed;
+}
+
+type ScrollableFakeElement = FakeElement & {
+	scrollTop: number;
+	clientHeight: number;
+	scrollHeight: number;
+	scrollBy: ReturnType<typeof vi.fn>;
+};
+
+function makeScrollable(
+	element: FakeElement,
+	initialScrollTop: number,
+	clientHeight: number,
+	scrollHeight: number,
+): ScrollableFakeElement {
+	const scrollable = element as ScrollableFakeElement;
+	Object.defineProperties(scrollable, {
+		scrollTop: { value: initialScrollTop, writable: true, configurable: true },
+		clientHeight: { value: clientHeight, configurable: true },
+		scrollHeight: { value: scrollHeight, configurable: true },
+	});
+	scrollable.scrollBy = vi.fn((options: ScrollToOptions) => {
+		scrollable.scrollTop += options.top ?? 0;
+	});
+	return scrollable;
 }
 
 function createWindow(innerHeight: number, initialScrollY: number) {

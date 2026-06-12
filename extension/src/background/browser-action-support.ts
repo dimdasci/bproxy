@@ -10,10 +10,6 @@ export function pageStateFromTab(tab: TabLike): PageState {
 	});
 }
 
-export function emptyPageState(): PageState {
-	return { url: "", title: "", state: "ready", busy: false };
-}
-
 export function parseCapturedImage(value: string): { base64: string; format: "png" | "jpeg" } {
 	const match = /^data:image\/(png|jpeg);base64,(.+)$/u.exec(value);
 	if (match) {
@@ -23,18 +19,6 @@ export function parseCapturedImage(value: string): { base64: string; format: "pn
 		};
 	}
 	return { format: "png", base64: value };
-}
-
-export function evalDisabledError(): BproxyError {
-	return {
-		code: "EVAL_DISABLED",
-		category: "policy",
-		retry: "never",
-		message:
-			"eval is disabled until an explicit allow-eval flag is wired through daemon and extension config",
-		suggestedAction:
-			"Phase 4 must wire an explicit allow-eval control to extension config before eval can run.",
-	};
 }
 
 export function debuggerDisabledError(): BproxyError {

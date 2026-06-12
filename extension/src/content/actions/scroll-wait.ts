@@ -7,6 +7,7 @@ import {
 	tabNotVisibleError,
 } from "../polling";
 import type { ContentRpcHandlers, ContentRpcRequest } from "../rpc";
+import { resolveElementTarget } from "../targeting";
 
 const DEFAULT_SCROLL_VIEWPORT_RATIO = 0.85;
 
@@ -47,39 +48,28 @@ export async function handleScroll(
 ): Promise<ActionResult["scroll"]> {
 	const doc = getDocument(deps);
 	const win = getWindow(deps);
-	const before = readScrollTop(win);
-	const distance = resolveScrollDistance(
-		request.params.by,
-		request.params.direction,
-		win.innerHeight,
-	);
 
 	if (doc.visibilityState === "hidden") {
 		throw tabNotVisibleError();
 	}
 
-	win.scrollBy({ top: distance, behavior: "smooth" });
+	if (request.params.target) {
+		const element = resolveElementTarget(request.params.target, { document: doc as Document });
+		const baseDistance = readElementClientHeight(element) || win.innerHeight;
+		const distance = resolveScrollDistance(
+			request.params.by,
+			request.params.direction,
+			baseDistance,
+		);
+		return scrollElement(element, distance, deps, doc);
+	}
 
-	const stable =
-		request.params.untilStable === false
-			? false
-			: (
-					await pollUntilStable(
-						{
-							read: () => subtreeSignature(doc.body ?? doc.documentElement),
-							respectVisibility: true,
-						},
-						pollingDeps(deps, doc),
-					)
-				).stable;
-	const after = readScrollTop(win);
-
-	return {
-		before,
-		after,
-		scrolledPx: after - before,
-		stable,
-	};
+	const distance = resolveScrollDistance(
+		request.params.by,
+		request.params.direction,
+		win.innerHeight,
+	);
+	return scrollViewport(win, distance, deps, doc);
 }
 
 export async function handleWait(
@@ -166,6 +156,70 @@ async function waitForNavigation(
 		matched: stableResult.stable,
 		elapsed: urlResult.elapsed + readyResult.elapsed + stableResult.elapsed,
 	};
+}
+
+async function scrollViewport(
+	win: ScrollWaitWindow,
+	distance: number,
+	deps: ScrollWaitDeps,
+	doc: ScrollWaitDocument,
+): Promise<ActionResult["scroll"]> {
+	const before = readScrollTop(win);
+	win.scrollBy({ top: distance, behavior: "smooth" });
+	const stable = await waitForScrollStable(() => readScrollTop(win), deps, doc);
+	const after = readScrollTop(win);
+	const scrolledPx = after - before;
+	return {
+		target: "viewport",
+		before,
+		after,
+		scrolledPx,
+		moved: scrolledPx !== 0,
+		stable: stable && scrolledPx !== 0,
+	};
+}
+
+async function scrollElement(
+	element: Element,
+	distance: number,
+	deps: ScrollWaitDeps,
+	doc: ScrollWaitDocument,
+): Promise<ActionResult["scroll"]> {
+	const before = element.scrollTop;
+	element.scrollBy({ top: distance, behavior: "smooth" });
+	const stable = await waitForScrollStable(() => element.scrollTop, deps, doc);
+	const after = element.scrollTop;
+	const scrolledPx = after - before;
+	return {
+		target: "element",
+		before,
+		after,
+		scrolledPx,
+		moved: scrolledPx !== 0,
+		stable: stable && scrolledPx !== 0,
+		scrollHeight: element.scrollHeight,
+		clientHeight: element.clientHeight,
+	};
+}
+
+async function waitForScrollStable(
+	readPosition: () => number,
+	deps: ScrollWaitDeps,
+	doc: ScrollWaitDocument,
+): Promise<boolean> {
+	return (
+		await pollUntilStable(
+			{
+				read: () => `${readPosition()}:${subtreeSignature(doc.body ?? doc.documentElement)}`,
+				respectVisibility: true,
+			},
+			pollingDeps(deps, doc),
+		)
+	).stable;
+}
+
+function readElementClientHeight(element: Element): number {
+	return Math.max(0, element.clientHeight);
 }
 
 function resolveScrollDistance(

@@ -24,7 +24,7 @@ function setupTempHome(): string {
 
 function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
 	return {
-		session: "test-session",
+		session: "m4q7z2",
 		timeout: "5000",
 		home,
 		verbose: false,
@@ -117,6 +117,34 @@ describe("text command", () => {
 		expect(calls[0]!.body).toMatchObject({
 			action: "text",
 			params: { selector: "#content" },
+		});
+	});
+});
+
+describe("links command", () => {
+	it("sends links action without optional params", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("links", {}, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: {},
+		});
+	});
+
+	it("sends links action with selector, visibleOnly, and limit", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture(
+			"links",
+			{ selector: "#search", visibleOnly: true, limit: 10 },
+			home,
+		);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: { selector: "#search", visibleOnly: true, limit: 10 },
 		});
 	});
 });
@@ -251,26 +279,38 @@ describe("scroll command", () => {
 		});
 	});
 
-	it("sends scroll action with untilStable", async () => {
+	it("sends scroll action with direction", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("scroll", { untilStable: true }, home);
+		const { plan, calls } = await sendWithCapture("scroll", { direction: "down" }, home);
 
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
 			action: "scroll",
-			params: { untilStable: true },
+			params: { direction: "down" },
 		});
 	});
 
 	it("sends scroll with all params combined", async () => {
 		const home = setupTempHome();
-		const params = { by: "500px", direction: "down", untilStable: true };
+		const params = { by: "500px", direction: "down" };
 		const { plan, calls } = await sendWithCapture("scroll", params, home);
 
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
 			action: "scroll",
-			params: { by: "500px", direction: "down", untilStable: true },
+			params: { by: "500px", direction: "down" },
+		});
+	});
+
+	it("sends scroll with an explicit element target", async () => {
+		const home = setupTempHome();
+		const params = { target: { selector: "main#workspace" }, by: "viewport", direction: "down" };
+		const { plan, calls } = await sendWithCapture("scroll", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "scroll",
+			params,
 		});
 	});
 });
@@ -387,7 +427,7 @@ describe("request envelope structure", () => {
 		const body = calls[0]!.body;
 		expect(body["protocol_version"]).toBe(1);
 		expect(body["id"]).toBe(requestId);
-		expect(body["session"]).toBe("test-session");
+		expect(body["session"]).toBe("m4q7z2");
 		expect(body["deadline"]).toBeGreaterThan(Date.now() - 10000);
 		expect(body["destructive"]).toBe(false);
 	});
@@ -420,6 +460,7 @@ describe("request envelope structure", () => {
 
 		const readActions = [
 			"text",
+			"links",
 			"images",
 			"elements",
 			"outline",
@@ -444,20 +485,22 @@ describe("request envelope structure", () => {
 		const { fetch, calls } = createMockFetch(successResponse(requestId));
 		const opts: SendOptions = { fetch, requestId };
 
-		await sendAction("text", {}, makeGlobals(home, { session: "my-session" }), opts);
+		await sendAction("text", {}, makeGlobals(home, { session: "k7m2q4" }), opts);
 
-		expect(calls[0]!.body["session"]).toBe("my-session");
+		expect(calls[0]!.body["session"]).toBe("k7m2q4");
 	});
 
-	it("defaults session to 'default' when not provided", async () => {
+	it("requires an explicit session for browser actions", async () => {
 		const home = setupTempHome();
 		const requestId = "test-id-001";
 		const { fetch, calls } = createMockFetch(successResponse(requestId));
 		const opts: SendOptions = { fetch, requestId };
 
-		await sendAction("text", {}, makeGlobals(home, { session: undefined }), opts);
+		const plan = await sendAction("text", {}, makeGlobals(home, { session: undefined }), opts);
 
-		expect(calls[0]!.body["session"]).toBe("default");
+		expect(plan.code).toBe(2);
+		expect(plan.stderr).toContain("Missing required session id");
+		expect(calls).toHaveLength(0);
 	});
 });
 
@@ -478,6 +521,23 @@ describe("command arg validation", () => {
 		const params = calls[0]!.body["params"] as Record<string, unknown>;
 		expect(params).toEqual({});
 		expect("selector" in params).toBe(false);
+	});
+
+	it("tab.open is the bootstrap exception and can omit the session", async () => {
+		const home = setupTempHome();
+		const requestId = "tab-open-bootstrap";
+		const { fetch, calls } = createMockFetch(successResponse(requestId));
+		const opts: SendOptions = { fetch, requestId };
+
+		const plan = await sendAction(
+			"tab.open",
+			{ url: "https://example.com" },
+			makeGlobals(home, { session: undefined }),
+			opts,
+		);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body["session"]).toBe("");
 	});
 });
 

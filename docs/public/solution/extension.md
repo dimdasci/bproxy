@@ -143,9 +143,9 @@ Owns:
 3. forwarded-request parsing (`BproxyForwardedRequest`);
 4. exactly-once execution via dedupe + replay-safe responses;
 5. extension trace ring buffer for `debug.log`;
-6. browser-API actions (`navigate`, `screenshot`, `require-human`, `eval`, `tab.*`);
+6. browser-API actions (`navigate`, `screenshot`, `require-human`, `tab.*`);
 7. programmatic content-script injection and DOM-action RPC;
-8. one-shot MAIN-world execution for `fill(method="runtime-api")` and gated `eval`.
+8. one-shot MAIN-world execution for `fill(method="runtime-api")`.
 
 Authentication uses WebSocket subprotocols:
 
@@ -203,7 +203,7 @@ The service worker injects it with `chrome.scripting.executeScript` on first com
 | Key | Scope | Purpose |
 |---|---|---|
 | `local:bootstrap` | local | Pairing bootstrap payload `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }` |
-| `local:configFlags` | local | Future opt-in flags such as `evalEnabled` and `debuggerScreenshot` |
+| `local:configFlags` | local | Future opt-in flags such as `debuggerScreenshot` |
 | `session:pins` | session | Reserved tab-pin map storage seam |
 | `session:dedupe` | session | Request-id → cached response + timestamp |
 | `session:injectedTabs` | session | Tabs already injected with the runtime content script |
@@ -242,8 +242,10 @@ Handled through `src/content/**` and routed via background/content RPC.
 
 | Action | Notes |
 |---|---|
-| `text`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; no MAIN-world execution |
-| `scroll`, `wait` | Jittered polling only; no `MutationObserver` |
+| `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, and can filter to visible/in-viewport anchors |
+| `inspect` | Computed-style and layout inspection for specific selectors (rect, display, descendants, scroll info) |
+| `snapshot` | Accessible DOM tree serialization (text-based, depth-limited, optional interactive-only mode) |
+| `scroll`, `wait` | Jittered polling only; no `MutationObserver`. `scroll` targets only the viewport/document by default or an explicit agent-supplied `ElementTarget`; it never infers scroll containers. |
 | `fill(method="direct")` | Native DOM state write, no events |
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
 | `fill-form` | Multi-field isolated-world writes with hidden-field guard and read-back verification |
@@ -256,7 +258,6 @@ Handled in `src/background/main-world*.ts`.
 | Action | Notes |
 |---|---|
 | `fill(method="runtime-api", world="main")` | Exactly one `chrome.scripting.executeScript({ world: "MAIN" })` call per request |
-| `eval` | Disabled by default; returns `EVAL_DISABLED` unless `local:configFlags.evalEnabled === true` |
 
 MAIN-world injected functions must:
 
@@ -275,7 +276,7 @@ Handled in `src/background/browser-actions.ts`.
 | `navigate` | `chrome.tabs.update` + wait for top-level load + interstitial detection → `HUMAN_REQUIRED` |
 | `screenshot` | `chrome.tabs.captureVisibleTab` normal path |
 | `screenshot(debugger=true)` | currently returns `DEBUGGER_DISABLED` unless a future explicit opt-in ships with permission + flag wiring |
-| `tab.list` | returns Chrome tabs plus injected/session annotations where known |
+| `tab.list` | **not forwarded** — daemon resolves from session tab registry without extension involvement |
 | `tab.open`, `tab.close`, `tab.pin`, `tab.unpin` | Chrome tabs API only; does not take ownership of daemon session state |
 | `require-human` | returns structured `HUMAN_REQUIRED` for daemon pause handling |
 
@@ -327,6 +328,8 @@ interface PageState {
 }
 ```
 
+The `busy` heuristic checks for `[aria-busy="true"]`, active `<progress>`, and pending navigations — but requires that matched elements are **visible** (via `checkVisibility()`). Hidden or off-screen busy indicators (common on Google SERPs) do not trigger false-positive `busy: true`.
+
 ---
 
 ## Dedupe and observability
@@ -370,7 +373,7 @@ The `extensionVersion` stamp makes stale-build traces visible after extension re
 
 - **Programmatic injection only.** No default content script presence.
 - **ISOLATED world by default.** Reads plus `direct`/`paste` writes stay out of MAIN world.
-- **MAIN world is one-shot.** `runtime-api` fill and gated `eval` execute through a single `chrome.scripting.executeScript({ world: "MAIN" })` call.
+- **MAIN world is one-shot.** `runtime-api` fill executes through a single `chrome.scripting.executeScript({ world: "MAIN" })` call.
 - **Default-deny WAR.** No `web_accessible_resources` are shipped.
 - **No default debugger surface.** The manifest omits the `debugger` permission.
 - **No `MutationObserver`.** The extension uses jittered polling instead.
