@@ -47,6 +47,7 @@ function cleanEnv(): NodeJS.ProcessEnv {
 	delete env["TEST"];
 	delete env["VITEST"];
 	delete env["NODE_ENV"];
+	env["BPROXY_PORT"] = "0";
 	return env;
 }
 
