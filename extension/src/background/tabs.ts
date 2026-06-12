@@ -1,6 +1,5 @@
-import type { ActionParams, BproxyError, BproxyForwardedRequest } from "@bproxy/shared";
+import type { BproxyError, BproxyForwardedRequest } from "@bproxy/shared";
 import {
-	type ContentAction,
 	type ContentRpcRequest,
 	parseContentRpcResponse,
 	toContentRpcRequest,
@@ -182,8 +181,8 @@ async function handleDomAction<A extends DomAction>(
 			tab.id,
 			toContentRpcRequest({
 				id: request.id,
-				action: request.action as ContentAction,
-				params: request.params as ActionParams[ContentAction],
+				action: request.action,
+				params: request.params,
 			}),
 		),
 	);
@@ -261,7 +260,7 @@ async function waitForLoad(
 function settleLoadWaiters(deps: TabRuntimeDeps, state: RuntimeState, tabId: number): void {
 	const waiters = state.loadWaiters.get(tabId);
 	if (!waiters || waiters.size === 0) return;
-	for (const waiter of [...waiters]) {
+	for (const waiter of Array.from(waiters)) {
 		removeLoadWaiter(state, tabId, waiter);
 		deps.clearTimeout(waiter.timer);
 		void resolveTargetTab(deps, tabId).then(waiter.resolve, (error: BproxyError) =>
@@ -278,7 +277,7 @@ function rejectLoadWaiters(
 ): void {
 	const waiters = state.loadWaiters.get(tabId);
 	if (!waiters || waiters.size === 0) return;
-	for (const waiter of [...waiters]) {
+	for (const waiter of Array.from(waiters)) {
 		removeLoadWaiter(state, tabId, waiter);
 		deps.clearTimeout(waiter.timer);
 		waiter.reject(error);
@@ -286,7 +285,7 @@ function rejectLoadWaiters(
 }
 
 function rejectAllLoadWaiters(deps: TabRuntimeDeps, state: RuntimeState, error: BproxyError): void {
-	for (const tabId of [...state.loadWaiters.keys()]) {
+	for (const tabId of Array.from(state.loadWaiters.keys())) {
 		rejectLoadWaiters(deps, state, tabId, error);
 	}
 }

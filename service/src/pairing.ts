@@ -50,6 +50,14 @@ interface Entry {
 	consumed: boolean;
 }
 
+function defaultBootstrap(): Omit<PairingBootstrap, "issuedAt" | "expiresAt" | "nonce"> {
+	return {
+		extensionToken: randomBytes(32).toString("base64url"),
+		wsUrl: "ws://127.0.0.1:9615/ws",
+		protocolVersion: 1,
+	};
+}
+
 export function createPairingStore(deps: PairingDeps): PairingStore {
 	const entries = new Map<string, Entry>();
 
@@ -61,14 +69,6 @@ export function createPairingStore(deps: PairingDeps): PairingStore {
 	function find(code: string): Entry | null {
 		for (const e of entries.values()) if (constantEq(e.code, code)) return e;
 		return null;
-	}
-
-	function defaultBootstrap(): Omit<PairingBootstrap, "issuedAt" | "expiresAt" | "nonce"> {
-		return {
-			extensionToken: randomBytes(32).toString("base64url"),
-			wsUrl: "ws://127.0.0.1:9615/ws",
-			protocolVersion: 1,
-		};
 	}
 
 	return {

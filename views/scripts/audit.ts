@@ -36,7 +36,7 @@ export interface LoadError {
 }
 
 export function loadView(path: string, content: string): LoadedView | LoadError {
-	const match = content.match(/^---\n([\s\S]*?)\n---/);
+	const match = /^---\n([\s\S]*?)\n---/.exec(content);
 	if (!match) return { path, error: "no YAML frontmatter block" };
 	let parsed: unknown;
 	try {
@@ -113,14 +113,30 @@ function getChangedFiles(base: string): string[] {
 		.filter(Boolean);
 }
 
-function formatReport(report: AuditReport, errors: readonly LoadError[]): string {
-	const lines: string[] = [];
+function formatErrors(errors: readonly LoadError[]): string[] {
+	if (errors.length === 0) return [];
+	const lines = ["Frontmatter validation errors:"];
+	for (const e of errors) lines.push(`  \u2717 ${e.path}  ${e.error}`);
+	lines.push("");
+	return lines;
+}
 
-	if (errors.length > 0) {
-		lines.push("Frontmatter validation errors:");
-		for (const e of errors) lines.push(`  ✗ ${e.path}  ${e.error}`);
-		lines.push("");
+function formatAffected(affected: AuditReport["affected"]): string[] {
+	const lines = ["Views potentially affected by this branch:"];
+	for (const a of affected) {
+		const icon = a.viewTouched ? "\u2713" : "\u26a0";
+		lines.push(
+			`  ${icon} ${a.view.slug.padEnd(24)} touched-sources: ${a.matchedSources.length}  view-touched: ${a.viewTouched ? "yes" : "no"}`,
+		);
+		for (const m of a.matchedSources.slice(0, 4)) lines.push(`      ${m}`);
+		if (a.matchedSources.length > 4)
+			lines.push(`      \u2026 +${a.matchedSources.length - 4} more`);
 	}
+	return lines;
+}
+
+function formatReport(report: AuditReport, errors: readonly LoadError[]): string {
+	const lines: string[] = [...formatErrors(errors)];
 
 	const hasAffected = report.affected.length > 0;
 	if (!hasAffected && errors.length === 0) {
@@ -129,23 +145,15 @@ function formatReport(report: AuditReport, errors: readonly LoadError[]): string
 	}
 
 	if (hasAffected) {
-		lines.push("Views potentially affected by this branch:");
-		for (const a of report.affected) {
-			const icon = a.viewTouched ? "✓" : "⚠";
-			lines.push(
-				`  ${icon} ${a.view.slug.padEnd(24)} touched-sources: ${a.matchedSources.length}  view-touched: ${a.viewTouched ? "yes" : "no"}`,
-			);
-			for (const m of a.matchedSources.slice(0, 4)) lines.push(`      ${m}`);
-			if (a.matchedSources.length > 4) lines.push(`      … +${a.matchedSources.length - 4} more`);
-		}
+		lines.push(...formatAffected(report.affected));
 	}
 
 	for (const v of report.clean) {
-		lines.push(`  ✓ ${v.slug.padEnd(24)} (no source globs matched)`);
+		lines.push(`  \u2713 ${v.slug.padEnd(24)} (no source globs matched)`);
 	}
-	lines.push("");
 	lines.push(
-		"Helpers exit 0 regardless of findings. Review each ⚠ (and any ✗) and decide whether the view needs an update.",
+		"",
+		"Helpers exit 0 regardless of findings. Review each \u26a0 (and any \u2717) and decide whether the view needs an update.",
 	);
 	return lines.join("\n");
 }

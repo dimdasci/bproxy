@@ -47,7 +47,8 @@ function createMockFetch(responseBody: unknown, _status = 200) {
 	const calls: { url: string; body: Record<string, unknown> }[] = [];
 	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
 		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
-		calls.push({ url: url.toString(), body: JSON.parse(bodyStr) as Record<string, unknown> });
+		const urlStr = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+		calls.push({ url: urlStr, body: JSON.parse(bodyStr) as Record<string, unknown> });
 		return Promise.resolve(
 			new Response(JSON.stringify(responseBody), {
 				status: _status,
@@ -55,7 +56,7 @@ function createMockFetch(responseBody: unknown, _status = 200) {
 			}),
 		);
 	};
-	return { fetch: mockFetch as typeof globalThis.fetch, calls };
+	return { fetch: mockFetch, calls };
 }
 
 /**

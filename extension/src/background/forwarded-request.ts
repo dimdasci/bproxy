@@ -90,7 +90,7 @@ function validateEnvelope(input: EnvelopeRecord): EnvelopeValidation {
 			params: input["params"],
 			session,
 			deadline: input["deadline"] as number,
-			destructive: input["destructive"] as boolean,
+			destructive: input["destructive"],
 			target: input["target"],
 		},
 	};

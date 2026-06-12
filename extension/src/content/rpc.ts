@@ -175,8 +175,8 @@ async function handleMessage(
 			data,
 			page: deps.getPageState(),
 		};
-	} catch (thrown) {
-		return errorResponse(request.id, normalizeThrown(thrown, request.action));
+	} catch (error_) {
+		return errorResponse(request.id, normalizeThrown(error_, request.action));
 	}
 }
 

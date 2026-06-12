@@ -49,8 +49,8 @@ const BADGE_TEXT: Record<BadgeState, string> = {
 };
 
 function setBadge(state: BadgeState): void {
-	void chrome.action.setBadgeText({ text: BADGE_TEXT[state] });
-	void chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR[state] });
+	void chrome.action.setBadgeText({ text: BADGE_TEXT[state] }); // NOSONAR
+	void chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR[state] }); // NOSONAR
 }
 
 const TRACE_MAX_SIZE = 500;
@@ -124,7 +124,7 @@ function makeDeps(onMessage: (data: unknown) => void): WsClientDeps {
 		alarms: {
 			create: (name, info) => chrome.alarms.create(name, info),
 			clear: (name) => {
-				void chrome.alarms.clear(name);
+				void chrome.alarms.clear(name); // NOSONAR
 			},
 			onAlarm: chrome.alarms.onAlarm,
 		},

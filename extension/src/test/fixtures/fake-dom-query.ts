@@ -52,7 +52,7 @@ function matchesGroup(element: QueryElementLike, selector: string): boolean {
 		.filter(Boolean)
 		.map(parseSegment);
 	if (segments.length === 0) return false;
-	if (!matchesSegment(element, segments[segments.length - 1] as ParsedSegment)) return false;
+	if (!matchesSegment(element, segments.at(-1)!)) return false;
 	let current: QueryElementLike | null = element;
 	for (let offset = segments.length - 2; offset >= 0; offset -= 1) {
 		current = current?.parentElement ?? null;
@@ -64,7 +64,7 @@ function matchesGroup(element: QueryElementLike, selector: string): boolean {
 function parseSegment(segment: string): ParsedSegment {
 	let rest = segment.replace(/^:scope/, "").trim();
 	const parsed: ParsedSegment = { classes: [], attrs: [] };
-	const tagMatch = rest.match(/^[a-zA-Z][a-zA-Z0-9-]*/);
+	const tagMatch = /^[a-zA-Z][a-zA-Z0-9-]*/.exec(rest);
 	if (tagMatch) {
 		parsed.tag = tagMatch[0].toLowerCase();
 		rest = rest.slice(tagMatch[0].length);
@@ -81,33 +81,33 @@ function parseSegment(segment: string): ParsedSegment {
 }
 
 function consumeId(rest: string, parsed: ParsedSegment): string | undefined {
-	const match = rest.match(/^#([a-zA-Z0-9_\-\\]+)/);
+	const match = /^#([a-zA-Z0-9_\-\\]+)/.exec(rest);
 	if (!match) return undefined;
-	parsed.id = unescapeCss(match[1] as string);
+	parsed.id = unescapeCss(match[1]!);
 	return rest.slice(match[0].length);
 }
 
 function consumeClass(rest: string, parsed: ParsedSegment): string | undefined {
-	const match = rest.match(/^\.([a-zA-Z0-9_\-]+)/);
+	const match = /^\.([a-zA-Z0-9_-]+)/.exec(rest);
 	if (!match) return undefined;
-	parsed.classes.push(match[1] as string);
+	parsed.classes.push(match[1]!);
 	return rest.slice(match[0].length);
 }
 
 function consumeAttr(rest: string, parsed: ParsedSegment): string | undefined {
-	const match = rest.match(/^\[([^=\]]+)(?:="((?:\\.|[^"])*)")?\]/);
+	const match = /^\[([^=\]]+)(?:="((?:\\.|[^"])*)")?\]/.exec(rest);
 	if (!match) return undefined;
 	parsed.attrs.push({
-		name: match[1] as string,
-		value: match[2] !== undefined ? unescapeCss(match[2] as string) : undefined,
+		name: match[1]!,
+		value: match[2] === undefined ? undefined : unescapeCss(match[2]),
 	});
 	return rest.slice(match[0].length);
 }
 
 function consumeNth(rest: string, parsed: ParsedSegment): string | undefined {
-	const match = rest.match(/^:nth-of-type\((\d+)\)/);
+	const match = /^:nth-of-type\((\d+)\)/.exec(rest);
 	if (!match) return undefined;
-	parsed.nthOfType = Number.parseInt(match[1] as string, 10);
+	parsed.nthOfType = Number.parseInt(match[1]!, 10);
 	return rest.slice(match[0].length);
 }
 

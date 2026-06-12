@@ -14,15 +14,15 @@ import { describe, expect, it } from "vitest";
 
 // ─── Value source exclusivity logic ────────────────────────────────────
 
-describe("value source exclusivity", () => {
-	function countSources(
-		value: string | undefined,
-		valueFile: string | undefined,
-		valueStdin: boolean,
-	): number {
-		return [value !== undefined, valueFile !== undefined, valueStdin].filter(Boolean).length;
-	}
+function countSources(
+	value: string | undefined,
+	valueFile: string | undefined,
+	valueStdin: boolean,
+): number {
+	return [value !== undefined, valueFile !== undefined, valueStdin].filter(Boolean).length;
+}
 
+describe("value source exclusivity", () => {
 	it("rejects when no source provided", () => {
 		expect(countSources(undefined, undefined, false)).toBe(0);
 	});
@@ -50,75 +50,75 @@ describe("value source exclusivity", () => {
 // ─── Method validation logic ───────────────────────────────────────────
 
 describe("fill method validation", () => {
-	const VALID_METHODS = ["direct", "paste", "runtime-api"];
+	const VALID_METHODS = new Set(["direct", "paste", "runtime-api"]);
 
 	it("accepts 'direct'", () => {
-		expect(VALID_METHODS.includes("direct")).toBe(true);
+		expect(VALID_METHODS.has("direct")).toBe(true);
 	});
 
 	it("accepts 'paste'", () => {
-		expect(VALID_METHODS.includes("paste")).toBe(true);
+		expect(VALID_METHODS.has("paste")).toBe(true);
 	});
 
 	it("accepts 'runtime-api'", () => {
-		expect(VALID_METHODS.includes("runtime-api")).toBe(true);
+		expect(VALID_METHODS.has("runtime-api")).toBe(true);
 	});
 
 	it("rejects 'auto'", () => {
-		expect(VALID_METHODS.includes("auto")).toBe(false);
+		expect(VALID_METHODS.has("auto")).toBe(false);
 	});
 
 	it("rejects 'keyboard'", () => {
-		expect(VALID_METHODS.includes("keyboard")).toBe(false);
+		expect(VALID_METHODS.has("keyboard")).toBe(false);
 	});
 
 	it("rejects empty string", () => {
-		expect(VALID_METHODS.includes("")).toBe(false);
+		expect(VALID_METHODS.has("")).toBe(false);
 	});
 });
 
 // ─── World validation logic ────────────────────────────────────────────
 
 describe("fill world validation", () => {
-	const VALID_WORLDS = ["isolated", "main"];
+	const VALID_WORLDS = new Set(["isolated", "main"]);
 
 	it("accepts 'isolated'", () => {
-		expect(VALID_WORLDS.includes("isolated")).toBe(true);
+		expect(VALID_WORLDS.has("isolated")).toBe(true);
 	});
 
 	it("accepts 'main'", () => {
-		expect(VALID_WORLDS.includes("main")).toBe(true);
+		expect(VALID_WORLDS.has("main")).toBe(true);
 	});
 
 	it("rejects 'content'", () => {
-		expect(VALID_WORLDS.includes("content")).toBe(false);
+		expect(VALID_WORLDS.has("content")).toBe(false);
 	});
 
 	it("rejects 'background'", () => {
-		expect(VALID_WORLDS.includes("background")).toBe(false);
+		expect(VALID_WORLDS.has("background")).toBe(false);
 	});
 });
 
 // ─── fill-form payload validation logic ────────────────────────────────
 
-describe("fill-form payload validation", () => {
-	function validatePayload(raw: string): { ok: boolean; reason?: string } {
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(raw);
-		} catch {
-			return { ok: false, reason: "not valid JSON" };
-		}
-		if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-			return { ok: false, reason: "must be object" };
-		}
-		const obj = parsed as Record<string, unknown>;
-		if (!Array.isArray(obj["fields"])) {
-			return { ok: false, reason: 'missing "fields" array' };
-		}
-		return { ok: true };
+function validatePayload(raw: string): { ok: boolean; reason?: string } {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return { ok: false, reason: "not valid JSON" };
 	}
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return { ok: false, reason: "must be object" };
+	}
+	const obj = parsed as Record<string, unknown>;
+	if (!Array.isArray(obj["fields"])) {
+		return { ok: false, reason: 'missing "fields" array' };
+	}
+	return { ok: true };
+}
 
+describe("fill-form payload validation", () => {
 	it("accepts valid payload with fields array", () => {
 		const payload = JSON.stringify({
 			fields: [{ target: { selector: "#x" }, value: "v", method: "direct", world: "isolated" }],

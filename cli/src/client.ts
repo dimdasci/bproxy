@@ -233,10 +233,13 @@ async function doFetch<A extends Action>(
 		});
 		return { ok: true, response };
 	} catch (err) {
-		const message =
-			err instanceof Error && err.name === "AbortError"
-				? `Request timed out after ${ctx.deadlineMs + ABORT_BUFFER_MS}ms`
-				: `Failed to connect to daemon at 127.0.0.1:${ctx.port}: ${err instanceof Error ? err.message : String(err)}`;
+		let message: string;
+		if (err instanceof Error && err.name === "AbortError") {
+			message = `Request timed out after ${ctx.deadlineMs + ABORT_BUFFER_MS}ms`;
+		} else {
+			const detail = err instanceof Error ? err.message : String(err);
+			message = `Failed to connect to daemon at 127.0.0.1:${ctx.port}: ${detail}`;
+		}
 		return { ok: false, message };
 	} finally {
 		clearTimeout(abortTimeout);
@@ -300,7 +303,7 @@ function isSessionClosePartialFailure(action: string, response: BproxyResponse):
 	);
 }
 
-async function parseBody(response: Response): Promise<unknown | null> {
+async function parseBody(response: Response): Promise<unknown> {
 	try {
 		return await response.json();
 	} catch {

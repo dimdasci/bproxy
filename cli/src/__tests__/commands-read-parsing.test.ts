@@ -75,11 +75,27 @@ describe("Phase 5 id parsing", () => {
 
 // ─── Arg-to-params mapping logic tests ─────────────────────────────────
 
-describe("scroll direction validation logic", () => {
-	function isValidDirection(d: string): d is "up" | "down" {
-		return d === "up" || d === "down";
-	}
+function isValidDirection(d: string): d is "up" | "down" {
+	return d === "up" || d === "down";
+}
 
+function isValidStrategy(s: string): s is "selector" | "url" | "navigation" {
+	return s === "selector" || s === "url" || s === "navigation";
+}
+
+function parseDepth(raw: string): number | null {
+	const depth = Number.parseInt(raw, 10);
+	if (Number.isNaN(depth) || depth < 0) return null;
+	return depth;
+}
+
+function parseTimeout(raw: string): number | null {
+	const ms = Number.parseInt(raw, 10);
+	if (Number.isNaN(ms) || ms <= 0) return null;
+	return ms;
+}
+
+describe("scroll direction validation logic", () => {
 	it("accepts 'up' direction", () => {
 		expect(isValidDirection("up")).toBe(true);
 	});
@@ -94,10 +110,6 @@ describe("scroll direction validation logic", () => {
 });
 
 describe("wait strategy validation logic", () => {
-	function isValidStrategy(s: string): s is "selector" | "url" | "navigation" {
-		return s === "selector" || s === "url" || s === "navigation";
-	}
-
 	it("accepts 'selector' strategy", () => {
 		expect(isValidStrategy("selector")).toBe(true);
 	});
@@ -116,12 +128,6 @@ describe("wait strategy validation logic", () => {
 });
 
 describe("dom depth parsing logic", () => {
-	function parseDepth(raw: string): number | null {
-		const depth = Number.parseInt(raw, 10);
-		if (Number.isNaN(depth) || depth < 0) return null;
-		return depth;
-	}
-
 	it("parses valid integer depth", () => {
 		expect(parseDepth("3")).toBe(3);
 	});
@@ -140,12 +146,6 @@ describe("dom depth parsing logic", () => {
 });
 
 describe("wait timeout parsing logic", () => {
-	function parseTimeout(raw: string): number | null {
-		const ms = Number.parseInt(raw, 10);
-		if (Number.isNaN(ms) || ms <= 0) return null;
-		return ms;
-	}
-
 	it("parses valid timeout", () => {
 		expect(parseTimeout("10000")).toBe(10000);
 	});

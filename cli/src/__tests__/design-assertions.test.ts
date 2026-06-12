@@ -56,8 +56,10 @@ function errorResponse(id: string, code: string) {
 	};
 }
 
+type FetchInput = string | URL | Request;
+
 function createMockFetch(responseBody: unknown, status = 200) {
-	const mockFetch = (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+	const mockFetch = (_url: FetchInput, _init?: RequestInit): Promise<Response> => {
 		return Promise.resolve(
 			new Response(JSON.stringify(responseBody), {
 				status,
@@ -65,7 +67,7 @@ function createMockFetch(responseBody: unknown, status = 200) {
 			}),
 		);
 	};
-	return mockFetch as typeof globalThis.fetch;
+	return mockFetch;
 }
 
 /** Collect all .ts files in a directory tree, excluding __tests__ and index.ts grouping files */
@@ -370,7 +372,7 @@ describe("verbose mode", () => {
 		await sendAction("text", {}, makeVerboseGlobals(home), { fetch, requestId, stderr });
 
 		// The last entry should have elapsed and httpStatus
-		const lastEntry = JSON.parse(stderrChunks[stderrChunks.length - 1]!.trim());
+		const lastEntry = JSON.parse(stderrChunks.at(-1)!.trim());
 		expect(lastEntry).toHaveProperty("elapsed");
 		expect(typeof lastEntry.elapsed).toBe("number");
 		expect(lastEntry).toHaveProperty("httpStatus", 200);
@@ -390,7 +392,7 @@ describe("verbose mode", () => {
 
 		await sendAction("text", {}, makeVerboseGlobals(home), { fetch, requestId, stderr });
 
-		const lastEntry = JSON.parse(stderrChunks[stderrChunks.length - 1]!.trim());
+		const lastEntry = JSON.parse(stderrChunks.at(-1)!.trim());
 		expect(lastEntry).toHaveProperty("errorCode", "EXTENSION_TIMEOUT");
 	});
 

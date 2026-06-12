@@ -110,8 +110,8 @@ async function executeRequest(
 			request,
 			error: protocolError(`Forwarded action is unsupported in the extension: ${request.action}`),
 		});
-	} catch (thrown) {
-		return errorResponse({ request, error: normalizeThrown(thrown) });
+	} catch (error_) {
+		return errorResponse({ request, error: normalizeThrown(error_) });
 	}
 }
 

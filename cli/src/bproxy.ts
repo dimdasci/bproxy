@@ -52,4 +52,4 @@ const main = defineCommand({
 	},
 });
 
-void runMain(main);
+void runMain(main); // NOSONAR — required by eslint no-floating-promises

@@ -29,7 +29,7 @@ describe("discovery", () => {
 			resolveElementTarget(elements[0] as ElementTarget, {
 				document: page as unknown as Document,
 			}),
-		).toBe(email as unknown as Element);
+		).toBe(email);
 	});
 
 	it("extracts labels, placeholders, and select options for form discovery", () => {

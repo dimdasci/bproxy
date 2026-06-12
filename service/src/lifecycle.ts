@@ -308,10 +308,10 @@ export function status(config: ServiceConfig): LifecycleStatusResult {
 		cleanupRuntimeState(config);
 		return { running: false };
 	}
-	if (!isAlive(pidState.pid)) {
-		cleanupRuntimeState(config);
-		return { running: false };
+	if (isAlive(pidState.pid)) {
+		const port = readPort(config);
+		return { running: true, pid: pidState.pid, ...(port !== undefined ? { port } : {}) };
 	}
-	const port = readPort(config);
-	return { running: true, pid: pidState.pid, ...(port !== undefined ? { port } : {}) };
+	cleanupRuntimeState(config);
+	return { running: false };
 }

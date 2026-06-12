@@ -14,8 +14,6 @@ import type { StorageItem } from "./storage-item";
 
 export type BadgeState = "disconnected" | "connecting" | "connected" | "error";
 
-export type WsClientState = BadgeState;
-
 // Minimal structural slice of the platform WebSocket. We only call `send`,
 // `close`, read `readyState`, and assign the four event handlers.
 export interface WebSocketLike {
@@ -72,7 +70,7 @@ export interface WsClient {
 	stop(): Promise<void>;
 	reconnect(): Promise<void>;
 	send(data: string): boolean;
-	getState(): WsClientState;
+	getState(): BadgeState;
 }
 
 export const KEEPALIVE_ALARM_NAME = "bproxy-ws-keepalive";
@@ -222,7 +220,7 @@ function openSocket(ctx: Ctx, boot: PairingBootstrap): void {
 function onAlarm(ctx: Ctx, alarm: { name: string }): void {
 	if (alarm.name !== KEEPALIVE_ALARM_NAME) return;
 	const socket = ctx.state.socket;
-	if (!socket || socket.readyState !== WS_OPEN) return;
+	if (socket?.readyState !== WS_OPEN) return;
 	const now = ctx.deps.now();
 	if (ctx.state.lastAliveAt !== null && now - ctx.state.lastAliveAt >= STALE_CONNECTION_MS) {
 		void forceReconnect(ctx);
@@ -275,7 +273,7 @@ async function forceReconnect(ctx: Ctx): Promise<void> {
 
 function send(ctx: Ctx, data: string): boolean {
 	const socket = ctx.state.socket;
-	if (!socket || socket.readyState !== WS_OPEN) return false;
+	if (socket?.readyState !== WS_OPEN) return false;
 	try {
 		socket.send(data);
 		return true;
@@ -310,13 +308,13 @@ export function buildSubprotocols(extensionToken: string): string[] {
 export function base64UrlEncode(input: string): string {
 	const utf8 = utf8ToBinaryString(input);
 	const b64 = btoa(utf8);
-	return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	return b64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
 function utf8ToBinaryString(input: string): string {
 	const bytes = new TextEncoder().encode(input);
 	let out = "";
-	for (const b of bytes) out += String.fromCharCode(b);
+	for (const b of bytes) out += String.fromCodePoint(b);
 	return out;
 }
 

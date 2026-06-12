@@ -18,15 +18,15 @@ class NativeInputElement extends FakeElement {
 }
 
 class RejectingInputElement extends FakeElement {
-	private _value = "persisted";
+	private readonly _value = "persisted";
 
 	override get value(): string {
 		return this._value;
 	}
 
-	override set value(_next: string) {
-		// Simulate a hostile controlled field that rejects the write.
-	}
+	// Simulate a hostile controlled field that rejects the write.
+	// biome-ignore lint/correctness/noUnusedVariables: intentionally ignoring setter param
+	override set value(_next: string) {}
 }
 
 describe("fill actions", () => {
