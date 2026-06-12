@@ -308,7 +308,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ## Task 11: Pre-commit hooks and final gates
 
-**Files:** root package/tooling config, `docs/internal/quality-gates.md`, README if developer workflow changes.
+**Files:** `package.json`, `.husky/pre-commit`, `lint-staged.config.js`, `docs/internal/quality-gates.md`, `cli/src/__tests__/smoke.integration.test.ts`.
 
 **Purpose:** Add the fast local guardrail deferred from earlier phases.
 
@@ -317,6 +317,16 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Document how to install/skip hooks for emergency commits.
 - [X] Ensure CI/root gates remain authoritative; hooks are developer convenience, not a replacement.
 - [X] Run final verification: `pnpm check`, `pnpm test`, `pnpm docs:build`, package builds, smoke/manual scenario checks.
+
+**Implementation notes:**
+
+- **Choice:** Husky v9 + lint-staged v17. Auto-installs via `"prepare": "husky"` script on `pnpm install`.
+- **Pre-commit scope:** Biome format-fix on staged `*.{ts,tsx,mts,js,json}`, ESLint check-only on staged `*.{ts,tsx,mts}`. Typecheck excluded (requires full-project context, too slow for individual commits).
+- **Skip:** `git commit --no-verify` (standard escape hatch).
+- **Bug found and fixed:** `cli/src/__tests__/smoke.integration.test.ts` had 8 failures because it started the daemon on the default port 9615 without `BPROXY_PORT=0`. When a development daemon was already running, the spawned child hit `EADDRINUSE` and died silently (detached with `stdio: "ignore"`). Fixed by setting `BPROXY_PORT=0` in the test environment to get OS-assigned random ports.
+- **Biome + .md:** Biome does not process Markdown files; lint-staged glob excludes `.md` to avoid Biome's non-zero exit when all provided files are unsupported.
+
+**Final gate results:** `pnpm check` ✅, `pnpm test` ✅ (732 tests: 347 cli + 206 service + 165 extension + 14 views), `pnpm docs:build` ✅.
 
 **Done when:** local commits catch obvious drift quickly and the full workspace still passes from a clean checkout.
 
