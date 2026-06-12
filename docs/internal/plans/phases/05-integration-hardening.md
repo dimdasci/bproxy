@@ -312,10 +312,10 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Add the fast local guardrail deferred from earlier phases.
 
-- [ ] Choose Husky + lint-staged or an equivalent lightweight hook runner.
-- [ ] Hook a fast subset: format check/fix on changed files, lint on changed TS, and typecheck only if practical without making commits painful.
-- [ ] Document how to install/skip hooks for emergency commits.
-- [ ] Ensure CI/root gates remain authoritative; hooks are developer convenience, not a replacement.
+- [X] Choose Husky + lint-staged or an equivalent lightweight hook runner.
+- [X] Hook a fast subset: format check/fix on changed files, lint on changed TS, and typecheck only if practical without making commits painful.
+- [X] Document how to install/skip hooks for emergency commits.
+- [X] Ensure CI/root gates remain authoritative; hooks are developer convenience, not a replacement.
 - [ ] Run final verification: `pnpm check`, `pnpm test`, `pnpm docs:build`, package builds, smoke/manual scenario checks.
 
 **Done when:** local commits catch obvious drift quickly and the full workspace still passes from a clean checkout.
