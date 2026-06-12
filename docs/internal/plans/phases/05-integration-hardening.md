@@ -298,8 +298,8 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Update `docs/internal/scenarios.md` command flows to use `tab open` bootstrap, `links`, logical tab handles, and `session close`.
 - [X] Update package READMEs and smoke instructions.
 - [X] Update public views if the session state, deployment, container, or threat-model diagrams/prose are affected.
-- [ ] Run `pnpm views:audit`; update frontmatter `sources` if the audit misses affected views.
-- [ ] Run `pnpm views:regen` and commit changed SVGs.
+- [X] Run `pnpm views:audit`; update frontmatter `sources` if the audit misses affected views.
+- [X] Run `pnpm views:regen` and commit changed SVGs.
 - [X] Search for stale Phase 4 syntax: `--tab-id`, raw `tabId` in normal docs, `default` session advice, positional command examples, and broad `tab list` language.
 
 **Done when:** a reader following docs from a clean checkout uses the same commands and response shapes that the code actually ships.
@@ -357,7 +357,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Error envelopes are complete for every new error path.
 - [X] `debug.status` and `debug.last` show useful logical session/tab state.
 - [X] Public and internal docs match shipped behaviour.
-- [ ] `pnpm views:regen` is current and generated SVGs are committed.
+- [X] `pnpm views:regen` is current and generated SVGs are committed.
 - [X] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 
 ---
