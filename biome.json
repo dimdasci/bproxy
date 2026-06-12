@@ -9,6 +9,7 @@
 			"!**/.output/**",
 			"!**/.wxt/**",
 			"!**/docs/views/auto/**",
+			"!tmp/**",
 			"!.pnpm-store/**",
 			"!.claude/**",
 			"!.superpowers/**",
