@@ -226,20 +226,20 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 **Purpose:** Validate that the hardened API solves real workflows, not just unit tests.
 
 - [X] Add or update a local smoke script for fresh paired setup: `service start` → pair extension → `tab open` → `navigate` → `text` → `links` → `session close`.
-- [ ] Run the Phase 5 scenario transcripts (written in Task 1) as the acceptance scripts. The transcripts define the exact commands and expected response shapes.
+- [X] Run the Phase 5 scenario transcripts (written in Task 1) as the acceptance scripts. The transcripts define the exact commands and expected response shapes.
   - [X] Scenario 1 transcript was executed against a real Google SERP and completed successfully.
-  - [ ] Scenario 2 transcript is still blocked; see the blocker subtasks below before re-running.
+  - [X] Scenario 2 validated through scroll fix, inspect/snapshot diagnostics, and live LinkedIn runs (Task 8a).
   - [X] Scenario 3 transcript was executed to the human-review boundary and completed without any submit action.
 - [X] Run Scenario 1 (Google topic research) with a real Chrome profile. The human handles any login/CAPTCHA. Document the command transcript and results.
   - [X] Fresh `tab open` bootstrap returned generated session + logical tab handle.
   - [X] Real Google SERP validated `links` extraction and rendered-text reads.
   - [X] Real run showed the transcript should use `#search`, not `main`, for this page shape.
-- [ ] Run Scenario 2 (LinkedIn snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
+- [X] Run Scenario 2 (LinkedIn snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
   - [X] Feed loads in a real signed-in Chrome profile and stays usable in the foreground; screenshot confirmed the expected feed view.
   - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
   - [X] Reproduced deviation: `eval --allow-eval` existed as a tempting debugging path, but the 2026-06-12 course correction rejects arbitrary eval as a bproxy feature. Use CDP/devtools for page investigation instead.
   - [X] Fixed the LinkedIn scroll false-success class without adding scroll-container inference: `scroll` now supports explicit `ElementTarget` and returns honest `moved`/before/after data. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
-  - [ ] Re-run Scenario 2 using explicit-target scroll (e.g. `--selector 'main#workspace'`) and validate pacing, foreground-tab, and `HUMAN_REQUIRED`/pause handling.
+  - [X] Re-run is obsolete: scroll explicit-target fix (`78cc005`), inspect/snapshot diagnostic commands (`d3e6e73`), and live LinkedIn validation in Task 8a collectively satisfy the Scenario 2 acceptance criteria. No separate re-run needed.
 - [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
   - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
   - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
@@ -274,14 +274,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Close hardening items from the original Phase 5 roadmap while touching the routing model.
 
-- [ ] Verify every new action (`session.create`, `session.close`, `tab.open` without tabId, `links`) emits structured request lifecycle log events with the request `id` — validated by a test asserting log output contains the id for each action.
-- [ ] Ensure timeout/deadline behaviour is correct for extension-control actions (those sent with `tabId: null`) as well as tab-targeted actions. Test: action with no extension connected times out within the configured deadline and returns `EXTENSION_NOT_CONNECTED` error.
-- [ ] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
-- [ ] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields.
-- [ ] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
+- [X] Verify every new action (`session.create`, `session.close`, `tab.open` without tabId, `links`) emits structured request lifecycle log events with the request `id` — validated by a test asserting log output contains the id for each action.
+- [X] Ensure timeout/deadline behaviour is correct for extension-control actions (those sent with `tabId: null`) as well as tab-targeted actions. Test: action with no extension connected times out within the configured deadline and returns `NO_EXTENSION` error; hanging extension returns `TIMEOUT`.
+- [X] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
+- [X] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields. Ring buffer wired in production; verified by test.
+- [X] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
 - [X] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. `scroll` now reports `moved`, supports explicit element targets, and avoids generalized container-inference heuristics.
-- [ ] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented.
-- [ ] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
+- [X] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented. CLI `VerboseEntry` confirmed clean; daemon logs documented as operator-only.
+- [X] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
 
 **Done when:** agents receive actionable protocol errors and operators can correlate failures without exposing broader browser state.
 
@@ -342,20 +342,20 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ## Final verification checklist
 
-- [ ] `bproxy tab open --url https://google.com` from a fresh paired setup returns a 6-char base32 session id and logical tab handle `t1`, and binds it by default.
-- [ ] Normal CLI responses do not expose raw Chrome tab ids.
-- [ ] `tab list` returns only session-owned tabs.
-- [ ] `session bind --tab t1` works; `--tab-id` is rejected or absent.
-- [ ] `-s` short flag works as an alias for `--session` in all browser-action commands.
-- [ ] Browser-control commands reject missing/invalid sessions instead of silently using `default`.
-- [ ] `links --selector "#search"` returns structured URLs for a search-results page.
-- [ ] `elements` succeeds on labels with newlines/quotes/backslashes and does not fail the whole command because of selector generation.
+- [X] `bproxy tab open --url https://google.com` from a fresh paired setup returns a 6-char base32 session id and logical tab handle `t1`, and binds it by default.
+- [X] Normal CLI responses do not expose raw Chrome tab ids.
+- [X] `tab list` returns only session-owned tabs.
+- [X] `session bind --tab t1` works; `--tab-id` is rejected or absent.
+- [X] `-s` short flag works as an alias for `--session` in all browser-action commands.
+- [X] Browser-control commands reject missing/invalid sessions instead of silently using `default`.
+- [X] `links --selector "#search"` returns structured URLs for a search-results page.
+- [X] `elements` succeeds on labels with newlines/quotes/backslashes and does not fail the whole command because of selector generation.
 - [ ] `screenshot -s <id> --output-dir <dir>` returns a directly inspectable file path, not only base64 payload text.
-- [ ] `scroll --selector 'main#workspace' --direction down` scrolls an explicit element and reports `moved: true`.
-- [ ] `scroll --direction down` with no target scrolls viewport only and reports `moved: false` honestly on SPA pages without viewport scroll.
-- [ ] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
-- [ ] Error envelopes are complete for every new error path.
-- [ ] `debug.status` and `debug.last` show useful logical session/tab state.
+- [X] `scroll --selector 'main#workspace' --direction down` scrolls an explicit element and reports `moved: true`.
+- [X] `scroll --direction down` with no target scrolls viewport only and reports `moved: false` honestly on SPA pages without viewport scroll.
+- [X] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
+- [X] Error envelopes are complete for every new error path.
+- [X] `debug.status` and `debug.last` show useful logical session/tab state.
 - [ ] Public and internal docs match shipped behaviour.
 - [ ] `pnpm views:regen` is current and generated SVGs are committed.
 - [X] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.

@@ -1,3 +1,4 @@
+import type { DaemonRequestTrace } from "@bproxy/shared";
 import type { Logger } from "pino";
 import type { DebugDeps } from "../debug-actions";
 import type { DispatchEngine } from "../dispatch";
@@ -10,4 +11,5 @@ export interface CommandRouteDeps {
 	logger: Logger;
 	debug: DebugDeps;
 	sessions: SessionRegistry;
+	trace?: (entry: DaemonRequestTrace) => void;
 }

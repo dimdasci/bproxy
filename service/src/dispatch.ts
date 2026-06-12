@@ -13,6 +13,10 @@ export interface DispatchDeps {
 	clients: ClientsRegistry;
 	pending: PendingMap;
 	sessions: SessionRegistry;
+	/** Emitted when a request is forwarded to the extension WS.
+	 *  `tab` is the internal Chrome tab id (or null for background-handled actions).
+	 *  This value appears only in daemon-side structured logs for operator debugging;
+	 *  it is never exposed in CLI stdout, CLI --verbose stderr, or protocol responses. */
 	onForwarded?: (info: { id: string; wsClient: string; tab: number | null }) => void;
 }
 

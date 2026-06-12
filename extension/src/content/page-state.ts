@@ -14,6 +14,7 @@ interface DomSnapshotDeps {
 		querySelector(selector: string): Element | null;
 	};
 	location: { href: string };
+	isVisible?: (el: Element) => boolean;
 }
 
 const BUSY_SELECTOR = '[aria-busy="true"], [role="progressbar"], progress:not([value])';
@@ -35,7 +36,7 @@ export function snapshotDomPageState(
 		url: deps.location.href,
 		title: deps.document.title,
 		readyState: normalizeReadyState(deps.document.readyState),
-		busyHint: hasBusyHint(deps.document),
+		busyHint: hasBusyHint(deps.document, deps.isVisible ?? defaultIsVisible),
 	});
 }
 
@@ -55,8 +56,21 @@ function normalizeReadyState(value: DocumentReadyState): PageStateSource["readyS
 	return value === "interactive" || value === "complete" ? value : "loading";
 }
 
-function hasBusyHint(doc: DomSnapshotDeps["document"]): boolean {
-	return doc.querySelector(BUSY_SELECTOR) !== null;
+function defaultIsVisible(el: Element): boolean {
+	if (typeof (el as HTMLElement).checkVisibility === "function") {
+		return (el as HTMLElement).checkVisibility();
+	}
+	// Fallback for environments without checkVisibility (e.g. test shims)
+	return (el as HTMLElement).offsetParent !== null;
+}
+
+function hasBusyHint(
+	doc: DomSnapshotDeps["document"],
+	isVisible: (el: Element) => boolean,
+): boolean {
+	const el = doc.querySelector(BUSY_SELECTOR);
+	if (!el) return false;
+	return isVisible(el);
 }
 
 function isErrorUrl(url: string): boolean {

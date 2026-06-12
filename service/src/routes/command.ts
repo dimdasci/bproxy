@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import type { BproxyRequest, BproxyResponse, DaemonRequestTrace, SessionId } from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import { handleDaemonLocal, isDaemonLocal } from "../debug-actions";
 import { parseRequest } from "../schemas";
@@ -21,13 +21,24 @@ function logResponse(
 	response: BproxyResponse,
 	receivedAt: number,
 ): void {
+	const elapsedMs = Math.max(0, Date.now() - receivedAt);
+	const errorCode = !response.ok ? response.error.code : undefined;
 	deps.logger.info({
 		id: cmd.id,
 		event: "response",
 		ok: response.ok,
-		elapsed_ms: Math.max(0, Date.now() - receivedAt),
-		error_code: !response.ok ? response.error.code : undefined,
+		elapsed_ms: elapsedMs,
+		error_code: errorCode,
 	});
+	deps.trace?.({
+		id: cmd.id,
+		action: cmd.action,
+		session: cmd.session as SessionId,
+		receivedAt,
+		elapsedMs,
+		ok: response.ok,
+		errorCode,
+	} satisfies DaemonRequestTrace);
 }
 
 export function commandRoute(deps: CommandRouteDeps) {

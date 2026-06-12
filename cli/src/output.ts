@@ -17,6 +17,10 @@ export function writeJson(data: unknown, out: NodeJS.WritableStream = process.st
 
 /**
  * Structured verbose log entry for --verbose stderr output.
+ *
+ * Invariant: this type never includes raw Chrome tab ids or internal
+ * identifiers. Only logical session ids, request ids, and action names
+ * appear in CLI-facing diagnostic output.
  */
 export interface VerboseEntry {
 	requestId?: string;
