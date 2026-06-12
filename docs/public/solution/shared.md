@@ -92,7 +92,6 @@ export type Action =
   | 'select'
   | 'wait'
   | 'require-human'
-  | 'eval'
   | 'tab.list' | 'tab.pin' | 'tab.unpin' | 'tab.open' | 'tab.close'
   | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume'
   | 'debug.log' | 'debug.last' | 'debug.status';
@@ -140,7 +139,6 @@ export interface ActionParams {
   select: { trigger: ElementTarget; optionText: string };  // target replaces selector
   wait: { strategy: 'selector' | 'url' | 'navigation'; target: string; timeout?: number };
   'require-human': { reason: string; forAttach?: string };
-  eval: { code: string };
   'tab.list': {};
   'tab.pin': { tabId?: number };
   'tab.unpin': {};
@@ -171,7 +169,6 @@ export interface ActionResult {
   select: { selected: boolean; optionText: string };
   wait: { matched: boolean; elapsed: number };
   'require-human': { resumed: boolean };
-  eval: { result: unknown };
   'tab.list': { tabs: Array<TabInfo> };
   'tab.pin': { tabId: number };
   'tab.unpin': {};
@@ -211,7 +208,6 @@ export type ErrorCode =
   | 'SELECTOR_AMBIGUOUS'
   // Policy
   | 'HUMAN_REQUIRED'
-  | 'EVAL_DISABLED'
   | 'DEBUGGER_DISABLED'
   // Execution
   | 'SCRIPT_ERROR'

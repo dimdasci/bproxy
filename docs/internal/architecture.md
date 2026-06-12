@@ -35,11 +35,12 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
 - **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
-- **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
+- **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, scroll target, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
 - **Shadow-DOM-aware targeting** — element routes encode shadow-host chains; open shadow roots only [ADR-014](./decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting).
 - **Interstitial detection + `HUMAN_REQUIRED`** — agent stops, user resolves CAPTCHAs/logins.
 - **"Don't submit" handoff** — agent prepares, user reviews and submits.
 - **Escape hatches stay on the shelf** until real usage signals need.
+- **No arbitrary page eval or scroll-target inference** — runtime/page investigation uses normal browser debugging tools such as CDP; bproxy does not expose an `eval` action and does not guess the correct scroll container [ADR-024](./decisions.md#adr-024-no-arbitrary-page-eval-and-no-scroll-target-inference).
 - **Observability is structural** — every component is independently debuggable via the request `id` as universal correlation key. Logging is not an afterthought; it's part of the spec.
 
 ## Components
@@ -161,14 +162,13 @@ Errors use a single RFC 9457-aligned envelope:
 | `elements`   | Interactive elements with stable selectors. `--form` variant for form fields.        |
 | `outline`    | Landmarks + heading hierarchy.                                                        |
 | `dom`        | Simplified subtree at controlled depth.                                               |
-| `scroll`     | ISOLATED-world `window.scrollBy` + DOM polling for stability.                        |
+| `scroll`     | Explicit scroll actuator with honest movement/no-op reporting; agent owns target choice. |
 | `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` opt-ins.                            |
 | `fill`       | Three explicit methods: `direct` (DOM), `paste` (events), `runtime-api` (editor).      |
 | `fill-form`  | Bulk fill in one round-trip with internal pacing.                                    |
 | `select`     | Custom-dropdown helper: click trigger, wait for menu, click option.                  |
 | `wait`       | Strategies: `selector` / `url` / `navigation`. DOM polling.                          |
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
-| `eval`       | MAIN-world script execution. Gated by `--allow-eval`.                                |
 | `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon log view (last N request lifecycles).                                     |

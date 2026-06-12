@@ -384,7 +384,7 @@ At startup CLI prints machine-readable output including `pairingCode`. Extension
 
 The daemon writes `pairing.json` (mode `0600`) atomically before the port file, containing `{pairingCode, pairingExpiresAt, issuedAt}`. The detached parent reads this file after readiness to build the start output JSON. The daemon removes `pairing.json` when the code is claimed or on shutdown.
 
-Eval/debugger control-plane wiring is deferred. The service binary does **not** accept `--allow-eval` or `--enable-debugger-mode` flags. Extension policy responses (`EVAL_DISABLED`, `DEBUGGER_DISABLED`) are passed through to the CLI unchanged.
+Debugger control-plane wiring is deferred. The service binary does **not** accept `--enable-debugger-mode` flags. Extension `DEBUGGER_DISABLED` policy responses are passed through to the CLI unchanged. Arbitrary page eval is out of scope for bproxy.
 
 ### Shutdown (`bproxy service stop`)
 

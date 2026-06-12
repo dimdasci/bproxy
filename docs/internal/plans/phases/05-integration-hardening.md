@@ -237,15 +237,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Run Scenario 2 (LinkedIn snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
   - [X] Feed loads in a real signed-in Chrome profile and stays usable in the foreground; screenshot confirmed the expected feed view.
   - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
-  - [X] Reproduced tooling gap: `eval --allow-eval` exists at the CLI but has no supported shipped enable path; it returns `EVAL_DISABLED` unless extension storage is edited manually, which is not acceptable for scenario validation.
-  - [ ] Fix the LinkedIn scroll false-success bug, then re-run the Scenario 2 transcript. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md`.
-  - [ ] Decide whether Scenario 2 truly requires a shipped eval-enable path for inspection/debugging, or explicitly keep eval out of scope and continue with non-eval observability only. Note: adding a shipped eval enable path is currently a scope change because Phase 5 still lists eval control-path wiring as out of scope.
+  - [X] Reproduced deviation: `eval --allow-eval` existed as a tempting debugging path, but the 2026-06-12 course correction rejects arbitrary eval as a bproxy feature. Use CDP/devtools for page investigation instead.
+  - [ ] Fix the LinkedIn scroll false-success bug without adding scroll-container inference; bproxy should expose explicit actuator semantics and honest no-movement reporting. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
 - [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
   - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
   - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
   - [X] `fill --method paste --world isolated` successfully inserted visible draft text into the composer.
   - [X] No submit/publish action was used; validation stopped at human review.
-- [X] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5. Current findings to preserve: Google false-positive `busy` reporting, LinkedIn `scroll` false-success, missing shipped eval-enable control path for runtime inspection, and screenshot file-output UX gap.
+- [X] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5. Current findings to preserve: Google false-positive `busy` reporting, LinkedIn `scroll` false-success, the eval course correction, and screenshot file-output UX gap.
 
 **Done when:** the phase's success criteria are demonstrated against the documented workflows or explicitly deferred with a journaled reason and a follow-up plan.
 
@@ -262,7 +261,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [ ] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
 - [ ] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields.
 - [ ] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
-- [ ] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. Require evidence of actual movement before reporting success, and add a regression test for this false-success shape.
+- [ ] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. Require evidence of actual movement before reporting success, add a regression test for this false-success shape, and avoid generalized container-inference heuristics.
 - [ ] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented.
 - [ ] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
 
@@ -349,6 +348,6 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - Human-approved adoption of arbitrary existing browser tabs, unless the implementation proves it is required for the three documented scenarios. Normal Phase 5 `tab list` must not expose the operator's existing tabs.
 - Closed shadow-root support.
 - New stealth mechanisms, network shims, trusted input simulation, or broad anti-detection bypasses.
-- Enabling `eval` or debugger screenshots through CLI/service control paths.
+- Arbitrary page eval and debugger screenshots through CLI/service control paths.
 - Site-specific scrapers or LinkedIn Voyager API access.
 - Making scenario validation fully CI-automated against third-party websites. Real-site checks can remain manual/local with documented transcripts because external sites are unstable and account-dependent.

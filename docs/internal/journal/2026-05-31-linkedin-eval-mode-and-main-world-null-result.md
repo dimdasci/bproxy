@@ -1,7 +1,9 @@
 # LinkedIn eval debugging — popup enable path shipped, MAIN-world result is `null` on LinkedIn
 
+> **Course correction (2026-06-12):** This investigation is now considered a documented deviation from the intended bproxy path. The useful finding is not “replace string eval with debugger-backed eval”; it is that arbitrary page evaluation does not belong in bproxy at all. Page/runtime investigation should use normal browser debugging tools such as Chrome DevTools Protocol. bproxy should remain a thin sensor/actuator bridge and the `eval` command should be removed.
+
 Date: 2026-05-31
-Status: proposed
+Status: superseded by course correction on 2026-06-12
 
 ## Context
 
@@ -324,22 +326,17 @@ What the docs suggest:
 7. **The current eval implementation is not reliable enough for real-site debugging.**
    It works on friendly pages, but not on at least one important real target.
 
-## Proposed follow-up implementation direction
+## Superseded follow-up direction
 
-Do not continue hardening the current string-eval approach as the main solution.
+The original follow-up direction in this note was to replace string eval with debugger-backed eval via `chrome.debugger` / CDP. That direction is now rejected.
 
-Instead, treat this as a separate implementation step:
+Corrected conclusion:
 
-- keep the popup's Eval mode gating;
-- when Eval mode is enabled and the user runs `eval`, execute it through the Chrome DevTools Protocol via `chrome.debugger` and `Runtime.evaluate`;
-- keep the current `chrome.scripting.executeScript` MAIN-world function injection for predefined probes and normal product features.
-
-Why this is the recommended next step:
-- the same real Chrome + LinkedIn tab was successfully evaluated through CDP using `dev-browser --connect http://localhost:9222`;
-- CDP is the browser's native debugging path;
-- it matches the actual purpose of `eval` better than the current `Function(code)` workaround.
-
-This is explicitly a **future implementation step**, not part of the debugging work recorded here.
+- do **not** continue hardening arbitrary eval inside bproxy;
+- do **not** add a debugger-backed `eval` command;
+- use normal browser debugging tools, such as Chrome DevTools Protocol, when page/runtime investigation is needed;
+- keep bproxy focused on explicit read and actuator primitives;
+- keep MAIN-world execution only for narrow product actions such as `runtime-api` writes, not arbitrary code execution.
 
 ## Phase 5 relevance
 

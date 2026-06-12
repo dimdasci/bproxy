@@ -43,7 +43,6 @@ cli/
     │   ├── select.ts         # select --selector/--route-json --option-text
     │   ├── wait.ts           # wait --strategy --target [--timeout]
     │   ├── require-human.ts  # require-human --reason [--for-attach]
-    │   ├── eval.ts           # eval --allow-eval --code/--file/--stdin
     │   ├── status.ts         # top-level status (alias for debug.status)
     │   ├── service/
     │   │   ├── index.ts      # subCommands: start, stop, status, restart
@@ -228,15 +227,13 @@ Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `m
 
 ### `select --selector/--route-json --option-text`
 
-### `eval --allow-eval --code/--file/--stdin`
-
-`--allow-eval` is a local intent guard. Without it, exit `2` before POST.
+There is intentionally no `eval` command. Arbitrary page/runtime investigation belongs to browser debugging tools such as CDP/devtools, not bproxy.
 
 ## Command Registry
 
 `command-registry.ts` classifies every shared `Action` as destructive or non-destructive. A compile-time exhaustiveness assertion ensures adding a new shared action without updating the registry causes a build failure.
 
-**Destructive:** navigate, scroll, fill, fill-form, select, eval, tab.pin, tab.unpin, tab.open, tab.close, session.bind, session.unbind, session.resume, require-human.
+**Destructive:** navigate, scroll, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.bind, session.unbind, session.resume, require-human.
 
 **Non-destructive:** text, links, images, elements, outline, dom, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
 
@@ -244,9 +241,9 @@ Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `m
 
 Writes structured JSON to stderr. Each entry includes: `requestId`, `action`, `session`, `url`, `elapsed`, `httpStatus`, `errorCode`. Token values are never included.
 
-## Eval/Debugger Policy
+## Debugger Policy
 
-The CLI does not add `--allow-eval` or `--enable-debugger-mode` flags to `service start`. Extension policy responses (`EVAL_DISABLED`, `DEBUGGER_DISABLED`) pass through as protocol errors (exit `1`).
+The CLI does not add `--enable-debugger-mode` flags to `service start`. Extension `DEBUGGER_DISABLED` policy responses pass through as protocol errors (exit `1`). Arbitrary page eval is out of scope.
 
 ## Testing
 

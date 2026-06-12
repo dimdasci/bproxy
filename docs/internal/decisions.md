@@ -2,7 +2,7 @@
 title: Architecture Decision Records
 ---
 
-**Edition: 2026-05-29 (Phase 5 planning)** — Authoritative current ADR set.
+**Edition: 2026-06-12 (eval/scroll course correction)** — Authoritative current ADR set.
 
 ---
 
@@ -348,5 +348,24 @@ The skill is what agents load and apply; the extension contract is the three met
 | `TAB_NOT_IN_SESSION` | `target` | `conditional` | A logical tab handle was used outside its owning session; raw Chrome ids do not satisfy this contract. |
 
 **Rationale:** Research workflows need structured URLs as a primitive, and the generated-session/logical-tab model needs explicit machine-readable failures rather than overloading `TAB_NOT_FOUND`.
+
+---
+
+## ADR-024: No arbitrary page eval and no scroll-target inference
+**Date:** 2026-06-12
+**Status:** Accepted
+
+**Decision:** bproxy does not expose arbitrary page evaluation as a product action, and it does not infer page-specific scroll containers. Arbitrary runtime/page investigation belongs to normal browser debugging tools such as Chrome DevTools Protocol. Scroll target choice belongs to the agent.
+
+**Rules:**
+- Remove the `eval` protocol action, CLI command, popup Eval mode, and extension eval execution path.
+- Do not replace `eval` with a debugger-backed wrapper around `Runtime.evaluate`.
+- Keep MAIN-world execution only for narrow, explicit product actions such as `fill(method="runtime-api", world="main")`.
+- The `scroll` action is an actuator, not a page-structure strategist. It may support explicit targets (for example viewport/document or an agent-supplied element target), but it must not guess the correct container with generalized layout heuristics.
+- `scroll` must report honest before/after movement data and avoid false success when no scroll occurred.
+
+**Rationale:** bproxy's value is a thin, honest sensor/actuator bridge into a real user browser. Arbitrary eval would turn it into a weaker DevTools frontend with a larger security surface. Scroll heuristics would move agent-owned strategy into the extension and fail unpredictably across real pages with multiple scrollable regions.
+
+**Implications:** Page-structure investigation, computed styles, framework/runtime introspection, and exploratory JavaScript execution should be performed through CDP/devtools outside bproxy. The May 31 eval and scroll journal notes are retained as evidence for this course correction, not as implementation plans.
 
 ---

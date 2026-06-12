@@ -109,7 +109,7 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Done when:** a fresh paired setup can run `tab open -> navigate -> text -> links -> session close` without fake tab ids, raw Chrome ids, implicit shared `default` state, manual rebinding, or external HTML parsing; `session close` automatically closes session-owned Chrome tabs; Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles scroll/pause/`HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step; docs match the implemented command and response shapes; pre-commit hooks block commits that fail the selected fast gates.
 
-**Out of scope:** public npm packaging, release artifacts, extension distribution, installer/update flows, broad existing-tab adoption, closed shadow-root support, new stealth mechanisms, and enabling `eval`/debugger control paths. Phase 5 hardens behaviour; Phase 6 packages it.
+**Out of scope:** public npm packaging, release artifacts, extension distribution, installer/update flows, broad existing-tab adoption, closed shadow-root support, new stealth mechanisms, arbitrary page eval, debugger control paths, and generalized scroll-container inference. Phase 5 hardens behaviour; Phase 6 packages it.
 
 **Detail:** [phases/05-integration-hardening.md](./phases/05-integration-hardening.md).
 

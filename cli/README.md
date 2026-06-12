@@ -52,7 +52,7 @@ node cli/dist/bproxy.mjs --help
 
 ### Action commands (protocol POST)
 
-`navigate`, `text`, `links`, `images`, `elements`, `outline`, `dom`, `scroll`, `screenshot`, `fill`, `fill-form`, `select`, `wait`, `require-human`, `eval`
+`navigate`, `text`, `links`, `images`, `elements`, `outline`, `dom`, `scroll`, `screenshot`, `fill`, `fill-form`, `select`, `wait`, `require-human`
 
 ### Service lifecycle (token-free)
 

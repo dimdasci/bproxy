@@ -143,9 +143,9 @@ Owns:
 3. forwarded-request parsing (`BproxyForwardedRequest`);
 4. exactly-once execution via dedupe + replay-safe responses;
 5. extension trace ring buffer for `debug.log`;
-6. browser-API actions (`navigate`, `screenshot`, `require-human`, `eval`, `tab.*`);
+6. browser-API actions (`navigate`, `screenshot`, `require-human`, `tab.*`);
 7. programmatic content-script injection and DOM-action RPC;
-8. one-shot MAIN-world execution for `fill(method="runtime-api")` and gated `eval`.
+8. one-shot MAIN-world execution for `fill(method="runtime-api")`.
 
 Authentication uses WebSocket subprotocols:
 
@@ -203,7 +203,7 @@ The service worker injects it with `chrome.scripting.executeScript` on first com
 | Key | Scope | Purpose |
 |---|---|---|
 | `local:bootstrap` | local | Pairing bootstrap payload `{ extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce }` |
-| `local:configFlags` | local | Future opt-in flags such as `evalEnabled` and `debuggerScreenshot` |
+| `local:configFlags` | local | Future opt-in flags such as `debuggerScreenshot` |
 | `session:pins` | session | Reserved tab-pin map storage seam |
 | `session:dedupe` | session | Request-id → cached response + timestamp |
 | `session:injectedTabs` | session | Tabs already injected with the runtime content script |
@@ -256,7 +256,6 @@ Handled in `src/background/main-world*.ts`.
 | Action | Notes |
 |---|---|
 | `fill(method="runtime-api", world="main")` | Exactly one `chrome.scripting.executeScript({ world: "MAIN" })` call per request |
-| `eval` | Disabled by default; returns `EVAL_DISABLED` unless `local:configFlags.evalEnabled === true` |
 
 MAIN-world injected functions must:
 
@@ -370,7 +369,7 @@ The `extensionVersion` stamp makes stale-build traces visible after extension re
 
 - **Programmatic injection only.** No default content script presence.
 - **ISOLATED world by default.** Reads plus `direct`/`paste` writes stay out of MAIN world.
-- **MAIN world is one-shot.** `runtime-api` fill and gated `eval` execute through a single `chrome.scripting.executeScript({ world: "MAIN" })` call.
+- **MAIN world is one-shot.** `runtime-api` fill executes through a single `chrome.scripting.executeScript({ world: "MAIN" })` call.
 - **Default-deny WAR.** No `web_accessible_resources` are shipped.
 - **No default debugger surface.** The manifest omits the `debugger` permission.
 - **No `MutationObserver`.** The extension uses jittered polling instead.
