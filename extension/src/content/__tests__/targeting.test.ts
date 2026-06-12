@@ -91,7 +91,7 @@ describe("targeting", () => {
 
 	it("round-trips selectors with hostile attribute values", () => {
 		const labels = [
-			'Google Account: Foo\nBar',
+			"Google Account: Foo\nBar",
 			'She said "hello"',
 			"Path C:\\Users\\dim",
 			"Bracketed [value]",
@@ -100,7 +100,9 @@ describe("targeting", () => {
 		];
 
 		for (const [index, label] of labels.entries()) {
-			const link = el("a", { attrs: { href: `https://example.test/${index}`, "aria-label": label } });
+			const link = el("a", {
+				attrs: { href: `https://example.test/${index}`, "aria-label": label },
+			});
 			const page = doc(el("html", { children: [el("body", { children: [link] })] }));
 
 			const target = createElementTarget(link as unknown as Element);
@@ -124,7 +126,10 @@ describe("targeting", () => {
 		});
 		const page = doc(el("html", { children: [el("body", { children: [account] })] }));
 
-		const selector = createStableSelector(account as unknown as Element, page as unknown as Document);
+		const selector = createStableSelector(
+			account as unknown as Element,
+			page as unknown as Document,
+		);
 		expect(selector).toBe('a[aria-label="Google Account: Foo\\a Bar"]');
 		expect(resolveSelectorTarget(selector, { document: page as unknown as Document })).toBe(
 			account as unknown as Element,

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	SESSION_ID_PATTERN,
-	createSessionRegistry,
-	type InternalSession,
-} from "../sessions";
+import { createSessionRegistry, type InternalSession, SESSION_ID_PATTERN } from "../sessions";
 
 describe("session registry", () => {
 	it("generates 6-char base32 session ids", () => {

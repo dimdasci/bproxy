@@ -147,7 +147,11 @@ function registerTabForSession(
 	return toTabInfo(tab);
 }
 
-function removeTabFromSession(state: RegistryState, id: string, tab: string): InternalTabInfo | null {
+function removeTabFromSession(
+	state: RegistryState,
+	id: string,
+	tab: string,
+): InternalTabInfo | null {
 	const session = state.sessions.get(id);
 	if (!session) return null;
 	const handle = tab as TabHandle;
@@ -161,7 +165,11 @@ function removeTabFromSession(state: RegistryState, id: string, tab: string): In
 	return toInternalTabInfo(existing);
 }
 
-function resolveTabInSession(state: RegistryState, id: string, tab: string): InternalTabInfo | null {
+function resolveTabInSession(
+	state: RegistryState,
+	id: string,
+	tab: string,
+): InternalTabInfo | null {
 	const session = state.sessions.get(id);
 	if (!session) return null;
 	const resolved = session.tabs.get(tab as TabHandle);

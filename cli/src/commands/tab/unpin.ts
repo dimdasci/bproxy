@@ -16,9 +16,7 @@ export default defineCommand({
 		if (typeof args.tab === "string") {
 			const tab = parseTabHandle(args.tab);
 			if (!tab) {
-				executeExitPlan(
-					exitUsageError(`Invalid tab handle: ${args.tab}. Must look like t1.`),
-				);
+				executeExitPlan(exitUsageError(`Invalid tab handle: ${args.tab}. Must look like t1.`));
 				return;
 			}
 			params.tab = tab;

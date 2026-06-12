@@ -153,61 +153,59 @@ describe("round-trip — happy path", () => {
 });
 
 describe("round-trip — reconnect and replay", () => {
-	it(
-		"replays an in-flight request to a reconnecting client and resolves the original POST",
-		{ timeout: 15_000 },
-		async () => {
-			built.sessions.bind(currentSession, 42);
-			let ws = await connectClient();
+	it("replays an in-flight request to a reconnecting client and resolves the original POST", {
+		timeout: 15_000,
+	}, async () => {
+		built.sessions.bind(currentSession, 42);
+		let ws = await connectClient();
 
-			const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
-				ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
+		const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
+			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
+		});
+
+		const cmd = makeCmd({ id: "01HZX0000000000000000000RP", deadline: Date.now() + 10_000 });
+		const postPromise = postCommand(cmd);
+		await seenByClient1;
+		ws.close();
+		await waitUntil(() => built.clients.size() === 0);
+
+		const replayPromise = new Promise<BproxyRequest>((resolve) => {
+			const auth = Buffer.from(extensionToken).toString("base64url");
+			const ws2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
+				headers: { Origin: "chrome-extension://test" },
 			});
-
-			const cmd = makeCmd({ id: "01HZX0000000000000000000RP", deadline: Date.now() + 10_000 });
-			const postPromise = postCommand(cmd);
-			await seenByClient1;
-			ws.close();
-			await waitUntil(() => built.clients.size() === 0);
-
-			const replayPromise = new Promise<BproxyRequest>((resolve) => {
-				const auth = Buffer.from(extensionToken).toString("base64url");
-				const ws2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-					headers: { Origin: "chrome-extension://test" },
-				});
-				ws2.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
-				ws2.once("open", () => {
-					ws = ws2;
-				});
-				ws2.once("error", () => {
-					/* ignore */
-				});
+			ws2.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
+			ws2.once("open", () => {
+				ws = ws2;
 			});
+			ws2.once("error", () => {
+				/* ignore */
+			});
+		});
 
-			const replayed = await replayPromise;
-			expect(replayed.id).toBe(cmd.id);
+		const replayed = await replayPromise;
+		expect(replayed.id).toBe(cmd.id);
 
-			ws.send(
-				JSON.stringify({
-					protocol_version: 1,
-					id: replayed.id,
-					ok: true,
-					data: { text: "from-client-2" },
-					page: { url: "https://x", title: "", state: "ready", busy: false },
-					replay: false,
-				} satisfies BproxyResponse),
-			);
+		ws.send(
+			JSON.stringify({
+				protocol_version: 1,
+				id: replayed.id,
+				ok: true,
+				data: { text: "from-client-2" },
+				page: { url: "https://x", title: "", state: "ready", busy: false },
+				replay: false,
+			} satisfies BproxyResponse),
+		);
 
-			const res = await postPromise;
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as BproxyResponse;
-			expect(body).toMatchObject({ ok: true, id: cmd.id });
-			if (body.ok && body.data && "text" in body.data) {
-				expect(body.data.text).toBe("from-client-2");
-			}
-			ws.close();
-		},
-	);
+		const res = await postPromise;
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as BproxyResponse;
+		expect(body).toMatchObject({ ok: true, id: cmd.id });
+		if (body.ok && body.data && "text" in body.data) {
+			expect(body.data.text).toBe("from-client-2");
+		}
+		ws.close();
+	});
 });
 
 describe("round-trip — observability (ADR-009)", () => {

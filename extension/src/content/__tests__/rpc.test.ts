@@ -56,7 +56,12 @@ describe("createContentRpcHost", () => {
 			ok: true,
 			data: {
 				links: [
-					{ text: "Example", href: "https://example.test/", target: { selector: "a" }, visible: true },
+					{
+						text: "Example",
+						href: "https://example.test/",
+						target: { selector: "a" },
+						visible: true,
+					},
 				],
 			},
 			page: PAGE,

@@ -94,8 +94,13 @@ function normalizeHref(element: Element, document: Document): string {
 }
 
 function readBaseUri(document: Document): string {
-	const candidate = document as Document & { baseURI?: unknown; URL?: unknown; location?: { href?: unknown } };
-	if (typeof candidate.baseURI === "string" && candidate.baseURI.length > 0) return candidate.baseURI;
+	const candidate = document as Document & {
+		baseURI?: unknown;
+		URL?: unknown;
+		location?: { href?: unknown };
+	};
+	if (typeof candidate.baseURI === "string" && candidate.baseURI.length > 0)
+		return candidate.baseURI;
 	if (typeof candidate.URL === "string" && candidate.URL.length > 0) return candidate.URL;
 	if (typeof candidate.location?.href === "string" && candidate.location.href.length > 0) {
 		return candidate.location.href;
@@ -119,11 +124,16 @@ function intersectsViewport(element: Element): boolean {
 }
 
 function readRect(element: Element): DOMRect | null {
-	return typeof element.getBoundingClientRect === "function" ? element.getBoundingClientRect() : null;
+	return typeof element.getBoundingClientRect === "function"
+		? element.getBoundingClientRect()
+		: null;
 }
 
 function readViewport(element: Element): { width?: number; height?: number } {
-	const view = element.ownerDocument?.defaultView as { innerWidth?: unknown; innerHeight?: unknown } | null;
+	const view = element.ownerDocument?.defaultView as {
+		innerWidth?: unknown;
+		innerHeight?: unknown;
+	} | null;
 	return {
 		width: typeof view?.innerWidth === "number" ? view.innerWidth : undefined,
 		height: typeof view?.innerHeight === "number" ? view.innerHeight : undefined,

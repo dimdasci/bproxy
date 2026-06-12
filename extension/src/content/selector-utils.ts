@@ -8,7 +8,12 @@ const SIMPLE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 export function createSelectorCandidates(element: Element): string[] {
 	const candidates = new Set<string>();
 	pushCandidate(candidates, idSelector(element));
-	for (const selector of attributeSelectors(element, [...SELECTOR_ATTRS, "placeholder", "role", "type"])) {
+	for (const selector of attributeSelectors(element, [
+		...SELECTOR_ATTRS,
+		"placeholder",
+		"role",
+		"type",
+	])) {
 		pushCandidate(candidates, selector);
 	}
 	if (element.getAttribute("contenteditable")?.trim() === "true") {
@@ -52,7 +57,9 @@ export function getElementRoot(element: Element): QueryRoot {
 	return (element.ownerDocument ?? document) as Document;
 }
 
-export function hasOpenShadowRoot(element: Element): element is Element & { shadowRoot: ShadowRoot } {
+export function hasOpenShadowRoot(
+	element: Element,
+): element is Element & { shadowRoot: ShadowRoot } {
 	return isShadowRootLike(element.shadowRoot);
 }
 

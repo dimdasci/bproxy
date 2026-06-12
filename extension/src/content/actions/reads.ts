@@ -1,5 +1,4 @@
 import type { ActionResult, Landmark } from "@bproxy/shared";
-import { handleLinks } from "./links";
 import { discoverInteractiveElements } from "../discovery";
 import {
 	escapeCssString,
@@ -10,6 +9,7 @@ import {
 import { readDeepText, serializeElementTree } from "../read-tree";
 import { resolveReadRoot } from "../read-utils";
 import type { ContentRpcHandlers, ContentRpcRequest } from "../rpc";
+import { handleLinks } from "./links";
 
 export interface ReadActionDeps {
 	document?: Document;
@@ -230,4 +230,3 @@ function isNoiseTag(element: Element): boolean {
 function asPositiveNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
-

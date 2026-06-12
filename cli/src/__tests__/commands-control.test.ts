@@ -93,11 +93,7 @@ async function sendWithCapture(
 describe("session.create", () => {
 	it("sends session.create with optional label", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture(
-			"session.create",
-			{ label: "research" },
-			home,
-		);
+		const { plan, calls } = await sendWithCapture("session.create", { label: "research" }, home);
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
 			action: "session.create",

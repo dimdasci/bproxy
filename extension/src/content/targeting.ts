@@ -7,8 +7,8 @@ import {
 	getElementRoot,
 	getSelectorParent,
 	hasOpenShadowRoot,
-	tagNameOf,
 	type QueryRoot,
+	tagNameOf,
 } from "./selector-utils";
 
 export interface TargetingDeps {

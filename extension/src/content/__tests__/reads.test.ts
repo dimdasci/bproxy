@@ -116,7 +116,10 @@ describe("read actions", () => {
 				document: page as unknown as Document,
 			}),
 		).toBe(shadowLink as unknown as Element);
-		const allLinks = handleLinks(request("links", { selector: "#search", limit: 10 }), withDocument(page));
+		const allLinks = handleLinks(
+			request("links", { selector: "#search", limit: 10 }),
+			withDocument(page),
+		);
 		expect(allLinks.map((link) => link.href)).toContain("https://example.test/hidden");
 		expect(allLinks.map((link) => link.href)).toContain("https://example.test/offscreen");
 	});

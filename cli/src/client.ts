@@ -147,9 +147,7 @@ function resolveSession(action: Action, globals: ClientGlobalArgs): string | Exi
 	if (typeof globals.session === "string") {
 		const session = parseSessionId(globals.session);
 		if (session) return session;
-		return exitUsageError(
-			`Invalid session id: ${globals.session}. Must match /^[a-z2-7]{6}$/.`,
-		);
+		return exitUsageError(`Invalid session id: ${globals.session}. Must match /^[a-z2-7]{6}$/.`);
 	}
 
 	if (action === "tab.open" || isSessionExempt(action)) return "";
@@ -295,11 +293,9 @@ async function processResponse(
 
 function isSessionClosePartialFailure(action: string, response: BproxyResponse): boolean {
 	if (action !== "session.close" || response.ok) return false;
-	return ![
-		"SESSION_REQUIRED",
-		"INVALID_SESSION_ID",
-		"SESSION_NOT_FOUND",
-	].includes(response.error.code);
+	return !["SESSION_REQUIRED", "INVALID_SESSION_ID", "SESSION_NOT_FOUND"].includes(
+		response.error.code,
+	);
 }
 
 async function parseBody(response: Response): Promise<unknown | null> {
