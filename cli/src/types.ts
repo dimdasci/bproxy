@@ -3,6 +3,13 @@
  * This module exists so command implementations can import from a
  * single CLI-local path without reaching into shared internals.
  */
+export interface ClientGlobalArgs {
+	session?: string;
+	timeout?: string;
+	home?: string;
+	verbose?: boolean;
+}
+
 export type {
 	Action,
 	ActionParams,

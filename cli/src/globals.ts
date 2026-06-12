@@ -7,8 +7,7 @@
  * - `extractGlobals`: extract ClientGlobalArgs from parsed citty args
  */
 
-import type { ClientGlobalArgs } from "./client.js";
-import type { SessionId, TabHandle } from "./types.js";
+import type { ClientGlobalArgs, SessionId, TabHandle } from "./types.js";
 
 /**
  * Global arg definitions for leaf commands.

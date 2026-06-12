@@ -10,10 +10,6 @@ export function pageStateFromTab(tab: TabLike): PageState {
 	});
 }
 
-export function emptyPageState(): PageState {
-	return { url: "", title: "", state: "ready", busy: false };
-}
-
 export function parseCapturedImage(value: string): { base64: string; format: "png" | "jpeg" } {
 	const match = /^data:image\/(png|jpeg);base64,(.+)$/u.exec(value);
 	if (match) {
