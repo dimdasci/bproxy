@@ -17,7 +17,7 @@ shared/
     ├── protocol.ts           # request/response envelope
     ├── actions.ts            # action names, per-action params and results
     ├── errors.ts             # error codes, categories, structured error shape
-    └── sessions.ts           # session state, pacing config
+    └── sessions.ts           # session/tab identifiers, pacing config
 ```
 
 ## Protocol Envelope
@@ -25,24 +25,28 @@ shared/
 ```typescript
 // src/protocol.ts
 import type { Action, ActionParams, ActionResult } from './actions';
+import type { BproxyError } from './errors';
+import type { SessionId } from './sessions';
 
 export interface BproxyRequest<A extends Action = Action> {
   protocol_version: 1;
   id: string;
   action: A;
   params: ActionParams[A];
-  session: string;
+  session: SessionId;
   deadline: number;       // unix ms
   destructive: boolean;
 }
 
 // Daemon → extension wire shape. The CLI's HTTP input is `BproxyRequest`;
 // the daemon owns the mapping session → tabId and wraps the request with
-// `target.tabId` at the dispatch site. Only forwarded actions (browser,
-// tab.*, debug.log) use this shape — daemon-local actions (session.*,
-// debug.last, debug.status) never carry a target.
+// `target.tabId` at the dispatch site. Only forwarded actions use this shape —
+// daemon-local actions (session.*, debug.last, debug.status) never carry a target.
+//
+// `target.tabId` may be `null` for background-handled actions that do not
+// require an existing tab (tab.open, tab.list, tab.close).
 export type BproxyForwardedRequest<A extends Action = Action> = BproxyRequest<A> & {
-  target: { tabId: number };
+  target: { tabId: number | null };
 };
 
 export interface BproxySuccessResponse<A extends Action = Action> {
@@ -85,6 +89,8 @@ export type Action =
   | 'elements'
   | 'outline'
   | 'dom'
+  | 'inspect'
+  | 'snapshot'
   | 'scroll'
   | 'screenshot'
   | 'fill'
@@ -93,7 +99,8 @@ export type Action =
   | 'wait'
   | 'require-human'
   | 'tab.list' | 'tab.pin' | 'tab.unpin' | 'tab.open' | 'tab.close'
-  | 'session.list' | 'session.bind' | 'session.unbind' | 'session.resume'
+  | 'session.create' | 'session.list' | 'session.bind'
+  | 'session.unbind' | 'session.resume' | 'session.close'
   | 'debug.log' | 'debug.last' | 'debug.status';
 
 // Types for fill methods and world
@@ -118,50 +125,56 @@ export interface ActionParams {
   links: { selector?: string; visibleOnly?: boolean; limit?: number };
   images: { selector?: string };
   elements: { form?: boolean };
-  outline: {};
+  outline: Record<string, never>;
   dom: { selector?: string; depth?: number };
-  scroll: { target?: ElementTarget; by?: string; direction?: 'up' | 'down'; untilStable?: boolean };
+  inspect: { selector: string; properties?: string[]; limit?: number };
+  snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
+  scroll: { target?: ElementTarget; by?: string; direction?: 'up' | 'down' };
   screenshot: { activate?: boolean; debugger?: boolean };
-  fill: { 
-    target: ElementTarget;  // replaces selector-only
-    value: string; 
-    method: FillMethod;  // NOT optional — agent must choose
+  fill: {
+    target: ElementTarget;
+    value: string;
+    method: FillMethod;    // NOT optional — agent must choose
     world: ExecutionWorld; // NOT optional — 'isolated' or 'main'
   };
-  'fill-form': { 
-    fields: Array<{ 
-      target: ElementTarget;  // replaces selector
-      value: string; 
-      method: FillMethod;  // NOT optional
-      world: ExecutionWorld; // NOT optional
-    }> 
+  'fill-form': {
+    fields: Array<{
+      target: ElementTarget;
+      value: string;
+      method: FillMethod;
+      world: ExecutionWorld;
+    }>
   };
-  select: { trigger: ElementTarget; optionText: string };  // target replaces selector
+  select: { trigger: ElementTarget; optionText: string };
   wait: { strategy: 'selector' | 'url' | 'navigation'; target: string; timeout?: number };
   'require-human': { reason: string; forAttach?: string };
-  'tab.list': {};
-  'tab.pin': { tabId?: number };
-  'tab.unpin': {};
+  'tab.list': Record<string, never>;
+  'tab.pin': { tab?: TabHandle };
+  'tab.unpin': { tab?: TabHandle };
   'tab.open': { url: string };
-  'tab.close': { tabId?: number };
-  'session.list': {};
-  'session.bind': { tabId: number; pacing?: PacingMode };
-  'session.unbind': {};
-  'session.resume': {};
+  'tab.close': { tab?: TabHandle };
+  'session.create': { label?: string };
+  'session.list': Record<string, never>;
+  'session.bind': { tab: TabHandle; pacing?: PacingMode };
+  'session.unbind': Record<string, never>;
+  'session.resume': Record<string, never>;
+  'session.close': Record<string, never>;
   'debug.log': { id?: string; limit?: number };
   'debug.last': { count?: number };
-  'debug.status': {};
+  'debug.status': Record<string, never>;
 }
 
 // Results per action — what data contains on success
 export interface ActionResult {
   navigate: { url: string; title: string; loadTime: number };
   text: { text: string };
-  links: { links: Array<{ text: string; href: string; target: ElementTarget; title?: string; rel?: string; targetAttr?: string; visible?: boolean }> };
+  links: { links: Array<LinkInfo> };
   images: { images: Array<{ src: string; alt: string; width: number; height: number }> };
   elements: { elements: Array<ElementInfo> };
   outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
   dom: { html: string };
+  inspect: { elements: Array<InspectElement>; total: number };
+  snapshot: { tree: string; nodeCount: number };
   scroll: {
     target: 'viewport' | 'element';
     before: number;
@@ -178,22 +191,25 @@ export interface ActionResult {
   select: { selected: boolean; optionText: string };
   wait: { matched: boolean; elapsed: number };
   'require-human': { resumed: boolean };
-  'tab.list': { tabs: Array<TabInfo> };
-  'tab.pin': { tabId: number };
-  'tab.unpin': {};
-  'tab.open': { tabId: number; url: string };
-  'tab.close': {};
+  'tab.list': { session: SessionId; tabs: Array<TabInfo> };
+  'tab.pin': { tab: TabHandle; pinned: true };
+  'tab.unpin': { tab: TabHandle; pinned: false };
+  'tab.open': { session: SessionId; tab: TabHandle; bound: boolean; url: string };
+  'tab.close': { tab: TabHandle; closed: true };
+  'session.create': { session: SessionId; label?: string };
   'session.list': { sessions: Array<SessionInfo> };
-  'session.bind': { session: string; tabId: number };
-  'session.unbind': {};
-  'session.resume': { session: string };
+  'session.bind': { session: SessionId; tab: TabHandle };
+  'session.unbind': Record<string, never>;
+  'session.resume': { session: SessionId };
+  'session.close': { session: SessionId; closedTabs: number };
   'debug.log': { entries: Array<TraceEntry> };
   'debug.last': { requests: Array<DaemonRequestTrace> };
   'debug.status': {
     daemon: { pid: number; port: number; uptimeSec: number };
     wsClients: Array<{ id: string; connectedAt: number }>;
     sessions: Array<SessionInfo>;
-    pausedSessions: Array<{ session: string; reason?: string }>;
+    sessionTabs: Array<{ session: SessionId; tabs: Array<TabInfo> }>;
+    pausedSessions: Array<{ session: SessionId; reason?: string }>;
   };
 }
 ```
@@ -215,9 +231,14 @@ export type ErrorCode =
   | 'ELEMENT_NOT_FOUND'
   | 'ELEMENT_NOT_ACTIONABLE'
   | 'SELECTOR_AMBIGUOUS'
+  | 'INVALID_SESSION_ID'
+  | 'SESSION_NOT_FOUND'
+  | 'TAB_HANDLE_NOT_FOUND'
+  | 'TAB_NOT_IN_SESSION'
   // Policy
   | 'HUMAN_REQUIRED'
   | 'DEBUGGER_DISABLED'
+  | 'SESSION_REQUIRED'
   // Execution
   | 'SCRIPT_ERROR'
   | 'NAVIGATION_FAILED'
@@ -237,10 +258,21 @@ export interface BproxyError {
 }
 ```
 
-## Session Types
+## Session and Tab Identifiers
 
 ```typescript
 // src/sessions.ts
+
+// Branded types — prevent accidental string/number interchange
+declare const sessionIdBrand: unique symbol;
+declare const tabHandleBrand: unique symbol;
+
+// 6-character base32 lowercase, e.g. "m4q7z2"
+export type SessionId = string & { readonly [sessionIdBrand]: 'SessionId' };
+
+// Session-scoped logical handle, e.g. "t1", "t2"
+export type TabHandle = `t${number}` & { readonly [tabHandleBrand]: 'TabHandle' };
+
 export type PacingMode = 'human' | 'fast';
 
 export interface PacingConfig {
@@ -262,28 +294,20 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
   },
 };
 
-// "fast" models a power user who knows where they're going — short delays
-// with real variance, not zero. Instant zero-delay timing is itself a bot
-// signal; pacing must always produce jittered, non-zero intervals.
-
-// Per-session PacingConfig overrides are deferred. When introduced, `session.bind`
-// params will accept `pacing?: PacingMode | PacingConfig` and the resolver will
-// branch on the runtime shape.
-
 export interface SessionInfo {
-  name: string;
-  tabId: number | null;
+  id: SessionId;
+  label?: string;
+  tab: TabHandle | null;   // bound logical tab, or null if unbound
   pacing: PacingMode;
   paused: boolean;
   pauseReason?: string;
 }
 
 export interface TabInfo {
-  id: number;
+  tab: TabHandle;          // logical handle, never a raw Chrome id
   url: string;
   title: string;
-  session: string | null;
-  injected: boolean;
+  bound: boolean;          // true if this is the session's active tab
 }
 ```
 
@@ -291,8 +315,7 @@ export interface TabInfo {
 
 ```typescript
 // Used in ActionResult. Composed from ElementTarget so an ElementInfo can be
-// passed directly anywhere an ElementTarget is expected (e.g. fed back into
-// `fill` after `elements` discovery), with no field-shape drift.
+// passed directly anywhere an ElementTarget is expected.
 export type ElementInfo = ElementTarget & {
   tag: string;
   type?: string;           // input type
@@ -302,10 +325,36 @@ export type ElementInfo = ElementTarget & {
   required?: boolean;
   options?: string[];      // for select/dropdown
   role?: string;
-  // Framework/runtime markers for method selection
   hasShadowRoot?: boolean;
   runtimeHandle?: 'quill' | 'lexical' | 'prosemirror' | 'codemirror' | 'monaco' | 'slate';
 };
+
+export interface LinkInfo {
+  text: string;
+  href: string;
+  target: ElementTarget;
+  title?: string;
+  rel?: string;
+  targetAttr?: string;
+  visible?: boolean;
+}
+
+export interface InspectElement {
+  index: number;
+  tag: string;
+  id: string;
+  classes: string;
+  role: string;
+  ariaLabel: string;
+  rect: { x: number; y: number; width: number; height: number };
+  computed: Record<string, string>;
+  children: number;
+  descendants: number;
+  textLength: number;
+  scrollable: boolean;
+  scrollInfo?: { scrollTop: number; scrollHeight: number; clientHeight: number };
+  selector: string;
+}
 
 export interface Landmark {
   tag: string;
@@ -318,29 +367,28 @@ export interface Heading {
   text: string;
 }
 
-// Extension-side ring buffer entry. Carries `extensionVersion` so the CLI
-// can detect stale-build entries served after the extension was reloaded.
-// Distinct from `DaemonRequestTrace` (daemon-side `debug.last` shape).
+// Extension-side ring buffer entry for debug.log
 export interface TraceEntry {
   id: string;
-  action: string;
+  action: Action;
   tab: number;
   timestamp: number;
   elapsed: number;
   result: 'ok' | 'error';
-  errorCode?: string;
+  errorCode?: ErrorCode;
   replay: boolean;
   extensionVersion: string;
 }
 
+// Daemon-side ring buffer entry for debug.last
 export interface DaemonRequestTrace {
   id: string;
-  action: string;
-  session: string;
+  action: Action;
+  session: SessionId;
   receivedAt: number;
   elapsedMs: number;
   ok: boolean;
-  errorCode?: string;
+  errorCode?: ErrorCode;
   replayed?: boolean;
 }
 ```

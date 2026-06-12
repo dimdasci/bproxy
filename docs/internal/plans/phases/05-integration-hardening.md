@@ -293,14 +293,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Make documentation match Phase 5 reality after the code lands.
 
-- [ ] Update public solution specs for generated sessions, logical tab handles, `links`, selector fallback, and new error semantics.
-- [ ] Update `docs/internal/architecture.md` action table and session/tab model.
-- [ ] Update `docs/internal/scenarios.md` command flows to use `tab open` bootstrap, `links`, logical tab handles, and `session close`.
-- [ ] Update package READMEs and smoke instructions.
-- [ ] Update public views if the session state, deployment, container, or threat-model diagrams/prose are affected.
+- [X] Update public solution specs for generated sessions, logical tab handles, `links`, selector fallback, and new error semantics.
+- [X] Update `docs/internal/architecture.md` action table and session/tab model.
+- [X] Update `docs/internal/scenarios.md` command flows to use `tab open` bootstrap, `links`, logical tab handles, and `session close`.
+- [X] Update package READMEs and smoke instructions.
+- [X] Update public views if the session state, deployment, container, or threat-model diagrams/prose are affected.
 - [ ] Run `pnpm views:audit`; update frontmatter `sources` if the audit misses affected views.
 - [ ] Run `pnpm views:regen` and commit changed SVGs.
-- [ ] Search for stale Phase 4 syntax: `--tab-id`, raw `tabId` in normal docs, `default` session advice, positional command examples, and broad `tab list` language.
+- [X] Search for stale Phase 4 syntax: `--tab-id`, raw `tabId` in normal docs, `default` session advice, positional command examples, and broad `tab list` language.
 
 **Done when:** a reader following docs from a clean checkout uses the same commands and response shapes that the code actually ships.
 
@@ -334,7 +334,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Keep the daemon↔extension transport free to stay base64 internally if that is still the simplest wire format; the UX requirement is at the CLI boundary.
 - [X] Generate deterministic, collision-safe filenames suitable for repeated smoke/manual runs.
 - [X] Add tests for directory creation, filename shape, stdout JSON cleanliness, and error handling when the destination is missing/unwritable.
-- [ ] Update docs/examples so manual scenario validation uses the file-output form.
+- [X] Update docs/examples so manual scenario validation uses the file-output form.
 
 **Done when:** a real-site validation run can call `bproxy screenshot -s <id> --output-dir <dir>` and immediately inspect the returned file path without any external decode step.
 
@@ -356,7 +356,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
 - [X] Error envelopes are complete for every new error path.
 - [X] `debug.status` and `debug.last` show useful logical session/tab state.
-- [ ] Public and internal docs match shipped behaviour.
+- [X] Public and internal docs match shipped behaviour.
 - [ ] `pnpm views:regen` is current and generated SVGs are committed.
 - [X] `pnpm check`, `pnpm test`, and `pnpm docs:build` pass.
 

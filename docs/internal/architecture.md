@@ -141,16 +141,18 @@ Errors use a single RFC 9457-aligned envelope:
 }
 ```
 
-### Planned (Phase 5) browser-control contract amendments
+### Browser-control contract (Phase 5)
 
-- **Generated sessions:** daemon-created only, 6-character base32 lowercase ids without prefixes; no implicit shared `default` session for browser-control flows.
-- **Logical tabs:** normal CLI/protocol responses expose session-scoped handles such as `t1`; raw Chrome tab ids remain daemon/extension internals.
+- **Generated sessions:** daemon-created only, 6-character base32 lowercase ids (`SessionId` branded type); no implicit shared `default` session for browser-control flows.
+- **Logical tabs:** normal CLI/protocol responses expose session-scoped handles such as `t1` (`TabHandle` branded type); raw Chrome tab ids remain daemon/extension internals.
 - **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url }`.
-- **Scoped privacy:** normal `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
+- **Scoped privacy:** `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
 - **Bind/close rules:** `session bind --tab tN` accepts logical tab handles only; `session close -s <id>` closes all session-owned Chrome tabs.
 - **Extension-control wire shape:** the daemon reuses the existing `BproxyRequest` envelope and sets `target.tabId` to `null` for actions that do not target an existing tab. The background service worker routes `tab.open`, `tab.list`, and `tab.close` by action name without forwarding them to a content script.
-- **Structured links:** Phase 5 adds a first-class `links` read action for structured visible-link extraction, traversing open shadow roots by default.
-- **Phase 5 capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the planned shared error contract for the generated-session/logical-tab model.
+- **Structured links:** `links` is a first-class read action for structured visible-link extraction, traversing open shadow roots by default.
+- **Diagnostic commands:** `inspect` returns computed styles, layout rects, and scroll info for specific selectors; `snapshot` returns an accessible DOM tree serialization.
+- **Capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the shared error contract for the generated-session/logical-tab model.
+- **Screenshot file output:** `screenshot --output-dir <dir>` materializes the captured image to disk and returns `{ format, file, size }` instead of a base64 blob.
 
 ## Actions
 
@@ -158,12 +160,15 @@ Errors use a single RFC 9457-aligned envelope:
 |--------------|---------------------------------------------------------------------------------------|
 | `navigate`   | `chrome.tabs.update`. Waits for load. URL-driven.                                    |
 | `text`       | ISOLATED-world innerText extraction. Default selector: `body`.                       |
+| `links`      | Structured visible-link extraction with optional selector scope and limit.            |
 | `images`     | Visible images with src/alt/dimensions.                                              |
 | `elements`   | Interactive elements with stable selectors. `--form` variant for form fields.        |
 | `outline`    | Landmarks + heading hierarchy.                                                        |
 | `dom`        | Simplified subtree at controlled depth.                                               |
+| `inspect`    | Computed style, layout rect, and scroll info for specific selectors.                 |
+| `snapshot`   | Accessible DOM tree serialization (text-based, depth-limited).                       |
 | `scroll`     | Explicit viewport or element-target scroll actuator with honest movement/no-op reporting; agent owns target choice. |
-| `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` opt-ins.                            |
+| `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` / `--output-dir` opt-ins.           |
 | `fill`       | Three explicit methods: `direct` (DOM), `paste` (events), `runtime-api` (editor).      |
 | `fill-form`  | Bulk fill in one round-trip with internal pacing.                                    |
 | `select`     | Custom-dropdown helper: click trigger, wait for menu, click option.                  |
@@ -171,8 +176,8 @@ Errors use a single RFC 9457-aligned envelope:
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
 | `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
-| `debug.last` | Daemon log view (last N request lifecycles).                                     |
-| `debug.status` | Full system state (daemon, WS clients, sessions, paused).                      |
+| `debug.last` | Daemon trace ring buffer (capacity 200, in-memory).                              |
+| `debug.status` | Full system state (daemon, WS clients, sessions, tab ownership, paused).       |
 
 Routing details and contract: `docs/public/solution/service.md` § Action routing and session contract.
 

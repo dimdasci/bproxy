@@ -24,6 +24,8 @@ cli/
     ├── ids.ts                # crypto.randomUUID() request id generation
     ├── output.ts             # writeJson (stdout), writeVerbose/writeDiagnostic (stderr)
     ├── paths.ts              # BPROXY_HOME resolution + state file paths
+    ├── response-validation.ts # BproxyResponse shape check
+    ├── screenshot-file.ts    # screenshot file materialization (--output-dir)
     ├── service-binary.ts     # locate + spawn service binary (no source imports)
     ├── targets.ts            # --selector / --route-json → ElementTarget parser
     ├── token.ts              # owner/mode preflight (fail closed)
@@ -36,8 +38,10 @@ cli/
     │   ├── elements.ts       # elements [--form]
     │   ├── outline.ts        # outline
     │   ├── dom.ts            # dom [--selector] [--depth N]
-    │   ├── scroll.ts         # scroll [--selector/--route-json] [--by] [--direction] [--until-stable]
-    │   ├── screenshot.ts     # screenshot [--activate] [--debugger]
+    │   ├── inspect.ts        # inspect --selector [--properties] [--limit]
+    │   ├── snapshot.ts       # snapshot [--selector] [--max-depth] [--interactive-only]
+    │   ├── scroll.ts         # scroll [--selector/--route-json] [--by] [--direction]
+    │   ├── screenshot.ts     # screenshot [--activate] [--debugger] [--output-dir]
     │   ├── fill.ts           # fill --selector/--route-json --value --method --world
     │   ├── fill-form.ts      # fill-form --json/--file/--stdin
     │   ├── select.ts         # select --selector/--route-json --option-text
@@ -51,16 +55,18 @@ cli/
     │   │   ├── status.ts     # service status [--home] (token-free)
     │   │   └── restart.ts    # service restart [--port] [--home]
     │   ├── session/
+    │   │   ├── create.ts     # session create [--label]
     │   │   ├── list.ts       # session list
-    │   │   ├── bind.ts       # session bind --tab-id N [--pacing human|fast]
+    │   │   ├── bind.ts       # session bind --tab tN [--pacing human|fast]
     │   │   ├── unbind.ts     # session unbind
-    │   │   └── resume.ts     # session resume
+    │   │   ├── resume.ts     # session resume
+    │   │   └── close.ts      # session close
     │   ├── tab/
     │   │   ├── list.ts       # tab list
-    │   │   ├── pin.ts        # tab pin [--tab-id N]
+    │   │   ├── pin.ts        # tab pin [--tab tN]
     │   │   ├── unpin.ts      # tab unpin
     │   │   ├── open.ts       # tab open --url
-    │   │   └── close.ts      # tab close [--tab-id N]
+    │   │   └── close.ts      # tab close [--tab tN]
     │   └── debug/
     │       ├── log.ts        # debug log [--id] [--limit]
     │       ├── last.ts       # debug last [--count]
@@ -76,7 +82,7 @@ Every leaf command defines these via `globalArgs` spread:
 
 | Flag | Alias | Type | Default | Description |
 |------|-------|------|---------|-------------|
-| `--session` | `-s` | string | `"default"` | Session ID for the request |
+| `--session` | `-s` | string | *(required for browser commands)* | Session ID for the request |
 | `--timeout` | | string (ms) | `30000` | Protocol deadline in milliseconds |
 | `--home` | | string | `~/.bproxy` | Override `BPROXY_HOME` state directory |
 | `--verbose` | `-v` | boolean | `false` | Write structured diagnostics to stderr |
@@ -187,20 +193,22 @@ Composition: stop then start. Produces the same JSON as start.
 
 Daemon-local (no extension required):
 
+- `session create [--label TEXT]` — creates a new session, returns generated id
 - `session list` — returns all active sessions
-- `session bind --tab-id N [--pacing human|fast]` — binds session to tab (destructive)
+- `session bind --tab tN [--pacing human|fast]` — binds session to logical tab
 - `session unbind` — unbinds session from tab (destructive)
 - `session resume` — clears paused state (destructive)
+- `session close` — closes all session tabs and destroys session (destructive)
 
 ## Tab Commands
 
 Forwarded to extension (require connected WS client + bound session):
 
-- `tab list` — list open tabs (non-destructive)
-- `tab pin [--tab-id N]` — pin a tab (destructive, does NOT bind session)
+- `tab list` — list session-owned tabs (non-destructive)
+- `tab pin [--tab tN]` — pin a tab (destructive)
 - `tab unpin` — unpin current tab (destructive)
-- `tab open --url <url>` — open new tab (destructive)
-- `tab close [--tab-id N]` — close tab (destructive)
+- `tab open --url <url>` — open new tab, auto-create session if `-s` omitted (destructive)
+- `tab close [--tab tN]` — close tab (destructive)
 
 ## Debug Commands
 
@@ -227,7 +235,7 @@ Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `m
 
 ### `select --selector/--route-json --option-text`
 
-### `scroll [--selector/--route-json] [--by] [--direction] [--until-stable]`
+### `scroll [--selector/--route-json] [--by] [--direction]`
 
 - Target omitted: scroll the viewport/document only.
 - `--selector` / `--route-json`: scroll exactly that resolved element. bproxy does not infer or fall back to other scroll containers.
@@ -239,9 +247,9 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 
 `command-registry.ts` classifies every shared `Action` as destructive or non-destructive. A compile-time exhaustiveness assertion ensures adding a new shared action without updating the registry causes a build failure.
 
-**Destructive:** navigate, scroll, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.bind, session.unbind, session.resume, require-human.
+**Destructive:** navigate, scroll, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
 
-**Non-destructive:** text, links, images, elements, outline, dom, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
+**Non-destructive:** text, links, images, elements, outline, dom, inspect, snapshot, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
 
 ## Verbose Mode (`--verbose`)
 

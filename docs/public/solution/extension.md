@@ -243,6 +243,8 @@ Handled through `src/content/**` and routed via background/content RPC.
 | Action | Notes |
 |---|---|
 | `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, and can filter to visible/in-viewport anchors |
+| `inspect` | Computed-style and layout inspection for specific selectors (rect, display, descendants, scroll info) |
+| `snapshot` | Accessible DOM tree serialization (text-based, depth-limited, optional interactive-only mode) |
 | `scroll`, `wait` | Jittered polling only; no `MutationObserver`. `scroll` targets only the viewport/document by default or an explicit agent-supplied `ElementTarget`; it never infers scroll containers. |
 | `fill(method="direct")` | Native DOM state write, no events |
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
@@ -325,6 +327,8 @@ interface PageState {
   busy: boolean;
 }
 ```
+
+The `busy` heuristic checks for `[aria-busy="true"]`, active `<progress>`, and pending navigations — but requires that matched elements are **visible** (via `checkVisibility()`). Hidden or off-screen busy indicators (common on Google SERPs) do not trigger false-positive `busy: true`.
 
 ---
 
