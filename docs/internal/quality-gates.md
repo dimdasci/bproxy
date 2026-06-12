@@ -128,7 +128,7 @@ What runs on each commit:
 
 | Pattern | Tool | Mode |
 |---|---|---|
-| `*.{ts,tsx,mts,js,json,md}` | Biome | Format fix (auto-stages corrected files) |
+| `*.{ts,tsx,mts,js,json}` | Biome | Format fix (auto-stages corrected files) |
 | `*.{ts,tsx,mts}` | ESLint | Check only (`--max-warnings 0`) |
 
 Typecheck (`tsc --noEmit`) is **not** included in pre-commit because it requires whole-project context and is too slow for individual commits. It remains part of `pnpm check` and CI.
