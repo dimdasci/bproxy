@@ -35,6 +35,8 @@ const main = defineCommand({
 		elements: () => import("./commands/elements.js").then((m) => m.default),
 		outline: () => import("./commands/outline.js").then((m) => m.default),
 		dom: () => import("./commands/dom.js").then((m) => m.default),
+		inspect: () => import("./commands/inspect.js").then((m) => m.default),
+		snapshot: () => import("./commands/snapshot.js").then((m) => m.default),
 		scroll: () => import("./commands/scroll.js").then((m) => m.default),
 		screenshot: () => import("./commands/screenshot.js").then((m) => m.default),
 		fill: () => import("./commands/fill.js").then((m) => m.default),

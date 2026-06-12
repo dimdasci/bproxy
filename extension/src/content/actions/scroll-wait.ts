@@ -61,7 +61,7 @@ export async function handleScroll(
 			request.params.direction,
 			baseDistance,
 		);
-		return scrollElement(element, distance, request.params.untilStable === true, deps, doc);
+		return scrollElement(element, distance, deps, doc);
 	}
 
 	const distance = resolveScrollDistance(
@@ -69,7 +69,7 @@ export async function handleScroll(
 		request.params.direction,
 		win.innerHeight,
 	);
-	return scrollViewport(win, distance, request.params.untilStable === true, deps, doc);
+	return scrollViewport(win, distance, deps, doc);
 }
 
 export async function handleWait(
@@ -161,15 +161,12 @@ async function waitForNavigation(
 async function scrollViewport(
 	win: ScrollWaitWindow,
 	distance: number,
-	untilStable: boolean,
 	deps: ScrollWaitDeps,
 	doc: ScrollWaitDocument,
 ): Promise<ActionResult["scroll"]> {
 	const before = readScrollTop(win);
 	win.scrollBy({ top: distance, behavior: "smooth" });
-	const stable = untilStable
-		? await waitForScrollStable(() => readScrollTop(win), deps, doc)
-		: false;
+	const stable = await waitForScrollStable(() => readScrollTop(win), deps, doc);
 	const after = readScrollTop(win);
 	const scrolledPx = after - before;
 	return {
@@ -185,15 +182,12 @@ async function scrollViewport(
 async function scrollElement(
 	element: Element,
 	distance: number,
-	untilStable: boolean,
 	deps: ScrollWaitDeps,
 	doc: ScrollWaitDocument,
 ): Promise<ActionResult["scroll"]> {
 	const before = element.scrollTop;
 	element.scrollBy({ top: distance, behavior: "smooth" });
-	const stable = untilStable
-		? await waitForScrollStable(() => element.scrollTop, deps, doc)
-		: false;
+	const stable = await waitForScrollStable(() => element.scrollTop, deps, doc);
 	const after = element.scrollTop;
 	const scrolledPx = after - before;
 	return {

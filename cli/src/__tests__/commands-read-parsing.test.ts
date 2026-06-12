@@ -184,11 +184,10 @@ describe("optional param omission patterns", () => {
 	});
 
 	it("scroll command omits all params when none provided", () => {
-		const args: Record<string, unknown> = { verbose: false, "until-stable": false };
+		const args: Record<string, unknown> = { verbose: false };
 		const params: Record<string, unknown> = {};
 		if (typeof args["by"] === "string") params["by"] = args["by"];
 		if (typeof args["direction"] === "string") params["direction"] = args["direction"];
-		if (args["until-stable"] === true) params["untilStable"] = true;
 		expect(params).toEqual({});
 	});
 

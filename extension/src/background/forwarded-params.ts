@@ -13,6 +13,8 @@ export function paramsValidForAction<A extends ForwardedAction>(
 		elements: isElementsParams,
 		outline: isEmptyParams,
 		dom: isDomParams,
+		inspect: isInspectParams,
+		snapshot: isSnapshotParams,
 		scroll: isScrollParams,
 		screenshot: isScreenshotParams,
 		fill: isFillParams,
@@ -64,12 +66,12 @@ function isDomParams(value: unknown): value is ActionParams["dom"] {
 
 function isScrollParams(value: unknown): value is ActionParams["scroll"] {
 	return (
-		isStrictObject(value, ["by", "direction", "untilStable"]) &&
+		isStrictObject(value, ["target", "by", "direction"]) &&
+		(value["target"] === undefined || isElementTarget(value["target"])) &&
 		(value["by"] === undefined || typeof value["by"] === "string") &&
 		(value["direction"] === undefined ||
 			value["direction"] === "up" ||
-			value["direction"] === "down") &&
-		(value["untilStable"] === undefined || typeof value["untilStable"] === "boolean")
+			value["direction"] === "down")
 	);
 }
 
@@ -146,6 +148,26 @@ function isDebugLogParams(value: unknown): value is ActionParams["debug.log"] {
 		isStrictObject(value, ["id", "limit"]) &&
 		(value["id"] === undefined || typeof value["id"] === "string") &&
 		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
+}
+
+function isInspectParams(value: unknown): value is ActionParams["inspect"] {
+	return (
+		isStrictObject(value, ["selector", "properties", "limit"]) &&
+		typeof value["selector"] === "string" &&
+		(value["properties"] === undefined ||
+			(Array.isArray(value["properties"]) &&
+				value["properties"].every((p: unknown) => typeof p === "string"))) &&
+		(value["limit"] === undefined || isInteger(value["limit"]))
+	);
+}
+
+function isSnapshotParams(value: unknown): value is ActionParams["snapshot"] {
+	return (
+		isStrictObject(value, ["selector", "maxDepth", "interactiveOnly"]) &&
+		(value["selector"] === undefined || typeof value["selector"] === "string") &&
+		(value["maxDepth"] === undefined || isInteger(value["maxDepth"])) &&
+		(value["interactiveOnly"] === undefined || typeof value["interactiveOnly"] === "boolean")
 	);
 }
 

@@ -8,6 +8,8 @@ export type ContentAction = Extract<
 	| "elements"
 	| "outline"
 	| "dom"
+	| "inspect"
+	| "snapshot"
 	| "scroll"
 	| "fill"
 	| "fill-form"
@@ -70,6 +72,8 @@ const CONTENT_ACTIONS = [
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"fill",
 	"fill-form",

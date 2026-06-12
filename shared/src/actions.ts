@@ -9,6 +9,8 @@ export type Action =
 	| "elements"
 	| "outline"
 	| "dom"
+	| "inspect"
+	| "snapshot"
 	| "scroll"
 	| "screenshot"
 	| "fill"
@@ -86,6 +88,23 @@ export interface Heading {
 	text: string;
 }
 
+export interface InspectElement {
+	index: number;
+	tag: string;
+	id: string;
+	classes: string;
+	role: string;
+	ariaLabel: string;
+	rect: { x: number; y: number; width: number; height: number };
+	computed: Record<string, string>;
+	children: number;
+	descendants: number;
+	textLength: number;
+	scrollable: boolean;
+	scrollInfo?: { scrollTop: number; scrollHeight: number; clientHeight: number };
+	selector: string;
+}
+
 export interface TraceEntry {
 	id: string;
 	action: Action;
@@ -121,7 +140,9 @@ export interface ActionParams {
 	elements: { form?: boolean };
 	outline: Record<string, never>;
 	dom: { selector?: string; depth?: number };
-	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down"; untilStable?: boolean };
+	inspect: { selector: string; properties?: string[]; limit?: number };
+	snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
+	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down" };
 	screenshot: { activate?: boolean; debugger?: boolean };
 	fill: {
 		target: ElementTarget;
@@ -166,6 +187,8 @@ export interface ActionResult {
 	elements: { elements: Array<ElementInfo> };
 	outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
 	dom: { html: string };
+	inspect: { elements: Array<InspectElement>; total: number };
+	snapshot: { tree: string; nodeCount: number };
 	scroll: {
 		target: "viewport" | "element";
 		before: number;

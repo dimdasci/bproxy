@@ -92,14 +92,11 @@ describe("scroll and wait actions", () => {
 		};
 		const clock = createVirtualClock([0]);
 
-		const result = await handleScroll(
-			request("scroll", { by: "viewport", direction: "down", untilStable: true }),
-			{
-				document: page as unknown as ScrollWaitDocument,
-				window: win,
-				...clock,
-			},
-		);
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
 
 		expect(result).toEqual({
 			target: "viewport",
@@ -114,14 +111,13 @@ describe("scroll and wait actions", () => {
 	it("returns before/after scroll math and viewport default distance", async () => {
 		const page = withPageState(doc(el("html", { children: [el("body")] })), "visible", "complete");
 		const win = createWindow(1000, 100);
+		const clock = createVirtualClock([0]);
 
-		const result = await handleScroll(
-			request("scroll", { by: "viewport", direction: "down", untilStable: false }),
-			{
-				document: page as unknown as ScrollWaitDocument,
-				window: win,
-			},
-		);
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
 
 		expect(result).toEqual({
 			target: "viewport",
@@ -129,7 +125,7 @@ describe("scroll and wait actions", () => {
 			after: 950,
 			scrolledPx: 850,
 			moved: true,
-			stable: false,
+			stable: true,
 		});
 	});
 
@@ -145,14 +141,13 @@ describe("scroll and wait actions", () => {
 			scrollY: 0,
 			scrollBy: vi.fn(),
 		};
+		const clock = createVirtualClock([0]);
 
-		const result = await handleScroll(
-			request("scroll", { by: "viewport", direction: "down", untilStable: false }),
-			{
-				document: page as unknown as ScrollWaitDocument,
-				window: win,
-			},
-		);
+		const result = await handleScroll(request("scroll", { by: "viewport", direction: "down" }), {
+			document: page as unknown as ScrollWaitDocument,
+			window: win,
+			...clock,
+		});
 
 		expect(scrollable.scrollBy).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ target: "viewport", moved: false, scrolledPx: 0 });
@@ -166,17 +161,18 @@ describe("scroll and wait actions", () => {
 			"complete",
 		);
 		const win = createWindow(1000, 0);
+		const clock = createVirtualClock([0]);
 
 		const result = await handleScroll(
 			request("scroll", {
 				target: { selector: "#workspace" },
 				by: "viewport",
 				direction: "down",
-				untilStable: false,
 			}),
 			{
 				document: page as unknown as ScrollWaitDocument,
 				window: win,
+				...clock,
 			},
 		);
 
@@ -187,7 +183,7 @@ describe("scroll and wait actions", () => {
 			after: 440,
 			scrolledPx: 340,
 			moved: true,
-			stable: false,
+			stable: true,
 			scrollHeight: 2400,
 			clientHeight: 400,
 		});
@@ -204,17 +200,18 @@ describe("scroll and wait actions", () => {
 			"visible",
 			"complete",
 		);
+		const clock = createVirtualClock([0]);
 
 		const result = await handleScroll(
 			request("scroll", {
 				target: { route: { hosts: [{ selector: "x-shell" }], target: "#pane" } },
 				by: "100px",
 				direction: "down",
-				untilStable: false,
 			}),
 			{
 				document: page as unknown as ScrollWaitDocument,
 				window: createWindow(1000, 0),
+				...clock,
 			},
 		);
 

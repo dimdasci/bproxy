@@ -9,15 +9,17 @@ import {
 import { readDeepText, serializeElementTree } from "../read-tree";
 import { resolveReadRoot } from "../read-utils";
 import type { ContentRpcHandlers, ContentRpcRequest } from "../rpc";
+import { handleInspect } from "./inspect";
 import { handleLinks } from "./links";
+import { handleSnapshot } from "./snapshot";
 
-export interface ReadActionDeps {
-	document?: Document;
-}
+export type { ReadActionDeps } from "./read-deps";
+
+import type { ReadActionDeps } from "./read-deps";
 
 type ReadActionName = Extract<
 	keyof ContentRpcHandlers,
-	"text" | "links" | "images" | "elements" | "outline" | "dom"
+	"text" | "links" | "images" | "elements" | "outline" | "dom" | "inspect" | "snapshot"
 >;
 
 type ReadActionHandlers = Required<Pick<ContentRpcHandlers, ReadActionName>>;
@@ -55,6 +57,8 @@ export function createReadHandlers(deps: ReadActionDeps = {}): ReadActionHandler
 		elements: (request) => ({ elements: handleElements(request, deps) }),
 		outline: (_request) => handleOutline(deps),
 		dom: (request) => ({ html: handleDom(request, deps) }),
+		inspect: (request) => handleInspect(request, deps),
+		snapshot: (request) => handleSnapshot(request, deps),
 	};
 }
 

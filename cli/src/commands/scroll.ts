@@ -13,11 +13,6 @@ export default defineCommand({
 		"route-json": { type: "string", description: "JSON route for shadow DOM scroll target" },
 		by: { type: "string", description: "Scroll amount (e.g. 'viewport', '500px')" },
 		direction: { type: "string", description: "Scroll direction: up or down" },
-		"until-stable": {
-			type: "boolean",
-			description: "Scroll until position stabilizes",
-			default: false,
-		},
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
@@ -45,9 +40,6 @@ export default defineCommand({
 				return;
 			}
 			params.direction = args.direction;
-		}
-		if (args["until-stable"] === true) {
-			params.untilStable = true;
 		}
 
 		const plan = await sendAction("scroll", params, globals);

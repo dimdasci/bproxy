@@ -9,6 +9,7 @@ export type {
 	ExecutionWorld,
 	FillMethod,
 	Heading,
+	InspectElement,
 	Landmark,
 	LinkInfo,
 	TraceEntry,

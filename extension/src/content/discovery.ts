@@ -209,7 +209,10 @@ function readOptions(element: Element): string[] | undefined {
 
 function readValue(element: Element): string {
 	const candidate = element as Element & { value?: unknown; isContentEditable?: boolean };
-	if (typeof candidate.value === "string") return candidate.value;
+	// <button>.value is always "" (the HTML value attribute, not visual content).
+	// For buttons, the meaningful content is textContent.
+	const tag = element.tagName.toLowerCase();
+	if (tag !== "button" && typeof candidate.value === "string") return candidate.value;
 	if (candidate.isContentEditable === true) return normalizeText(element.textContent ?? "");
 	return normalizeText(element.textContent ?? "");
 }

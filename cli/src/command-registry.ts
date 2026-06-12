@@ -41,6 +41,8 @@ const NON_DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"screenshot",
 	"wait",
 	"tab.list",

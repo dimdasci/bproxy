@@ -90,6 +90,13 @@ function isHiddenByAttributes(element: Element): boolean {
 }
 
 function hasZeroRect(element: Element): boolean {
+	// Elements with display:contents are layout-transparent — they have no
+	// box of their own (getBoundingClientRect returns all zeros) but their
+	// children participate in the parent's layout and are fully visible.
+	// Sites like LinkedIn use this pattern extensively.
+	const style = getComputedStyleSafe(element);
+	if (style?.display === "contents") return false;
+
 	const rect =
 		typeof element.getBoundingClientRect === "function"
 			? element.getBoundingClientRect()

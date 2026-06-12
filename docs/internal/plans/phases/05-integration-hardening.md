@@ -251,6 +251,23 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ---
 
+## Task 8a: Diagnostic sensor commands (`inspect` + `snapshot`)
+
+**Plan:** [`05a-inspect-snapshot.md`](./05a-inspect-snapshot.md)
+
+**Purpose:** Give agents self-diagnostic capability when existing sensors fail. Discovered during LinkedIn scenario validation (Task 8, Scenario 2) — `text` returned 282 chars due to `display: contents` wrappers; agent had no way to diagnose without dev-browser/CDP.
+
+- [X] Implement `inspect` action — CSS selector → structural metadata (rect, computed styles, descendants, textLength, scroll state). Same fixed-schema sensor pattern as `text`/`dom`.
+- [X] Implement `snapshot` action — accessibility tree sensor. Walks DOM + ARIA semantics, immune to CSS layout tricks. Returns indented text optimized for LLM consumption.
+- [X] Wire through all 6 layers: shared types → service schemas → extension forwarded-actions → content RPC → content handlers → CLI commands.
+- [X] Tests: 17 new tests (7 inspect, 10 snapshot), all existing 329+187+162 tests pass.
+- [X] Quality gates: `pnpm check` passes (typecheck, format, lint, arch, deadcode).
+- [X] Validated in production against live LinkedIn profile and job search pages.
+
+**Done when:** agents can run `bproxy inspect --selector "section > div"` and immediately see `{display: "contents", rect: 0×0, descendants: 2273, textLength: 15116}` — self-diagnosing layout-transparent wrappers without reaching for a second tool.
+
+---
+
 ## Task 9: Observability, deadlines, and error-envelope hardening
 
 **Files:** `service/src/logger.ts`, `service/src/debug-actions.ts`, `service/src/pending.ts`, `cli/src/client.ts`, tests, solution docs.

@@ -102,6 +102,8 @@ describe("action coverage", () => {
 		elements: "commands/elements.ts",
 		outline: "commands/outline.ts",
 		dom: "commands/dom.ts",
+		inspect: "commands/inspect.ts",
+		snapshot: "commands/snapshot.ts",
 		scroll: "commands/scroll.ts",
 		screenshot: "commands/screenshot.ts",
 		fill: "commands/fill.ts",

@@ -39,7 +39,6 @@ describe("request schemas", () => {
 				target: { selector: "main#workspace" },
 				by: "viewport",
 				direction: "down",
-				untilStable: true,
 			}).success,
 		).toBe(true);
 	});

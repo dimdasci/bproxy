@@ -101,6 +101,8 @@ describe("allRegisteredActions", () => {
 			"elements",
 			"outline",
 			"dom",
+			"inspect",
+			"snapshot",
 			"scroll",
 			"screenshot",
 			"fill",

@@ -279,26 +279,26 @@ describe("scroll command", () => {
 		});
 	});
 
-	it("sends scroll action with untilStable", async () => {
+	it("sends scroll action with direction", async () => {
 		const home = setupTempHome();
-		const { plan, calls } = await sendWithCapture("scroll", { untilStable: true }, home);
+		const { plan, calls } = await sendWithCapture("scroll", { direction: "down" }, home);
 
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
 			action: "scroll",
-			params: { untilStable: true },
+			params: { direction: "down" },
 		});
 	});
 
 	it("sends scroll with all params combined", async () => {
 		const home = setupTempHome();
-		const params = { by: "500px", direction: "down", untilStable: true };
+		const params = { by: "500px", direction: "down" };
 		const { plan, calls } = await sendWithCapture("scroll", params, home);
 
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
 			action: "scroll",
-			params: { by: "500px", direction: "down", untilStable: true },
+			params: { by: "500px", direction: "down" },
 		});
 	});
 

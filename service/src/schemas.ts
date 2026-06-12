@@ -13,6 +13,8 @@ export const ACTIONS = [
 	"elements",
 	"outline",
 	"dom",
+	"inspect",
+	"snapshot",
 	"scroll",
 	"screenshot",
 	"fill",
@@ -73,12 +75,25 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 	elements: z.object({ form: z.boolean().optional() }).strict(),
 	outline: z.object({}).strict(),
 	dom: z.object({ selector: z.string().optional(), depth: z.number().int().optional() }).strict(),
+	inspect: z
+		.object({
+			selector: z.string(),
+			properties: z.array(z.string()).optional(),
+			limit: z.number().int().min(1).max(50).optional(),
+		})
+		.strict(),
+	snapshot: z
+		.object({
+			selector: z.string().optional(),
+			maxDepth: z.number().int().min(1).max(12).optional(),
+			interactiveOnly: z.boolean().optional(),
+		})
+		.strict(),
 	scroll: z
 		.object({
 			target: elementTarget.optional(),
 			by: z.string().optional(),
 			direction: z.enum(["up", "down"]).optional(),
-			untilStable: z.boolean().optional(),
 		})
 		.strict(),
 	screenshot: z
