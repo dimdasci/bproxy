@@ -328,12 +328,12 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 **Purpose:** Make screenshots usable in real operator-guided workflows without requiring manual base64 decoding outside bproxy.
 
-- [ ] Add a screenshot destination flag (for example `--output-dir <dir>`) to the CLI.
-- [ ] Materialize screenshot bytes into a real image file in that directory.
-- [ ] Return file metadata/path in the agent-facing CLI result instead of an inlined base64 blob.
-- [ ] Keep the daemon↔extension transport free to stay base64 internally if that is still the simplest wire format; the UX requirement is at the CLI boundary.
-- [ ] Generate deterministic, collision-safe filenames suitable for repeated smoke/manual runs.
-- [ ] Add tests for directory creation, filename shape, stdout JSON cleanliness, and error handling when the destination is missing/unwritable.
+- [X] Add a screenshot destination flag (for example `--output-dir <dir>`) to the CLI.
+- [X] Materialize screenshot bytes into a real image file in that directory.
+- [X] Return file metadata/path in the agent-facing CLI result instead of an inlined base64 blob.
+- [X] Keep the daemon↔extension transport free to stay base64 internally if that is still the simplest wire format; the UX requirement is at the CLI boundary.
+- [X] Generate deterministic, collision-safe filenames suitable for repeated smoke/manual runs.
+- [X] Add tests for directory creation, filename shape, stdout JSON cleanliness, and error handling when the destination is missing/unwritable.
 - [ ] Update docs/examples so manual scenario validation uses the file-output form.
 
 **Done when:** a real-site validation run can call `bproxy screenshot -s <id> --output-dir <dir>` and immediately inspect the returned file path without any external decode step.
@@ -350,7 +350,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Browser-control commands reject missing/invalid sessions instead of silently using `default`.
 - [X] `links --selector "#search"` returns structured URLs for a search-results page.
 - [X] `elements` succeeds on labels with newlines/quotes/backslashes and does not fail the whole command because of selector generation.
-- [ ] `screenshot -s <id> --output-dir <dir>` returns a directly inspectable file path, not only base64 payload text.
+- [X] `screenshot -s <id> --output-dir <dir>` returns a directly inspectable file path, not only base64 payload text.
 - [X] `scroll --selector 'main#workspace' --direction down` scrolls an explicit element and reports `moved: true`.
 - [X] `scroll --direction down` with no target scrolls viewport only and reports `moved: false` honestly on SPA pages without viewport scroll.
 - [X] Scenario 1 runs autonomously to completion; Scenarios 2 and 3 are validated to the documented human-in-loop boundaries.
