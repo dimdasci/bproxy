@@ -99,7 +99,7 @@ Failure at any layer → 401, connection closed.
 ## HTTP Route: `POST /`
 
 `debug.*` actions are handled here as first-class protocol actions:
-- `debug.last`: read/parse daemon lifecycle log and return last N request traces.
+- `debug.last`: return last N request traces from the daemon's in-memory ring buffer.
 - `debug.status`: return daemon + WS + session state snapshot.
 - `debug.log`: proxy request to extension and return ring-buffer entries.
 
@@ -149,8 +149,9 @@ This state is in-memory only and resets on daemon restart.
 |---|---:|---:|
 | `debug.last`, `debug.status` | ✅ | ❌ |
 | `session.create`, `session.list`, `session.bind`, `session.unbind`, `session.resume`, `session.close` | ✅ | ❌ (session.close forwards tab.close sub-requests) |
+| `tab.list` | ✅ (reads session tab registry) | ❌ |
 | `debug.log` | ❌ | ✅ |
-| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `fill`, `tab.*`, ...) | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, ...) | ❌ | ✅ |
 
 ### `session.*` semantics
 
@@ -361,14 +362,15 @@ Bounded map of in-flight requests. Features:
 **File:** `src/sessions.ts`
 
 ```typescript
-interface InternalSession {
-  id: SessionId;             // generated 6-char base32
-  label?: string;
-  boundTab: TabHandle | null;
-  pacing: PacingMode;
-  paused: boolean;
-  pauseReason?: string;
-  tabs: Map<TabHandle, number>;  // logical handle → Chrome tab id
+interface InternalSession extends SessionInfo {
+  // SessionInfo fields: id, label?, tab (bound handle or null), pacing, paused, pauseReason?
+  lastActionAt: Record<string, number>;       // pacing timestamps per action category
+  tabs: Map<TabHandle, InternalTabInfo>;       // logical handle → tab metadata + Chrome id
+  nextTabOrdinal: number;                     // counter for generating t1, t2, ...
+}
+
+interface InternalTabInfo extends TabInfo {
+  chromeTabId: number;   // internal Chrome tab id, never exposed in protocol
 }
 ```
 

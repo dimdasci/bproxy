@@ -202,9 +202,10 @@ Daemon-local (no extension required):
 
 ## Tab Commands
 
-Forwarded to extension (require connected WS client + bound session):
+- `tab list` — list session-owned tabs (non-destructive, daemon-local — no extension required)
 
-- `tab list` — list session-owned tabs (non-destructive)
+Forwarded to extension (require connected WS client):
+
 - `tab pin [--tab tN]` — pin a tab (destructive)
 - `tab unpin` — unpin current tab (destructive)
 - `tab open --url <url>` — open new tab, auto-create session if `-s` omitted (destructive)

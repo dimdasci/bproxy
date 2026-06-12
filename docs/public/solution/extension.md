@@ -276,7 +276,7 @@ Handled in `src/background/browser-actions.ts`.
 | `navigate` | `chrome.tabs.update` + wait for top-level load + interstitial detection → `HUMAN_REQUIRED` |
 | `screenshot` | `chrome.tabs.captureVisibleTab` normal path |
 | `screenshot(debugger=true)` | currently returns `DEBUGGER_DISABLED` unless a future explicit opt-in ships with permission + flag wiring |
-| `tab.list` | returns Chrome tabs plus injected/session annotations where known |
+| `tab.list` | **not forwarded** — daemon resolves from session tab registry without extension involvement |
 | `tab.open`, `tab.close`, `tab.pin`, `tab.unpin` | Chrome tabs API only; does not take ownership of daemon session state |
 | `require-human` | returns structured `HUMAN_REQUIRED` for daemon pause handling |
 
