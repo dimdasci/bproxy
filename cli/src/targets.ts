@@ -18,7 +18,7 @@ export interface TargetError {
 
 export type TargetResult = TargetOk | TargetError;
 
-export type OptionalTargetResult = TargetResult | { ok: true; target?: undefined };
+export type OptionalTargetResult = TargetResult | { ok: true; target: undefined };
 
 /**
  * Parse an optional ElementTarget from CLI args.
@@ -30,7 +30,7 @@ export function parseOptionalTarget(
 	selector: string | undefined,
 	routeJson: string | undefined,
 ): OptionalTargetResult {
-	if (!selector && !routeJson) return { ok: true };
+	if (!selector && !routeJson) return { ok: true, target: undefined };
 	return parseTarget(selector, routeJson);
 }
 

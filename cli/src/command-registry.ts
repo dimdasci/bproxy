@@ -78,5 +78,4 @@ type _AssertCoverage = {
 		: never;
 };
 // Suppress unused warning — exists only for the compile-time check.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _Use = _AssertCoverage;

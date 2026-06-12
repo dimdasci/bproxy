@@ -49,20 +49,20 @@ describe("snapshotPageState", () => {
 	});
 });
 
-describe("snapshotDomPageState — busy visibility", () => {
-	function makeDeps(opts: { selector?: string | null; isVisible?: boolean }) {
-		const el = opts.selector !== null ? ({ tagName: "DIV" } as unknown as Element) : null;
-		return {
-			document: {
-				title: "Test",
-				readyState: "complete" as DocumentReadyState,
-				querySelector: (_sel: string) => el,
-			},
-			location: { href: "https://example.test/page" },
-			isVisible: (_e: Element) => opts.isVisible ?? false,
-		};
-	}
+function makeDeps(opts: { selector?: string | null; isVisible?: boolean }) {
+	const el = opts.selector === null ? null : ({ tagName: "DIV" } as unknown as Element);
+	return {
+		document: {
+			title: "Test",
+			readyState: "complete" as DocumentReadyState,
+			querySelector: (_sel: string) => el,
+		},
+		location: { href: "https://example.test/page" },
+		isVisible: (_e: Element) => opts.isVisible ?? false,
+	};
+}
 
+describe("snapshotDomPageState — busy visibility", () => {
 	it("reports busy: false when busy element exists but is hidden", () => {
 		const state = snapshotDomPageState(makeDeps({ selector: "found", isVisible: false }));
 		expect(state.busy).toBe(false);

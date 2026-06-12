@@ -54,5 +54,5 @@ export function writeScreenshotFile(
  * Example: 2026-06-12T18-45-30.123Z
  */
 function formatTimestamp(date: Date): string {
-	return date.toISOString().replace(/:/g, "-");
+	return date.toISOString().replaceAll(":", "-");
 }

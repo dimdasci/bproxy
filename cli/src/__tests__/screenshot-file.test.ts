@@ -89,41 +89,40 @@ describe("writeScreenshotFile", () => {
 	});
 });
 
+const INT_TINY_PNG =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAw" +
+	"AFDgGMksMOHwAAAABJRU5ErkJggg==";
+
+function setupHome(): string {
+	const dir = mkdtempSync(join(tmpdir(), "bproxy-ss-int-"));
+	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
+	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
+	return dir;
+}
+
+function screenshotResponse(id: string) {
+	return {
+		protocol_version: 1,
+		id,
+		ok: true,
+		data: { base64: INT_TINY_PNG, format: "png" },
+		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
+		replay: false,
+	};
+}
+
+function mockFetch(responseBody: unknown): typeof globalThis.fetch {
+	return (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+		return Promise.resolve(
+			new Response(JSON.stringify(responseBody), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}),
+		);
+	};
+}
+
 describe("screenshot --output-dir integration", () => {
-	const TINY_PNG =
-		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAw" +
-		"AFDgGMksMOHwAAAABJRU5ErkJggg==";
-
-	function setupHome(): string {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-ss-int-"));
-		writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
-		writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
-		return dir;
-	}
-
-	function screenshotResponse(id: string) {
-		return {
-			protocol_version: 1,
-			id,
-			ok: true,
-			data: { base64: TINY_PNG, format: "png" },
-			page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
-			replay: false,
-		};
-	}
-
-	function mockFetch(responseBody: unknown) {
-		const fn = (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
-			return Promise.resolve(
-				new Response(JSON.stringify(responseBody), {
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}),
-			);
-		};
-		return fn as typeof globalThis.fetch;
-	}
-
 	it("command writes file and stdout has file path instead of base64", async () => {
 		const home = setupHome();
 		const outputDir = join(makeTempDir(), "screens");
@@ -146,7 +145,7 @@ describe("screenshot --output-dir integration", () => {
 
 		// Verify file written
 		expect(existsSync(result.file)).toBe(true);
-		expect(result.size).toBe(Buffer.from(TINY_PNG, "base64").length);
+		expect(result.size).toBe(Buffer.from(INT_TINY_PNG, "base64").length);
 
 		// Verify transformed output shape
 		const transformed = {
@@ -174,6 +173,6 @@ describe("screenshot --output-dir integration", () => {
 		const response = plan.stdout as BproxyResponse<"screenshot">;
 		expect(response.ok).toBe(true);
 		if (!response.ok) return;
-		expect(response.data.base64).toBe(TINY_PNG);
+		expect(response.data.base64).toBe(INT_TINY_PNG);
 	});
 });

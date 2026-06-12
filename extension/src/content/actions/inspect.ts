@@ -118,8 +118,7 @@ function countDescendants(element: Element): number {
 	let count = 0;
 	// walkComposedElements with includeRoot:true enters shadow roots.
 	// We subtract 1 because includeRoot yields the root itself.
-	for (const _child of walkComposedElements(element, { includeRoot: true })) {
-		void _child;
+	for (const _el of walkComposedElements(element, { includeRoot: true })) {
 		count++;
 		if (count >= MAX_DESCENDANTS + 1) break;
 	}

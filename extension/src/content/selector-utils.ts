@@ -54,7 +54,7 @@ export function getSelectorParent(element: Element, root: QueryRoot): Element | 
 export function getElementRoot(element: Element): QueryRoot {
 	const root = element.getRootNode();
 	if (isShadowRootLike(root)) return root;
-	return (element.ownerDocument ?? document) as Document;
+	return element.ownerDocument ?? document;
 }
 
 export function hasOpenShadowRoot(

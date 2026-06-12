@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- compile-time assertions */
+/* compile-time assertions */
 import type { Action, ActionParams, ActionResult, DaemonRequestTrace, TraceEntry } from "./actions";
 import type { ErrorCode } from "./errors";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";

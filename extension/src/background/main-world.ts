@@ -153,7 +153,7 @@ function malformedExecuteScriptResultDetails(
 
 function objectKeys(value: unknown): string[] | undefined {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-	return Object.keys(value as Record<string, unknown>);
+	return Object.keys(value);
 }
 
 function previewValue(value: unknown): unknown {

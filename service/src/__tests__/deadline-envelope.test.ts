@@ -343,7 +343,7 @@ describe("lifecycle log events for session-local and tab-mediated actions", () =
 
 		// Sub-request tab.close should have forwarded
 		const subEvents = captured.lines.filter(
-			(l) => typeof l["id"] === "string" && (l["id"] as string).startsWith(`${cmd.id}:close:`),
+			(l) => typeof l["id"] === "string" && l["id"].startsWith(`${cmd.id}:close:`),
 		);
 		const subForwarded = subEvents.filter((l) => l["event"] === "forwarded");
 		expect(subForwarded.length).toBeGreaterThanOrEqual(1);

@@ -204,7 +204,7 @@ function buildPathSelector(
 
 function selectsExactly(root: QueryRoot, selector: string, expected: Element): boolean {
 	const matches = tryQueryAll(root, selector);
-	return Boolean(matches && matches.length === 1 && matches[0] === expected);
+	return Boolean(matches?.length === 1 && matches[0] === expected);
 }
 
 function queryAll(root: QueryRoot, selector: string, details: Record<string, unknown>): Element[] {

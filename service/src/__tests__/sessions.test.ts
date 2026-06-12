@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSessionRegistry, type InternalSession, SESSION_ID_PATTERN } from "../sessions";
+import { createSessionRegistry, SESSION_ID_PATTERN } from "../sessions";
 
 describe("session registry", () => {
 	it("generates 6-char base32 session ids", () => {
@@ -97,7 +97,7 @@ describe("session registry", () => {
 	it("exposes mutable internal state only for existing sessions", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
 		const created = reg.create();
-		const internal = reg.internal(created.id) as InternalSession;
+		const internal = reg.internal(created.id);
 		expect(internal).toBe(reg.getOrCreate(created.id));
 		expect(internal.lastActionAt).toEqual({});
 		expect(() => reg.internal("zzzzzz")).toThrow("Session 'zzzzzz' was not found");

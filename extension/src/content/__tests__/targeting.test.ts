@@ -93,10 +93,10 @@ describe("targeting", () => {
 		const labels = [
 			"Google Account: Foo\nBar",
 			'She said "hello"',
-			"Path C:\\Users\\dim",
+			String.raw`Path C:\Users\dim`,
 			"Bracketed [value]",
 			"Unicode ✓ snowman ☃",
-			`Control ${String.fromCharCode(0x7f)} char`,
+			`Control ${String.fromCodePoint(0x7f)} char`,
 		];
 
 		for (const [index, label] of labels.entries()) {
@@ -107,13 +107,11 @@ describe("targeting", () => {
 
 			const target = createElementTarget(link as unknown as Element);
 			expect(target).toHaveProperty("selector");
-			expect(resolveElementTarget(target, { document: page as unknown as Document })).toBe(
-				link as unknown as Element,
-			);
+			expect(resolveElementTarget(target, { document: page as unknown as Document })).toBe(link);
 			const selector = (target as { selector: string }).selector;
 			expect(selector).toContain('a[aria-label="');
 			expect(selector).not.toContain("\n");
-			expect(selector).not.toContain(String.fromCharCode(0x7f));
+			expect(selector).not.toContain(String.fromCodePoint(0x7f));
 		}
 	});
 
@@ -130,9 +128,9 @@ describe("targeting", () => {
 			account as unknown as Element,
 			page as unknown as Document,
 		);
-		expect(selector).toBe('a[aria-label="Google Account: Foo\\a Bar"]');
+		expect(selector).toBe(String.raw`a[aria-label="Google Account: Foo\a Bar"]`);
 		expect(resolveSelectorTarget(selector, { document: page as unknown as Document })).toBe(
-			account as unknown as Element,
+			account,
 		);
 	});
 });

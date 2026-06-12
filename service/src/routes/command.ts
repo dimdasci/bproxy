@@ -22,7 +22,7 @@ function logResponse(
 	receivedAt: number,
 ): void {
 	const elapsedMs = Math.max(0, Date.now() - receivedAt);
-	const errorCode = !response.ok ? response.error.code : undefined;
+	const errorCode = response.ok ? undefined : response.error.code;
 	deps.logger.info({
 		id: cmd.id,
 		event: "response",

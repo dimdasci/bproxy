@@ -233,7 +233,5 @@ export interface ActionResult {
 // Every Action must have ActionParams and ActionResult entries.
 // If this line errors, a new Action was added without updating both interfaces.
 // Suppress unused-type warnings — these exist only for the compile-time check.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- compile-time guard
 type _AssertParams = { [A in Action]: ActionParams[A] };
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- compile-time guard
 type _AssertResults = { [A in Action]: ActionResult[A] };

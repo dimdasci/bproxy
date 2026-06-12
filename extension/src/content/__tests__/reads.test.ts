@@ -115,7 +115,7 @@ describe("read actions", () => {
 			resolveElementTarget(links[3]!.target as ElementTarget, {
 				document: page as unknown as Document,
 			}),
-		).toBe(shadowLink as unknown as Element);
+		).toBe(shadowLink);
 		const allLinks = handleLinks(
 			request("links", { selector: "#search", limit: 10 }),
 			withDocument(page),
@@ -224,7 +224,7 @@ describe("read actions", () => {
 		expect(accountInfo?.selector).not.toContain("\n");
 		expect(
 			resolveElementTarget(accountInfo as ElementTarget, { document: page as unknown as Document }),
-		).toBe(account as unknown as Element);
+		).toBe(account);
 	});
 
 	it("outline returns visible landmarks and heading hierarchy", () => {

@@ -219,7 +219,7 @@ async function waitForScrollStable(
 }
 
 function readElementClientHeight(element: Element): number {
-	return element.clientHeight > 0 ? element.clientHeight : 0;
+	return Math.max(0, element.clientHeight);
 }
 
 function resolveScrollDistance(
