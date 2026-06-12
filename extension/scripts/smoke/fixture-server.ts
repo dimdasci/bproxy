@@ -23,6 +23,12 @@ if (!Number.isInteger(port) || port < 0 || port > 65_535) {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const searchHtml = readFileSync(resolve(here, "fixture.html"), "utf8");
+const detailPages = new Map([
+	["/detail/alpha", detailHtml("alpha")],
+	["/detail/beta", detailHtml("beta")],
+	["/detail/hidden", detailHtml("hidden")],
+	["/detail/shadow", detailHtml("shadow")],
+]);
 const server = createServer((request, response) => {
 	const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
@@ -33,9 +39,14 @@ const server = createServer((request, response) => {
 	}
 
 	if (url.pathname.startsWith("/detail/")) {
-		const slug = url.pathname.slice("/detail/".length) || "unknown";
+		const html = detailPages.get(url.pathname);
+		if (!html) {
+			response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+			response.end("not found");
+			return;
+		}
 		response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-		response.end(detailHtml(slug));
+		response.end(html);
 		return;
 	}
 
@@ -83,8 +94,8 @@ function announce(address: AddressInfo): void {
 	);
 }
 
-function detailHtml(slug: string): string {
-	const title = escapeHtml(slug.replaceAll("-", " "));
+function detailHtml(label: string): string {
+	const title = escapeHtml(label);
 	return `<!doctype html>
 <html lang="en">
 	<head>

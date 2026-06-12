@@ -17,12 +17,18 @@ let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
+let commandSequence = 0;
 const T1 = "t1" as TabHandle;
+
+function nextCommandId(): string {
+	commandSequence += 1;
+	return `dl-${commandSequence}`;
+}
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
 		protocol_version: 1,
-		id: overrides.id ?? `dl-${Math.random().toString(36).slice(2, 8)}`,
+		id: overrides.id ?? nextCommandId(),
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
 		session: overrides.session ?? currentSession,
@@ -57,6 +63,7 @@ function connectClient(): Promise<WebSocket> {
 }
 
 beforeEach(async () => {
+	commandSequence = 0;
 	captured = buildCapturedLogger();
 	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });

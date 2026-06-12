@@ -369,3 +369,19 @@ The skill is what agents load and apply; the extension contract is the three met
 **Implications:** Page-structure investigation, computed styles, framework/runtime introspection, and exploratory JavaScript execution should be performed through CDP/devtools outside bproxy. The May 31 eval and scroll journal notes are retained as evidence for this course correction, not as implementation plans.
 
 ---
+
+## ADR-025: Security scanner findings are remediated in code
+**Date:** 2026-06-12
+**Status:** Accepted
+
+**Decision:** SonarQube/SonarCloud security findings, including Security Hotspots, must be resolved by changing code or tests. Marking a hotspot as "safe", accepting it in the scanner UI, or otherwise suppressing the finding without code remediation is not allowed.
+
+**Rules:**
+- Treat security findings as implementation feedback, not as scanner bookkeeping.
+- Prefer removing the risky pattern entirely over documenting why it is harmless.
+- Test-only code follows the same rule: replace flagged constructs with deterministic or safer alternatives instead of marking them accepted.
+- Suppressions or scanner-side status changes are not an approved path for security issues/hotspots.
+
+**Rationale:** bproxy controls a real user browser, so security review outcomes must leave the repository safer and auditable from source code alone. Code remediation keeps future local and CI scans aligned and avoids hidden policy state in external tools.
+
+---
