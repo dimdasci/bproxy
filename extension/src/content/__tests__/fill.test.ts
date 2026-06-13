@@ -25,8 +25,9 @@ class RejectingInputElement extends FakeElement {
 	}
 
 	// Simulate a hostile controlled field that rejects the write.
-	// biome-ignore lint/correctness/noUnusedVariables: intentionally ignoring setter param
-	override set value(_next: string) {}
+	override set value(_next: string) {
+		// Intentionally empty: reject all writes to simulate a hostile controlled field.
+	}
 }
 
 describe("fill actions", () => {

@@ -53,7 +53,14 @@ function createMockFetch(responseBody: unknown, status = 200) {
 	const calls: { url: string; init: RequestInit }[] = [];
 
 	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		const urlStr = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+		let urlStr: string;
+		if (typeof url === "string") {
+			urlStr = url;
+		} else if (url instanceof URL) {
+			urlStr = url.href;
+		} else {
+			urlStr = url.url;
+		}
 		calls.push({ url: urlStr, init: init ?? {} });
 		return Promise.resolve(
 			new Response(JSON.stringify(responseBody), {
