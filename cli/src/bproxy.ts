@@ -38,6 +38,8 @@ const main = defineCommand({
 		inspect: () => import("./commands/inspect.js").then((m) => m.default),
 		snapshot: () => import("./commands/snapshot.js").then((m) => m.default),
 		scroll: () => import("./commands/scroll.js").then((m) => m.default),
+		click: () => import("./commands/click.js").then((m) => m.default),
+		hover: () => import("./commands/hover.js").then((m) => m.default),
 		screenshot: () => import("./commands/screenshot.js").then((m) => m.default),
 		fill: () => import("./commands/fill.js").then((m) => m.default),
 		"fill-form": () => import("./commands/fill-form.js").then((m) => m.default),

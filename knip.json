@@ -2,7 +2,7 @@
 	"ignoreBinaries": ["build"],
 	"workspaces": {
 		"shared": {
-			"entry": ["src/phase5-contract.assertions.ts"],
+			"entry": ["src/protocol-shape.assertions.ts"],
 			"project": ["src/**/*.ts"]
 		},
 		"service": {

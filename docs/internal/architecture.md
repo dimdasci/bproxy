@@ -27,7 +27,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 ## Design Principles
 
-- **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + scroll.
+- **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + explicit scroll/click/hover actuators when the agent chooses them.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
 - **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
 - **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, and pacing / pause state remains daemon-owned in-memory state.
@@ -35,7 +35,7 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 - **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
 - **World model** — ISOLATED by default; MAIN only for `runtime-api` writes (on-demand one-shot, no persistent scripts) [ADR-013](./decisions.md#adr-013-main-world-runtime-api-writes).
-- **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, scroll target, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
+- **Sensor+actuator boundary** — extension exposes primitives honestly; agent owns all strategy (selector, method, world, scroll target, click/hover target choice, escalation, caching) [ADR-017](./decisions.md#adr-017-sensoractuator-boundary).
 - **Shadow-DOM-aware targeting** — element routes encode shadow-host chains; open shadow roots only [ADR-014](./decisions.md#adr-014-shadow-dom-aware-discovery--route-based-targeting).
 - **Interstitial detection + `HUMAN_REQUIRED`** — agent stops, user resolves CAPTCHAs/logins.
 - **"Don't submit" handoff** — agent prepares, user reviews and submits.
@@ -56,7 +56,7 @@ Implementation: `docs/public/solution/service.md`
 Chrome Manifest V3 extension. Three runtime layers:
 
 - **Background service worker** — WebSocket client to the daemon, request routing, tab/runtime context management, frame table, keepalive, popup message handler.
-- **Content script** (ISOLATED world, injected programmatically on first command per tab) — DOM reads, `direct`/`paste` writes, scroll, stability polling.
+- **Content script** (ISOLATED world, injected programmatically on first command per tab) — DOM reads, `direct`/`paste` writes, explicit click/hover/scroll actuators, stability polling.
 - **Popup** — pairing code entry, token storage. No options page.
 
 **Dual execution model:**
@@ -168,6 +168,8 @@ Errors use a single RFC 9457-aligned envelope:
 | `inspect`    | Computed style, layout rect, and scroll info for specific selectors.                 |
 | `snapshot`   | Accessible DOM tree serialization (text-based, depth-limited).                       |
 | `scroll`     | Explicit viewport or element-target scroll actuator with honest movement/no-op reporting; agent owns target choice. |
+| `click`      | Explicit target-only actuator. Activates a visible/actionable target and reports disappearance/stability honestly. |
+| `hover`      | Explicit target-only actuator. Dispatches honest hover-shaped events and reports completion/stability. |
 | `screenshot` | `captureVisibleTab`. `--activate` / `--debugger` / `--output-dir` opt-ins.           |
 | `fill`       | Three explicit methods: `direct` (DOM), `paste` (events), `runtime-api` (editor).      |
 | `fill-form`  | Bulk fill in one round-trip with internal pacing.                                    |

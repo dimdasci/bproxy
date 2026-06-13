@@ -52,6 +52,7 @@ extension/
     ├── content/
     │   ├── actions/
     │   │   ├── fill.ts
+    │   │   ├── interactions.ts
     │   │   ├── reads.ts
     │   │   ├── scroll-wait.ts
     │   │   └── select.ts
@@ -246,6 +247,8 @@ Handled through `src/content/**` and routed via background/content RPC.
 | `inspect` | Computed-style and layout inspection for specific selectors (rect, display, descendants, scroll info) |
 | `snapshot` | Accessible DOM tree serialization (text-based, depth-limited, optional interactive-only mode) |
 | `scroll`, `wait` | Jittered polling only; no `MutationObserver`. `scroll` targets only the viewport/document by default or an explicit agent-supplied `ElementTarget`; it never infers scroll containers. |
+| `click` | Explicit target-only activation. Focuses when possible, dispatches honest click-shaped activation, and reports disappearance/stability. |
+| `hover` | Explicit target-only hover primitive. Dispatches honest hover-shaped events at the element center and reports completion/stability. |
 | `fill(method="direct")` | Native DOM state write, no events |
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
 | `fill-form` | Multi-field isolated-world writes with hidden-field guard and read-back verification |
@@ -372,7 +375,7 @@ The `extensionVersion` stamp makes stale-build traces visible after extension re
 ## Security and exposure hygiene
 
 - **Programmatic injection only.** No default content script presence.
-- **ISOLATED world by default.** Reads plus `direct`/`paste` writes stay out of MAIN world.
+- **ISOLATED world by default.** Reads plus `scroll`/`click`/`hover` and `direct`/`paste` writes stay out of MAIN world.
 - **MAIN world is one-shot.** `runtime-api` fill executes through a single `chrome.scripting.executeScript({ world: "MAIN" })` call.
 - **Default-deny WAR.** No `web_accessible_resources` are shipped.
 - **No default debugger surface.** The manifest omits the `debugger` permission.

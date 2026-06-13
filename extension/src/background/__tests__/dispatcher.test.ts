@@ -99,6 +99,24 @@ describe("parseForwardedRequest", () => {
 		expect(parsed.success).toBe(true);
 	});
 
+	it("accepts click and hover params for forwarded DOM interactions", () => {
+		expect(
+			parseForwardedRequest(
+				JSON.stringify(makeRequest({ action: "click", params: { target: { selector: "#x" } } })),
+			).success,
+		).toBe(true);
+		expect(
+			parseForwardedRequest(
+				JSON.stringify(
+					makeRequest({
+						action: "hover",
+						params: { target: { route: { hosts: [{ selector: "x-menu" }], target: "button" } } },
+					}),
+				),
+			).success,
+		).toBe(true);
+	});
+
 	it("rejects daemon-local actions", () => {
 		const parsed = parseForwardedRequest(
 			JSON.stringify(makeRequest({ action: "debug.status", params: {} })),

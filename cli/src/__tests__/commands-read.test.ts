@@ -7,80 +7,15 @@
  * - Handles optional params (omits undefined values)
  * - Validates arg values where applicable
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
-import { extractUrl } from "./fetch-helper.js";
-
-// ─── Test infrastructure ───────────────────────────────────────────────
-
-function setupTempHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-cmd-test-"));
-	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
-	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
-	return dir;
-}
-
-function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
-	return {
-		session: "m4q7z2",
-		timeout: "5000",
-		home,
-		verbose: false,
-		...overrides,
-	};
-}
-
-function successResponse(id: string, data: unknown = {}) {
-	return {
-		protocol_version: 1,
-		id,
-		ok: true,
-		data,
-		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
-		replay: false,
-	};
-}
-
-function createMockFetch(responseBody: unknown, _status = 200) {
-	const calls: { url: string; body: Record<string, unknown> }[] = [];
-	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
-		calls.push({ url: extractUrl(url), body: JSON.parse(bodyStr) as Record<string, unknown> });
-		return Promise.resolve(
-			new Response(JSON.stringify(responseBody), {
-				status: _status,
-				headers: { "Content-Type": "application/json" },
-			}),
-		);
-	};
-	return { fetch: mockFetch, calls };
-}
-
-/**
- * Send an action through the client with a mock fetch and capture the request.
- */
-async function sendWithCapture(
-	action: string,
-	params: Record<string, unknown>,
-	home: string,
-	globals?: Partial<ClientGlobalArgs>,
-) {
-	const requestId = "test-id-001";
-	const { fetch, calls } = createMockFetch(successResponse(requestId));
-	const opts: SendOptions = { fetch, requestId };
-
-	const plan = await sendAction(
-		action as Parameters<typeof sendAction>[0],
-		params as Parameters<typeof sendAction>[1],
-		makeGlobals(home, globals),
-		opts,
-	);
-
-	return { plan, calls };
-}
+import { type SendOptions, sendAction } from "../client.js";
+import {
+	createMockFetch,
+	makeGlobals,
+	sendWithCapture,
+	setupTempHome,
+	successResponse,
+} from "./command-test-helpers.js";
 
 // ─── Tests ─────────────────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@
 		"typecheck": "tsc --noEmit",
 		"build": "tsup",
 		"dev": "tsup --watch",
-		"test": "vitest run"
+		"test": "tsup && vitest run"
 	},
 	"dependencies": {
 		"@bproxy/shared": "workspace:*",

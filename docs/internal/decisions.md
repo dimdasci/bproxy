@@ -387,3 +387,29 @@ The skill is what agents load and apply; the extension contract is the three met
 **Rationale:** bproxy controls a real user browser, so security review outcomes must leave the repository safer and auditable from source code alone. Code remediation keeps future local and CI scans aligned and avoids hidden policy state in external tools. POC code is excluded because it is never deployed and exists only to validate design hypotheses.
 
 ---
+
+## ADR-026: Explicit click/hover actuator primitives
+**Date:** 2026-06-13
+**Status:** Accepted
+
+**Decision:** Add two explicit DOM actuator primitives — `click` and `hover` — to the shared bproxy action catalog.
+
+**Accepted scope:**
+- `click` resolves one agent-supplied `ElementTarget`, asserts the target is visible/actionable, activates it honestly, and reports whether the target disappeared plus whether the page settled within a short bounded wait.
+- `hover` resolves one agent-supplied `ElementTarget`, asserts the target is visible/actionable, dispatches hover-shaped synthetic events honestly, waits briefly with existing bounded jittered polling, and reports completion.
+- Both actions stay in the ISOLATED-world DOM-action path and inherit open-shadow-root targeting from ADR-014.
+
+**Rejected in this increment:**
+- No `type` action. Expanding the write surface to synthetic key-event semantics would weaken ADR-007's explicit three-method write contract.
+- No click-by-text strategy, cookie-banner solver, modal detector, retry chain, or fallback from `click` to another method.
+- No arbitrary eval, no persistent MAIN-world presence, and no `MutationObserver`.
+
+**Constraints:**
+- The agent must supply an explicit target (`selector` or `route`) per call.
+- Synthetic events are honest: `isTrusted=false`, no fake typing/key-event chain.
+- Post-dispatch instability is reported in-band (`stable: false`), not upgraded to a protocol error.
+- A target that disappears after `click` is a successful activation outcome, not an error.
+
+**Rationale:** Clicking and hovering are narrow actuator primitives that fit the sensor+actuator boundary from ADR-017. They expose a small, auditable capability surface without moving page-specific strategy into the extension.
+
+---

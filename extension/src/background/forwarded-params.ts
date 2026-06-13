@@ -16,6 +16,8 @@ export function paramsValidForAction<A extends ForwardedAction>(
 		inspect: isInspectParams,
 		snapshot: isSnapshotParams,
 		scroll: isScrollParams,
+		click: isElementTargetParams,
+		hover: isElementTargetParams,
 		screenshot: isScreenshotParams,
 		fill: isFillParams,
 		"fill-form": isFillFormParams,
@@ -73,6 +75,10 @@ function isScrollParams(value: unknown): value is ActionParams["scroll"] {
 			value["direction"] === "up" ||
 			value["direction"] === "down")
 	);
+}
+
+function isElementTargetParams(value: unknown): value is ActionParams["click"] {
+	return isStrictObject(value, ["target"]) && isElementTarget(value["target"]);
 }
 
 function isScreenshotParams(value: unknown): value is ActionParams["screenshot"] {

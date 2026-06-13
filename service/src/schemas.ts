@@ -16,6 +16,8 @@ export const ACTIONS = [
 	"inspect",
 	"snapshot",
 	"scroll",
+	"click",
+	"hover",
 	"screenshot",
 	"fill",
 	"fill-form",
@@ -97,6 +99,8 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 			direction: z.enum(["up", "down"]).optional(),
 		})
 		.strict(),
+	click: z.object({ target: elementTarget }).strict(),
+	hover: z.object({ target: elementTarget }).strict(),
 	screenshot: z
 		.object({
 			activate: z.boolean().optional(),

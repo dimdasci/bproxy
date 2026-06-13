@@ -19,6 +19,8 @@ import type { Action } from "./types.js";
 const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"navigate",
 	"scroll",
+	"click",
+	"hover",
 	"fill",
 	"fill-form",
 	"select",

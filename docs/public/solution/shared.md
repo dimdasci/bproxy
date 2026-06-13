@@ -92,6 +92,8 @@ export type Action =
   | 'inspect'
   | 'snapshot'
   | 'scroll'
+  | 'click'
+  | 'hover'
   | 'screenshot'
   | 'fill'
   | 'fill-form'
@@ -130,6 +132,8 @@ export interface ActionParams {
   inspect: { selector: string; properties?: string[]; limit?: number };
   snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
   scroll: { target?: ElementTarget; by?: string; direction?: 'up' | 'down' };
+  click: { target: ElementTarget };
+  hover: { target: ElementTarget };
   screenshot: { activate?: boolean; debugger?: boolean };
   fill: {
     target: ElementTarget;
@@ -185,6 +189,8 @@ export interface ActionResult {
     scrollHeight?: number;
     clientHeight?: number;
   };
+  click: { clicked: true; disappeared: boolean; stable: boolean };
+  hover: { hovered: true; stable: boolean; elapsed: number };
   screenshot: { base64: string; format: 'png' | 'jpeg' };
   fill: { filled: boolean; verifiedValue: string };
   'fill-form': { results: Array<{ target: ElementTarget; filled: boolean; verifiedValue: string }> };
@@ -278,6 +284,7 @@ export type PacingMode = 'human' | 'fast';
 export interface PacingConfig {
   navigate: { min: number; max: number };
   scroll: { min: number; max: number };
+  interaction: { min: number; max: number };
   fill: { min: number; max: number };
 }
 
@@ -285,11 +292,13 @@ export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
   human: {
     navigate: { min: 1500, max: 4000 },
     scroll: { min: 4000, max: 8000 },
+    interaction: { min: 500, max: 2000 },
     fill: { min: 500, max: 2000 },
   },
   fast: {
     navigate: { min: 300, max: 800 },
     scroll: { min: 500, max: 1500 },
+    interaction: { min: 100, max: 400 },
     fill: { min: 100, max: 400 },
   },
 };
