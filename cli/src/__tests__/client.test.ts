@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
 import type { ActionParams, TabHandle } from "../types.js";
+import { extractUrl } from "./fetch-helper.js";
 
 const T1 = "t1" as TabHandle;
 
@@ -53,15 +54,7 @@ function createMockFetch(responseBody: unknown, status = 200) {
 	const calls: { url: string; init: RequestInit }[] = [];
 
 	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		let urlStr: string;
-		if (typeof url === "string") {
-			urlStr = url;
-		} else if (url instanceof URL) {
-			urlStr = url.href;
-		} else {
-			urlStr = url.url;
-		}
-		calls.push({ url: urlStr, init: init ?? {} });
+		calls.push({ url: extractUrl(url), init: init ?? {} });
 		return Promise.resolve(
 			new Response(JSON.stringify(responseBody), {
 				status,

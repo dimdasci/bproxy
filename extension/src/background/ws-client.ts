@@ -308,7 +308,10 @@ export function buildSubprotocols(extensionToken: string): string[] {
 export function base64UrlEncode(input: string): string {
 	const utf8 = utf8ToBinaryString(input);
 	const b64 = btoa(utf8);
-	return b64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+	let result = b64.replaceAll("+", "-").replaceAll("/", "_");
+	// Strip trailing padding without regex backtracking
+	while (result.endsWith("=")) result = result.slice(0, -1);
+	return result;
 }
 
 function utf8ToBinaryString(input: string): string {
