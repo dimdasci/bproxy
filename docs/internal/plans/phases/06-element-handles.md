@@ -21,6 +21,25 @@ title: Phase 6 — Element target aliases
 
 ---
 
+## Prerequisite: read architectural context in full
+
+Before writing any code, the implementing agent **must** read the following documents completely. These are not optional references — they contain constraints, type contracts, and security invariants that govern every implementation choice in this phase. Skipping them leads to rework.
+
+| Document | Why it matters |
+|---|---|
+| [`docs/internal/decisions.md`](../../decisions.md) | All ADRs. Especially ADR-007 (write contract), ADR-014 (shadow-DOM targeting), ADR-015 (MAIN-world hygiene), ADR-017 (sensor/actuator boundary), ADR-021 (session authority), ADR-024 (no eval), ADR-026 (click/hover), ADR-027 (element handle aliases — the governing decision). |
+| [`docs/public/index.md`](../../../public/index.md) | Design principles, project motivation, and the "narrow explicit interface" philosophy. |
+| [`docs/public/solution/shared.md`](../../../public/solution/shared.md) | Protocol envelope, action params/results, `ElementTarget` type, `ElementInfo`, `LinkInfo`, error taxonomy — the exact types being extended. |
+| [`docs/public/solution/service.md`](../../../public/solution/service.md) | Daemon internals: dispatch, pacing, pending map, WS route, command route, session registry, observability contract — the integration points for the handle cache. |
+| [`docs/public/solution/extension.md`](../../../public/solution/extension.md) | Extension runtime shape, background SW responsibilities, content-script targeting, wire contract, navigation tracking in `tabs.ts` — the code being minimally modified. |
+| [`docs/public/solution/cli.md`](../../../public/solution/cli.md) | CLI target parsing (`targets.ts`), command pattern, exit codes, output contract — the surface receiving `--element`. |
+| [`docs/internal/architecture.md`](../../architecture.md) | System shape, component responsibilities, protocol examples, action table. |
+| [`docs/internal/journal/2026-06-13-element-handles-agent-dx.md`](../../journal/2026-06-13-element-handles-agent-dx.md) | The original feature request with acceptance constraints. |
+
+Do not begin Task 1 until all documents above have been read. Implementation decisions that contradict these documents are bugs.
+
+---
+
 ## Locked design decisions
 
 All decisions below are final for implementation. Do not invent alternatives inside code review.
