@@ -101,3 +101,16 @@ This would likely do more to close the gap toward a polished daily-driver tool t
 - action chaining
 - selector stability
 - ergonomics of real browsing tasks
+
+## Acceptance
+
+**Accepted as a feature direction on 2026-06-13.** The request is architecturally aligned with bproxy when implemented as **short-lived daemon-owned element target aliases**, not native DOM handles and not page-visible instrumentation.
+
+Acceptance constraints:
+- the extension remains a thin sensor/actuator and does not keep cross-command element identity;
+- the daemon owns handle minting, cache bounds, TTL, and session/tab/page scoping;
+- handles resolve to the existing explicit `ElementTarget` contract before the extension executes an action;
+- destructive handle use must fail safely when the handle is stale, out of scope, expired, or bound to a different session/tab/page;
+- no `data-*` marker, page mutation, arbitrary eval, scroll-target inference, method auto-selection, or selector-repair strategy is introduced.
+
+This is not ready for direct implementation from the journal note alone. It needs a Phase 6 architecture/design pass focused on stale-page safety, memory bounds, type separation between CLI input and daemon→extension forwarding, observability, and robust invalidation semantics. The implementation plan starts in [`docs/internal/plans/phases/06-element-handles.md`](../plans/phases/06-element-handles.md), and the governing decision is ADR-027.

@@ -374,7 +374,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ## Out of scope for Phase 5
 
-- Public npm packaging, release artifacts, extension store packaging, installer/update flows, Homebrew, or GitHub Release automation - Phase 6 owns distribution.
+- Public npm packaging, release artifacts, extension store packaging, installer/update flows, Homebrew, or GitHub Release automation - Phase 7 owns distribution.
 - Human-approved adoption of arbitrary existing browser tabs, unless the implementation proves it is required for the three documented scenarios. Normal Phase 5 `tab list` must not expose the operator's existing tabs.
 - Closed shadow-root support.
 - New stealth mechanisms, network shims, trusted input simulation, or broad anti-detection bypasses.

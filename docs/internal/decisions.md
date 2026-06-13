@@ -2,7 +2,7 @@
 title: Architecture Decision Records
 ---
 
-**Edition: 2026-06-12 (eval/scroll course correction)** — Authoritative current ADR set.
+**Edition: 2026-06-13 (element target aliases)** — Authoritative current ADR set.
 
 ---
 
@@ -411,5 +411,38 @@ The skill is what agents load and apply; the extension contract is the three met
 - A target that disappears after `click` is a successful activation outcome, not an error.
 
 **Rationale:** Clicking and hovering are narrow actuator primitives that fit the sensor+actuator boundary from ADR-017. They expose a small, auditable capability surface without moving page-specific strategy into the extension.
+
+---
+
+## ADR-027: Daemon-owned element target aliases for read→act workflows
+**Date:** 2026-06-13
+**Status:** Accepted
+
+**Decision:** Add short-lived, page-scoped **element target aliases** for read→act workflows. Agents may use opaque handles such as `e17` returned by read actions, but those handles are daemon-owned aliases for existing `ElementTarget` values — not DOM node ids, not native object references, and not page-visible instrumentation.
+
+**Accepted shape:**
+- Agent-facing read results that already contain actionable targets (`elements`, `links`, and later compatible sensors) may include an optional handle alongside the normal `ElementTarget`.
+- CLI commands may accept `--element eN` as a convenience target reference for actions that already accept explicit element targets (`click`, `hover`, `fill`, `select`, and explicit-target `scroll`).
+- The daemon resolves `--element eN` to a normal `ElementTarget` before forwarding to the extension.
+- The extension receives only the existing explicit target shape and remains unaware of handle storage.
+
+**Ownership and lifetime:**
+- The daemon mints handles and stores the mapping in memory only.
+- Handles are scoped to `{session, logical tab, page identity}` and have a short TTL.
+- Handles are invalidated on TTL expiry, session close, tab close, navigation/page-identity change, and cache pressure.
+- Cache size is bounded per page and globally; repeated reads must not grow daemon memory without bound.
+
+**Safety constraints:**
+- No page mutation: no `data-bproxy-*`, marker attributes, marker nodes, or other DOM-visible identity tags.
+- No extension cross-command element cache and no persistent MAIN-world state.
+- No strategy is introduced in the daemon or extension: no click-by-text, selector repair, fallback chains, modal solvers, or method auto-selection.
+- Destructive handle use must fail closed when the handle is expired, missing, stale, bound to another session/tab/page, or cannot satisfy the stored page precondition.
+- The forwarded daemon→extension contract stays explicit-target based; handle references are accepted only at the CLI/daemon boundary.
+
+**Page-staleness rule:** A handle is valid only for the page state from which it was minted. Phase 6 must design a concrete page identity/precondition mechanism before implementation. Acceptable directions include daemon-maintained page epochs from extension navigation events, an extension-checked expected page snapshot on each destructive forwarded action, or a combination. URL string alone is not sufficient for destructive safety.
+
+**Observability:** Handle resolution is logged with the universal request `id` and outcome (`ok`, `expired`, `stale`, `scope_mismatch`, `not_found`) without exposing sensitive element text at normal log level. Debug output may include bounded hints such as tag/role/text snippets only when explicitly classified as diagnostic.
+
+**Rationale:** Real use after `click`/`hover` showed that the remaining friction is target handoff, not missing primitives. Daemon-owned aliases improve agent ergonomics while preserving the thin extension, honest sensor/actuator boundary, session authority model, and page non-instrumentation guarantees.
 
 ---
