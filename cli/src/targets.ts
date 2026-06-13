@@ -1,14 +1,15 @@
 /**
  * Target parsing helpers for CLI write commands.
  *
- * Accepts exactly one of `--selector <css>` or `--route-json <json>`.
- * Produces a shared `ElementTarget` or an error for exit 2.
+ * Accepts exactly one of `--selector <css>`, `--route-json <json>`,
+ * or `--element <handle>`.
  */
-import type { ElementRoute, ElementTarget } from "./types.js";
+import { HANDLE_PATTERN } from "@bproxy/shared";
+import type { ClientElementTarget, ElementHandle, ElementRoute } from "./types.js";
 
 export interface TargetOk {
 	ok: true;
-	target: ElementTarget;
+	target: ClientElementTarget;
 }
 
 export interface TargetError {
@@ -20,47 +21,43 @@ export type TargetResult = TargetOk | TargetError;
 
 export type OptionalTargetResult = TargetResult | { ok: true; target: undefined };
 
-/**
- * Parse an optional ElementTarget from CLI args.
- *
- * Omitted target args mean the command should use its own default target.
- * Providing both target strategies is still an error.
- */
 export function parseOptionalTarget(
 	selector: string | undefined,
 	routeJson: string | undefined,
+	element: string | undefined,
 ): OptionalTargetResult {
-	if (!selector && !routeJson) return { ok: true, target: undefined };
-	return parseTarget(selector, routeJson);
+	if (!selector && !routeJson && !element) return { ok: true, target: undefined };
+	return parseTarget(selector, routeJson, element);
 }
 
-/**
- * Parse an ElementTarget from CLI args.
- *
- * Exactly one of `selector` or `routeJson` must be provided.
- * Providing both or neither is an error.
- */
 export function parseTarget(
 	selector: string | undefined,
 	routeJson: string | undefined,
+	element: string | undefined,
 ): TargetResult {
-	if (selector && routeJson) {
-		return { ok: false, reason: "Provide exactly one of --selector or --route-json, not both." };
-	}
-	if (!selector && !routeJson) {
-		return { ok: false, reason: "Provide exactly one of --selector or --route-json." };
-	}
-
-	if (selector) {
-		return { ok: true, target: { selector } };
+	const provided = [selector, routeJson, element].filter((value) => value !== undefined).length;
+	if (provided !== 1) {
+		return {
+			ok: false,
+			reason: "Provide exactly one of --selector, --route-json, or --element.",
+		};
 	}
 
+	if (selector) return { ok: true, target: { selector } };
+	if (element) return parseElementHandle(element);
 	return parseRouteJson(routeJson as string);
 }
 
-/**
- * Parse and validate a --route-json string into an ElementTarget with route.
- */
+function parseElementHandle(handle: string): TargetResult {
+	if (!HANDLE_PATTERN.test(handle)) {
+		return {
+			ok: false,
+			reason: "Invalid --element: must match /^(el|ln)\\d+$/.",
+		};
+	}
+	return { ok: true, target: { handle: handle as ElementHandle } };
+}
+
 function parseRouteJson(json: string): TargetResult {
 	let parsed: unknown;
 	try {
@@ -80,9 +77,6 @@ function parseRouteJson(json: string): TargetResult {
 	return { ok: true, target: { route: parsed } };
 }
 
-/**
- * Structural check for ElementRoute shape.
- */
 function isValidRoute(value: unknown): value is ElementRoute {
 	if (value === null || typeof value !== "object") return false;
 	const obj = value as Record<string, unknown>;
@@ -93,13 +87,10 @@ function isValidRoute(value: unknown): value is ElementRoute {
 	return obj["hosts"].every(isValidHost);
 }
 
-/**
- * Validate a single host entry in the route.
- */
 function isValidHost(host: unknown): boolean {
 	if (host === null || typeof host !== "object") return false;
-	const h = host as Record<string, unknown>;
-	if (typeof h["selector"] !== "string" || h["selector"].length === 0) return false;
-	if ("index" in h && typeof h["index"] !== "number") return false;
+	const entry = host as Record<string, unknown>;
+	if (typeof entry["selector"] !== "string" || entry["selector"].length === 0) return false;
+	if ("index" in entry && typeof entry["index"] !== "number") return false;
 	return true;
 }

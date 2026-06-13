@@ -30,6 +30,13 @@ module.exports = {
 			to: { path: "^(cli|service|views)/" },
 		},
 		{
+			name: "extension-no-handle-types",
+			comment: "extension/ must stay unaware of daemon-owned element handle types",
+			severity: "error",
+			from: { path: "^extension/src" },
+			to: { path: "^shared/src/handles\.ts$" },
+		},
+		{
 			name: "no-circular",
 			comment: "No circular dependencies anywhere",
 			severity: "error",

@@ -43,13 +43,14 @@ describe("request schemas", () => {
 		).toBe(true);
 	});
 
-	it("accepts click and hover params with selector or route targets", () => {
+	it("accepts click and hover params with selector, route, or handle targets", () => {
 		expect(parse("click", { target: { selector: "button.dismiss" } }).success).toBe(true);
 		expect(
 			parse("hover", {
 				target: { route: { hosts: [{ selector: "x-menu" }], target: "button" } },
 			}).success,
 		).toBe(true);
+		expect(parse("click", { target: { handle: "el5" } }).success).toBe(true);
 	});
 
 	it("accepts session.create with and without label", () => {
@@ -93,6 +94,7 @@ describe("request schemas", () => {
 		expect(
 			parse("hover", { target: { selector: "#x", route: { hosts: [], target: "#y" } } }).success,
 		).toBe(false);
+		expect(parse("click", { target: { handle: "e17" } }).success).toBe(false);
 	});
 
 	it("rejects session.close with extra fields in strict mode", () => {

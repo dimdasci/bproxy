@@ -85,6 +85,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 | Information disclosure | Daemon API exposed beyond localhost | Bind host fixed to `127.0.0.1`; Host header verified at the auth gate even if a proxy rewrites it | `config.ts`; `auth.ts:checkHost` |
 | Information disclosure | Token leaks via insecure file mode | Read-side preflight on every token load fails closed with `INSECURE_TOKEN_FILE` / `INSECURE_EXTENSION_TOKEN_FILE` | `lifecycle.ts:assertOwnerMode600`; Gap E file-semantics tests |
 | Denial of service | Unbounded pending-request map | Hard cap of 100 in-flight requests → `OVERLOADED` | `pending.ts`; `pending.test.ts` |
+| Denial of service | Repeated read commands grow daemon memory without bound | Element-handle cache is bounded (TTL 120s, per-scope cap 200, global cap 1000) | `element-handles.ts`; handle-cache tests |
 | Denial of service | Head-of-line blocking across tabs | Per-tab FIFO queue, parallel across tabs | `dispatch.ts:withTabLock`; `dispatch.test.ts` |
 | Denial of service | Pairing-code brute force | One-time consumption + 5-min TTL + constant-time compare; full per-source limiter is deferred | `pairing.ts` |
 | Elevation of privilege | Extension token grants command issuance | Two-token model: bearer auth only valid on `POST /`; subprotocol auth only valid on `GET /ws`; tokens never cross routes | `auth.ts:checkCommandAuth/checkWsAuth` |
@@ -102,6 +103,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 | Screenshot escalation | `chrome.debugger` would widen capability and show a user-visible Chrome banner | Normal screenshots use `captureVisibleTab`; debugger screenshots remain gated behind `DEBUGGER_DISABLED`, with no `debugger` permission in the manifest today |
 | Web-accessible resources | Deterministic extension-resource probing by pages or scanners | `web_accessible_resources` is absent by default; build hook strips WXT's empty array stub so the manifest stays default-deny (ADR-016) |
 | Hidden-tab destructive actions | Clicking, hovering, or writing to a background tab may produce misleading state or bot-signal issues | Content polling checks `document.visibilityState` and destructive actions bail with `TAB_NOT_VISIBLE` unless future protocol metadata explicitly opts into user-initiated hidden-tab behavior |
+| Navigation push over WS | Top-level navigation events carry Chrome tab ids | Tab ids stay inside the daemon↔extension boundary only; they are used for page-epoch tracking and are never exposed to CLI stdout, agent-visible responses, or public handle strings |
 
 ## Still out of scope
 

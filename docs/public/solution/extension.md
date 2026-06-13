@@ -140,7 +140,7 @@ Locked implications:
 Owns:
 
 1. bootstrap storage lookup and validation;
-2. daemon WebSocket connection, reconnect, heartbeat, and badge state;
+2. daemon WebSocket connection, reconnect, heartbeat, badge state, and top-level navigation push messages;
 3. forwarded-request parsing (`BproxyForwardedRequest`);
 4. exactly-once execution via dedupe + replay-safe responses;
 5. extension trace ring buffer for `debug.log`;
@@ -231,7 +231,7 @@ Implications:
 - `session.*`, `debug.last`, and `debug.status` stay daemon-local and must not have extension handlers;
 - `debug.log` is forwarded and served from the extension ring buffer.
 
-Responses are the normal shared `BproxyResponse` envelope; successful responses include page state and `replay`.
+Responses are the normal shared `BproxyResponse` envelope; successful responses include page state and `replay`. In the other direction, the background worker may push `{ type: "navigation", tabId, url, cause: "committed" | "history_state" }` over the existing WS connection whenever a top-level navigation event is observed.
 
 ---
 

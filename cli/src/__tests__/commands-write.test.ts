@@ -42,6 +42,28 @@ describe("fill command", () => {
 		});
 	});
 
+	it("sends fill action with handle target", async () => {
+		const home = setupTempHome();
+		const params = {
+			target: { handle: "el5" },
+			value: "test@example.com",
+			method: "direct",
+			world: "isolated",
+		};
+		const { plan, calls } = await sendWithCapture("fill", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "fill",
+			params: {
+				target: { handle: "el5" },
+				value: "test@example.com",
+				method: "direct",
+				world: "isolated",
+			},
+		});
+	});
+
 	it("sends fill action with route target", async () => {
 		const home = setupTempHome();
 		const route = {
@@ -210,6 +232,16 @@ describe.each(["click", "hover"] as const)("%s command", (action) => {
 		});
 	});
 
+	it(`sends ${action} action with handle target`, async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture(action, { target: { handle: "el3" } }, home);
+
+		expect(plan.code).toBe(0);
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["target"]).toEqual({
+			handle: "el3",
+		});
+	});
+
 	it(`sends ${action} action with route target`, async () => {
 		const home = setupTempHome();
 		const route = { hosts: [{ selector: "x-modal" }], target: "button.close" };
@@ -241,6 +273,20 @@ describe("select command", () => {
 		expect(calls[0]!.body).toMatchObject({
 			action: "select",
 			params: { trigger: { selector: "#country" }, optionText: "United States" },
+		});
+	});
+
+	it("sends select action with handle trigger", async () => {
+		const home = setupTempHome();
+		const params = {
+			trigger: { handle: "ln4" },
+			optionText: "Option A",
+		};
+		const { plan, calls } = await sendWithCapture("select", params, home);
+
+		expect(plan.code).toBe(0);
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["trigger"]).toEqual({
+			handle: "ln4",
 		});
 	});
 

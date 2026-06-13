@@ -63,6 +63,8 @@ The session moves to `paused` when the extension reports that the page needs hum
 
 Tabs within a session are referenced by logical handles like `t1`, `t2`, etc. (`TabHandle` branded type). These are session-scoped: `t1` in session `m4q7z2` is a different tab than `t1` in session `p7k2qm`. Raw Chrome tab ids never appear in CLI output, protocol responses, or `debug.status`/`debug.last` data — they exist only in daemon-internal state and operator-level daemon logs.
 
+Element handles (`el1`, `ln3`, ...) are separate from session state. They are daemon-cache aliases scoped to one `{session, tab, page}` snapshot, not durable capabilities like the session id or logical tab handle. Navigation, explicit tab close, and session close invalidate them; a fresh read of the same scope replaces the previous batch.
+
 ## See also
 
 - [Containers](./02-containers.md) — where the daemon sits relative to the CLI and the extension.

@@ -19,12 +19,14 @@ export function defineTargetAction<A extends Action>(
 			...globalArgs,
 			selector: { type: "string", description: "CSS selector for the target element" },
 			"route-json": { type: "string", description: "JSON route for shadow DOM target" },
+			element: { type: "string", description: "Short-lived element handle (e.g. el5)" },
 		},
 		async run({ args }) {
 			const globals = extractGlobals(args);
 			const targetResult = parseTarget(
 				args.selector as string | undefined,
 				args["route-json"] as string | undefined,
+				args.element as string | undefined,
 			);
 			if (!targetResult.ok) {
 				executeExitPlan(exitUsageError(targetResult.reason));

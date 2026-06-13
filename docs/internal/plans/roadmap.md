@@ -23,7 +23,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
 | 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
 | 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | Planned | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
-| 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | Planned | [phases/06-element-handles.md](./phases/06-element-handles.md) |
+| 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | ✅ Done | [phases/06-element-handles.md](./phases/06-element-handles.md) |
 | 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 6 closes_ |
 
 Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
@@ -118,7 +118,7 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Purpose:** close the read→act targeting gap found during real browser use by adding short-lived daemon-owned element target aliases. This is an architecture-first feature phase: the core work is stale-page safety, memory bounds, target type separation, invalidation semantics, and observability.
 
-**Output:** read actions such as `elements` and `links` return opaque handles like `e17` alongside normal explicit targets; target-taking commands accept `--element e17`; the daemon resolves aliases back to `ElementTarget` before forwarding; the extension remains unaware of handle storage and receives only explicit selector/route targets.
+**Output:** read actions such as `elements` and `links` return opaque handles like `el1` / `ln3` alongside normal explicit targets; target-taking commands accept `--element elN|lnN`; the daemon resolves aliases back to `ElementTarget` before forwarding; the extension remains unaware of handle storage and receives only explicit selector/route targets.
 
 **Done when:** an agent can run `elements` or `links`, then safely call `click`, `hover`, `fill`, `select`, or explicit-target `scroll` with a returned handle; stale/expired/out-of-scope handles fail closed with machine-readable errors; cache bounds and no-page-mutation invariants are tested; docs match shipped semantics.
 

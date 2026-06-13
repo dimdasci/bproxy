@@ -27,7 +27,7 @@ cli/
     ├── response-validation.ts # BproxyResponse shape check
     ├── screenshot-file.ts    # screenshot file materialization (--output-dir)
     ├── service-binary.ts     # locate + spawn service binary (no source imports)
-    ├── targets.ts            # --selector / --route-json → ElementTarget parser
+    ├── targets.ts            # --selector / --route-json / --element → ClientElementTarget parser
     ├── token.ts              # owner/mode preflight (fail closed)
     ├── types.ts              # re-exports from @bproxy/shared
     ├── commands/
@@ -225,9 +225,9 @@ Forwarded to extension (require connected WS client):
 
 ## Write Commands
 
-### `fill --selector/--route-json --value/--value-file/--value-stdin --method --world`
+### `fill --selector/--route-json/--element --value/--value-file/--value-stdin --method --world`
 
-- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Target: exactly one of `--selector <css>`, `--route-json <json>`, or `--element <elN|lnN>`
 - Value: exactly one of `--value`, `--value-file <path>`, `--value-stdin`
 - Method: required, one of `direct|paste|runtime-api`
 - World: required, one of `isolated|main`
@@ -236,23 +236,23 @@ Forwarded to extension (require connected WS client):
 
 Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `method`, `world`.
 
-### `select --selector/--route-json --option-text`
+### `select --selector/--route-json/--element --option-text`
 
-### `scroll [--selector/--route-json] [--by] [--direction]`
+### `scroll [--selector/--route-json/--element] [--by] [--direction]`
 
 - Target omitted: scroll the viewport/document only.
-- `--selector` / `--route-json`: scroll exactly that resolved element. bproxy does not infer or fall back to other scroll containers.
+- `--selector` / `--route-json` / `--element`: scroll exactly that resolved element. bproxy does not infer or fall back to other scroll containers.
 - Result includes `moved`, `before`, `after`, and `scrolledPx` so agents can tell whether anything actually moved.
 
-### `click --selector/--route-json`
+### `click --selector/--route-json/--element`
 
-- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Target: exactly one of `--selector <css>`, `--route-json <json>`, or `--element <elN|lnN>`
 - Sends `click` with `{ target }`
 - Classified as destructive
 
-### `hover --selector/--route-json`
+### `hover --selector/--route-json/--element`
 
-- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Target: exactly one of `--selector <css>`, `--route-json <json>`, or `--element <elN|lnN>`
 - Sends `hover` with `{ target }`
 - Classified as destructive
 

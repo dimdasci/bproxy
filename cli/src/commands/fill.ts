@@ -15,6 +15,7 @@ export default defineCommand({
 		...globalArgs,
 		selector: { type: "string", description: "CSS selector for the target element" },
 		"route-json": { type: "string", description: "JSON route for shadow DOM target" },
+		element: { type: "string", description: "Short-lived element handle (e.g. el5)" },
 		value: { type: "string", description: "Value to fill" },
 		"value-file": { type: "string", description: "Read value from file" },
 		"value-stdin": {
@@ -40,6 +41,7 @@ export default defineCommand({
 		const targetResult = parseTarget(
 			args.selector as string | undefined,
 			args["route-json"] as string | undefined,
+			args.element as string | undefined,
 		);
 		if (!targetResult.ok) {
 			executeExitPlan(exitUsageError(targetResult.reason));

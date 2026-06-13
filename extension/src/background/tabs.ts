@@ -7,6 +7,7 @@ import {
 import type { ExecutedAction } from "./dispatcher";
 import type { DomAction } from "./forwarded-actions";
 import type { ContentInjector } from "./injection";
+import { type NavigationPushMessage, sendNavigationEvent } from "./navigation-push";
 import { tabNotFoundError, tabRuntimeScriptError, timeoutError, withTimeout } from "./tabs-support";
 
 export interface TabLike {
@@ -63,6 +64,7 @@ export interface TabRuntimeDeps {
 	setTimeout: (cb: () => void, ms: number) => unknown;
 	clearTimeout: (handle: unknown) => void;
 	rpcTimeoutMs: number;
+	sendNavigation?: (message: NavigationPushMessage) => boolean;
 }
 
 export interface TabRuntime {
@@ -125,6 +127,7 @@ function startRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 		if (details.frameId === 0) {
 			state.frames.set(details.tabId, new Map());
 			void deps.injector.forgetTab(details.tabId);
+			sendNavigationEvent(deps, details, "committed");
 		}
 		upsertFrame(state.frames, details, "lastCommittedAt", deps.now());
 	};
@@ -135,6 +138,7 @@ function startRuntime(deps: TabRuntimeDeps, state: RuntimeState): void {
 		}
 	};
 	const history = (details: NavigationEvent) => {
+		if (details.frameId === 0) sendNavigationEvent(deps, details, "history_state");
 		upsertFrame(state.frames, details, "lastHistoryStateUpdatedAt", deps.now());
 	};
 	state.removedListener = removed;

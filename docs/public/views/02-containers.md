@@ -66,7 +66,7 @@ Figure 2. Container view of bproxy — the three runtime processes (CLI, Daemon,
 
 ## What this picture tells you
 
-bproxy is three processes that live in three different places. The CLI sits in the agent's shell — a stable, one-shot command surface that any code agent can call. The Daemon runs on the operator's machine as a long-running localhost service that routes requests, enforces authentication and pacing, and owns session state. The Chrome Extension lives inside the browser itself; it is the only piece of bproxy that can actually drive a Chrome session.
+bproxy is three processes that live in three different places. The CLI sits in the agent's shell — a stable, one-shot command surface that any code agent can call. The Daemon runs on the operator's machine as a long-running localhost service that routes requests, enforces authentication and pacing, owns session state, and keeps the short-lived element handle cache used for read→act workflows. The Chrome Extension lives inside the browser itself; it is the only piece of bproxy that can actually drive a Chrome session.
 
 This split is not arbitrary — each capability is locked to a particular runtime. Only an extension can touch the operator's browser. But Chrome can suspend an MV3 service worker at any moment, so the extension cannot be where agent commands arrive; it would miss them. The Daemon bridges the two sides: it is always running, holds the queue of pending requests, and reconciles service-worker restarts by replaying outstanding work over a persistent WebSocket.
 

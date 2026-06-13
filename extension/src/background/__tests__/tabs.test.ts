@@ -48,6 +48,7 @@ function createEvent<T extends (...args: never[]) => void>(): EventSeam<T> & {
 
 function createHarness(overrides?: {
 	sendMessage?: (tabId: number, message: unknown) => Promise<unknown>;
+	sendNavigation?: (message: unknown) => boolean;
 }) {
 	const onRemoved = createEvent<(tabId: number, removeInfo?: unknown) => void>();
 	const onCommitted = createEvent<(details: NavigationEvent) => void>();
@@ -63,6 +64,7 @@ function createHarness(overrides?: {
 			data: { text: "hello" },
 			page: PAGE,
 		}));
+	const sendNavigation = vi.fn(overrides?.sendNavigation ?? (() => true));
 	const injector = createContentInjector({
 		store: createFakeStorageItem("session:injectedTabs", [] as number[]),
 		scripting: { executeScript },
@@ -83,12 +85,14 @@ function createHarness(overrides?: {
 		setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
 		clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
 		rpcTimeoutMs: 10,
+		sendNavigation,
 	});
 
 	return {
 		runtime,
 		executeScript,
 		sendMessage,
+		sendNavigation,
 		onRemoved,
 		onCommitted,
 		onCompleted,
@@ -136,6 +140,37 @@ describe("createTabRuntime", () => {
 				lastCommittedAt: 1000,
 			},
 		]);
+	});
+
+	it("sends a navigation WS push on top-level committed and history events", async () => {
+		const h = createHarness();
+		h.runtime.start();
+
+		h.onCommitted.emit({ tabId: 42, frameId: 0, url: "https://example.test/next" });
+		h.onHistoryStateUpdated.emit({ tabId: 42, frameId: 0, url: "https://example.test/app" });
+
+		expect(h.sendNavigation).toHaveBeenNthCalledWith(1, {
+			type: "navigation",
+			tabId: 42,
+			url: "https://example.test/next",
+			cause: "committed",
+		});
+		expect(h.sendNavigation).toHaveBeenNthCalledWith(2, {
+			type: "navigation",
+			tabId: 42,
+			url: "https://example.test/app",
+			cause: "history_state",
+		});
+	});
+
+	it("does not send navigation WS pushes for sub-frame events", async () => {
+		const h = createHarness();
+		h.runtime.start();
+
+		h.onCommitted.emit({ tabId: 42, frameId: 1, url: "https://example.test/frame" });
+		h.onHistoryStateUpdated.emit({ tabId: 42, frameId: 2, url: "https://example.test/frame2" });
+
+		expect(h.sendNavigation).not.toHaveBeenCalled();
 	});
 
 	it("waits for the next main-frame load completion", async () => {

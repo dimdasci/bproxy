@@ -4,12 +4,14 @@ import type {
 	ActionParams,
 	ActionResult,
 	DaemonRequestTrace,
-	ElementTarget,
+	ForwardedActionParams,
 	TraceEntry,
 } from "./actions";
 import type { ErrorCode } from "./errors";
+import type { ClientElementTarget } from "./handles";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";
 import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
+import type { ElementTarget } from "./targets";
 
 type Equals<A, B> = ((<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
 	? true
@@ -22,8 +24,11 @@ type _SessionCloseParams = Expect<Equals<ActionParams["session.close"], Record<s
 type _LinksParams = Expect<
 	Equals<ActionParams["links"], { selector?: string; visibleOnly?: boolean; limit?: number }>
 >;
-type _ClickParams = Expect<Equals<ActionParams["click"], { target: ElementTarget }>>;
-type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ElementTarget }>>;
+type _ClickParams = Expect<Equals<ActionParams["click"], { target: ClientElementTarget }>>;
+type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ClientElementTarget }>>;
+type _ForwardedClickParams = Expect<
+	Equals<ForwardedActionParams["click"], { target: ElementTarget }>
+>;
 type _TabPinUsesLogicalHandle = Expect<Equals<ActionParams["tab.pin"], { tab?: TabHandle }>>;
 type _TabCloseUsesLogicalHandle = Expect<Equals<ActionParams["tab.close"], { tab?: TabHandle }>>;
 type _BindUsesLogicalTab = Expect<

@@ -21,11 +21,11 @@ Example:
 
 ```bash
 bproxy elements -s <id>
-# returns items with handles like e17, e18, ...
+# returns items with handles like el17, el18, ln3, ...
 
-bproxy click -s <id> --element e17
-bproxy hover -s <id> --element e18
-bproxy fill -s <id> --element e21 --value "..." --method paste --world isolated
+bproxy click -s <id> --element el17
+bproxy hover -s <id> --element el18
+bproxy fill -s <id> --element el21 --value "..." --method paste --world isolated
 ```
 
 ## Non-goal
@@ -35,7 +35,7 @@ These handles are **not** native DOM attributes and must **not** be injected int
 Rejected shape:
 
 ```html
-<button data-bproxy-id="e17">...</button>
+<button data-bproxy-id="el17">...</button>
 ```
 
 Why reject it:
@@ -57,11 +57,11 @@ Keep the extension thin:
 ### Daemon responsibilities
 
 Make the daemon the helper hand:
-- mint opaque handles such as `e17`
+- mint opaque handles such as `el17` / `ln3`
 - store a short-lived mapping from handle → `ElementTarget`
 - scope handles to `{session, tab, page}`
 - invalidate on navigation / page change / TTL expiry
-- resolve `--element e17` back into the normal explicit target before forwarding
+- resolve `--element el17` (or `ln3`) back into the normal explicit target before forwarding
 
 Illustrative shape:
 

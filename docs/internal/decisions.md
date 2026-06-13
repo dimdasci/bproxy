@@ -418,12 +418,12 @@ The skill is what agents load and apply; the extension contract is the three met
 **Date:** 2026-06-13
 **Status:** Accepted
 
-**Decision:** Add short-lived, page-scoped **element target aliases** for read→act workflows. Agents may use opaque handles such as `e17` returned by read actions, but those handles are daemon-owned aliases for existing `ElementTarget` values — not DOM node ids, not native object references, and not page-visible instrumentation.
+**Decision:** Add short-lived, page-scoped **element target aliases** for read→act workflows. Agents may use opaque handles such as `el17` or `ln3` returned by read actions, but those handles are daemon-owned aliases for existing `ElementTarget` values — not DOM node ids, not native object references, and not page-visible instrumentation.
 
 **Accepted shape:**
 - Agent-facing read results that already contain actionable targets (`elements`, `links`, and later compatible sensors) may include an optional handle alongside the normal `ElementTarget`.
-- CLI commands may accept `--element eN` as a convenience target reference for actions that already accept explicit element targets (`click`, `hover`, `fill`, `select`, and explicit-target `scroll`).
-- The daemon resolves `--element eN` to a normal `ElementTarget` before forwarding to the extension.
+- CLI commands may accept `--element elN|lnN` as a convenience target reference for actions that already accept explicit element targets (`click`, `hover`, `fill`, `select`, and explicit-target `scroll`).
+- The daemon resolves `--element elN|lnN` to a normal `ElementTarget` before forwarding to the extension.
 - The extension receives only the existing explicit target shape and remains unaware of handle storage.
 
 **Ownership and lifetime:**
