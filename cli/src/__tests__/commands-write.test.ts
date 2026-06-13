@@ -252,6 +252,61 @@ describe("fill-form command", () => {
 	});
 });
 
+// ─── click / hover command tests ───────────────────────────────────────
+
+describe("click command", () => {
+	it("sends click action with selector target", async () => {
+		const home = setupTempHome();
+		const params = { target: { selector: "#dismiss" } };
+		const { plan, calls } = await sendWithCapture("click", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "click",
+			params: { target: { selector: "#dismiss" } },
+		});
+	});
+
+	it("sends click action with route target", async () => {
+		const home = setupTempHome();
+		const params = {
+			target: { route: { hosts: [{ selector: "x-modal" }], target: "button.close" } },
+		};
+		const { plan, calls } = await sendWithCapture("click", params, home);
+
+		expect(plan.code).toBe(0);
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["target"]).toEqual({
+			route: { hosts: [{ selector: "x-modal" }], target: "button.close" },
+		});
+	});
+
+	it("marks click as destructive", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("click", { target: { selector: "#x" } }, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+});
+
+describe("hover command", () => {
+	it("sends hover action with selector target", async () => {
+		const home = setupTempHome();
+		const params = { target: { selector: "#menu" } };
+		const { plan, calls } = await sendWithCapture("hover", params, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "hover",
+			params: { target: { selector: "#menu" } },
+		});
+	});
+
+	it("marks hover as destructive", async () => {
+		const home = setupTempHome();
+		const { calls } = await sendWithCapture("hover", { target: { selector: "#x" } }, home);
+		expect(calls[0]!.body["destructive"]).toBe(true);
+	});
+});
+
 // ─── select command tests ──────────────────────────────────────────────
 
 describe("select command", () => {

@@ -3,6 +3,7 @@ import type { SessionRegistry } from "./sessions";
 
 function pacingKey(action: Action): keyof PacingConfig | null {
 	if (action === "navigate" || action === "scroll") return action;
+	if (action === "click" || action === "hover") return "interaction";
 	if (action === "fill" || action === "fill-form") return "fill";
 	return null;
 }

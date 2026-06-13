@@ -11,6 +11,8 @@ export type ContentAction = Extract<
 	| "inspect"
 	| "snapshot"
 	| "scroll"
+	| "click"
+	| "hover"
 	| "fill"
 	| "fill-form"
 	| "select"
@@ -75,6 +77,8 @@ const CONTENT_ACTIONS = [
 	"inspect",
 	"snapshot",
 	"scroll",
+	"click",
+	"hover",
 	"fill",
 	"fill-form",
 	"select",

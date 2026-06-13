@@ -41,6 +41,8 @@ cli/
     │   ├── inspect.ts        # inspect --selector [--properties] [--limit]
     │   ├── snapshot.ts       # snapshot [--selector] [--max-depth] [--interactive-only]
     │   ├── scroll.ts         # scroll [--selector/--route-json] [--by] [--direction]
+    │   ├── click.ts          # click --selector/--route-json
+    │   ├── hover.ts          # hover --selector/--route-json
     │   ├── screenshot.ts     # screenshot [--activate] [--debugger] [--output-dir]
     │   ├── fill.ts           # fill --selector/--route-json --value --method --world
     │   ├── fill-form.ts      # fill-form --json/--file/--stdin
@@ -248,7 +250,7 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 
 `command-registry.ts` classifies every shared `Action` as destructive or non-destructive. A compile-time exhaustiveness assertion ensures adding a new shared action without updating the registry causes a build failure.
 
-**Destructive:** navigate, scroll, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
+**Destructive:** navigate, scroll, click, hover, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
 
 **Non-destructive:** text, links, images, elements, outline, dom, inspect, snapshot, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
 
@@ -257,6 +259,18 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 Writes structured JSON to stderr. Each entry includes: `requestId`, `action`, `session`, `url`, `elapsed`, `httpStatus`, `errorCode`. Token values are never included.
 
 ## Debugger Policy
+
+### `click --selector/--route-json`
+
+- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Sends `click` with `{ target }`
+- Classified as destructive
+
+### `hover --selector/--route-json`
+
+- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Sends `hover` with `{ target }`
+- Classified as destructive
 
 The CLI does not add `--enable-debugger-mode` flags to `service start`. Extension `DEBUGGER_DISABLED` policy responses pass through as protocol errors (exit `1`). Arbitrary page eval is out of scope.
 

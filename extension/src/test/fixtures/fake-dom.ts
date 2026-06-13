@@ -19,7 +19,7 @@ type ElementInit = {
 	text?: string;
 	value?: string;
 	rect?: RectInit;
-	style?: { display?: string; visibility?: string };
+	style?: { display?: string; visibility?: string; pointerEvents?: string };
 	shadow?: FakeShadowRoot;
 	children?: FakeElement[];
 };
@@ -33,7 +33,7 @@ export class FakeElement implements QueryElementLike {
 	shadowRoot: FakeShadowRoot | null = null;
 	textContent = "";
 	isContentEditable = false;
-	style: { display?: string; visibility?: string } = {};
+	style: { display?: string; visibility?: string; pointerEvents?: string } = {};
 	emittedEvents: Event[] = [];
 	private readonly attributes = new Map<string, string>();
 	private readonly listeners = new Map<string, Array<(event: Event) => void>>();
@@ -60,6 +60,10 @@ export class FakeElement implements QueryElementLike {
 
 	set value(next: string | undefined) {
 		this.currentValue = next;
+	}
+
+	get isConnected(): boolean {
+		return this.ownerDocument !== null;
 	}
 
 	getAttribute(name: string): string | null {
@@ -90,6 +94,23 @@ export class FakeElement implements QueryElementLike {
 			this.children.push(child);
 		}
 		return this;
+	}
+
+	remove(): void {
+		if (this.parentElement) {
+			this.parentElement.children = this.parentElement.children.filter((child) => child !== this);
+			this.parentElement = null;
+		}
+		if (this.parentRoot instanceof FakeShadowRoot) {
+			this.parentRoot.children = this.parentRoot.children.filter((child) => child !== this);
+		}
+		if (this.parentRoot instanceof FakeDocument) {
+			this.parentRoot.children = this.parentRoot.children.filter((child) => child !== this);
+			this.parentRoot.documentElement = this.parentRoot.children[0] ?? null;
+			this.parentRoot.body = this.parentRoot.querySelector("body");
+		}
+		this.parentRoot = null;
+		this.setOwnerDocument(null);
 	}
 
 	attachShadowRoot(root: FakeShadowRoot): FakeShadowRoot {
@@ -177,6 +198,12 @@ export class FakeElement implements QueryElementLike {
 	}
 
 	dispatchEvent(event: Event): boolean {
+		try {
+			Object.defineProperty(event, "target", { configurable: true, value: this });
+			Object.defineProperty(event, "currentTarget", { configurable: true, value: this });
+		} catch {
+			// ignore synthetic event property failures in tests
+		}
 		this.emittedEvents.push(event);
 		for (const listener of this.listeners.get(event.type) ?? []) listener(event);
 		return true;
@@ -230,11 +257,14 @@ export class FakeDocument implements QueryRootLike {
 	activeElement: FakeElement | null = null;
 	body: FakeElement | null = null;
 	documentElement: FakeElement | null = null;
+	visibilityState: DocumentVisibilityState = "visible";
+	readyState: DocumentReadyState = "complete";
 	defaultView = {
 		getComputedStyle: (element: FakeElement) =>
 			({
 				display: element.style.display ?? "block",
 				visibility: element.style.visibility ?? "visible",
+				pointerEvents: element.style.pointerEvents ?? "auto",
 			}) as CSSStyleDeclaration,
 	};
 	private hitTest: FakeElement[] = [];

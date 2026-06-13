@@ -11,6 +11,14 @@ describe("isDestructive", () => {
 		expect(isDestructive("scroll")).toBe(true);
 	});
 
+	it("classifies click as destructive", () => {
+		expect(isDestructive("click")).toBe(true);
+	});
+
+	it("classifies hover as destructive", () => {
+		expect(isDestructive("hover")).toBe(true);
+	});
+
 	it("classifies fill as destructive", () => {
 		expect(isDestructive("fill")).toBe(true);
 	});
@@ -104,6 +112,8 @@ describe("allRegisteredActions", () => {
 			"inspect",
 			"snapshot",
 			"scroll",
+			"click",
+			"hover",
 			"screenshot",
 			"fill",
 			"fill-form",

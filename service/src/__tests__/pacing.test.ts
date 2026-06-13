@@ -54,6 +54,27 @@ describe("pacing engine", () => {
 		expect(sleeps[0]).toBeLessThanOrEqual(max);
 	});
 
+	it("paces click and hover through the interaction bucket", async () => {
+		let clock = 0;
+		const sleeps: number[] = [];
+		const sessions = createSessionRegistry();
+		sessions.getOrCreate(SESSION);
+		const pacing = createPacing({
+			sessions,
+			now: () => clock,
+			sleep: async (ms) => {
+				sleeps.push(ms);
+				clock += ms;
+			},
+			random: () => 0.5,
+		});
+
+		await pacing.waitForSlot(SESSION, "click");
+		clock += 10;
+		await pacing.waitForSlot(SESSION, "hover");
+		expect(sleeps).toEqual([1250 - 10]);
+	});
+
 	it("passes through unpaced actions immediately", async () => {
 		const sleep = vi.fn();
 		const pacing = createPacing({

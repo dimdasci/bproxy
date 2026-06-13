@@ -26,7 +26,7 @@ You stay in front of the browser. The agent handles data reads, copy-paste relie
 
 Three scenarios drive the design:
 
-**Topic research.** The agent navigates search engines by URL, reads rendered page text, paginates by rewriting query parameters, and compiles a structured shortlist. No clicks, no synthetic events — the entire flow is URL-driven navigation plus text extraction. The services see a real browser with a real account loading pages at a reasonable pace.
+**Topic research.** The agent navigates search engines by URL, reads rendered page text, paginates by rewriting query parameters, and compiles a structured shortlist. Most of the flow is still URL-driven navigation plus text extraction, but bproxy can now expose explicit `click` and `hover` primitives when a page genuinely requires them. The services see a real browser with a real account loading pages at a reasonable pace.
 
 **Feed snapshot.** The agent scrolls a social feed to load lazy content, reads each post's text, and assembles a digest. Scroll pacing is daemon-enforced with jittered intervals so the behaviour resembles your normal browsing rather than a metronomic crawler.
 
@@ -38,7 +38,7 @@ A few principles keep bproxy from drifting toward a general-purpose automation f
 
 **Read mode is the default.** The extension reads pages via isolated-world DOM access and navigates by URL. In this mode it has no presence in the page's JavaScript world — no wrapped globals, no mutation observers, no persistent scripts. The page cannot distinguish the extension from normal browsing.
 
-**The agent has a narrow, explicit interface.** It can read, scroll, fill, and navigate — but not execute arbitrary code by default. Three write methods (direct DOM, paste simulation, runtime API) are chosen per field; there is no auto-selection. The extension never decides strategy; the agent owns its choices and they're auditable from outside.
+**The agent has a narrow, explicit interface.** It can read, scroll, fill, select, click, hover, and navigate — but not execute arbitrary code by default. Three write methods (direct DOM, paste simulation, runtime API) are chosen per field; there is no auto-selection. The extension never decides strategy; the agent owns its choices and they're auditable from outside.
 
 **Pacing is enforced, not requested.** The daemon applies human-realistic timing to navigations, scrolls, and fills. The agent cannot burst requests regardless of how it's prompted. Multiple agents can work in parallel on separate sessions without interfering.
 

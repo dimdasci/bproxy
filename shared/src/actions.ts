@@ -12,6 +12,8 @@ export type Action =
 	| "inspect"
 	| "snapshot"
 	| "scroll"
+	| "click"
+	| "hover"
 	| "screenshot"
 	| "fill"
 	| "fill-form"
@@ -143,6 +145,8 @@ export interface ActionParams {
 	inspect: { selector: string; properties?: string[]; limit?: number };
 	snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
 	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down" };
+	click: { target: ElementTarget };
+	hover: { target: ElementTarget };
 	screenshot: { activate?: boolean; debugger?: boolean };
 	fill: {
 		target: ElementTarget;
@@ -199,6 +203,8 @@ export interface ActionResult {
 		scrollHeight?: number;
 		clientHeight?: number;
 	};
+	click: { clicked: true; disappeared: boolean; stable: boolean };
+	hover: { hovered: true; stable: boolean; elapsed: number };
 	screenshot: { base64: string; format: "png" | "jpeg" };
 	fill: { filled: boolean; verifiedValue: string };
 	"fill-form": {

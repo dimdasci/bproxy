@@ -56,6 +56,8 @@ describe("bproxy CLI shell", () => {
 			"outline",
 			"dom",
 			"scroll",
+			"click",
+			"hover",
 			"screenshot",
 			"fill",
 			"fill-form",

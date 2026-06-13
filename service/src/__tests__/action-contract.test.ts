@@ -16,6 +16,8 @@ const T1 = "t1" as TabHandle;
 const PARAMS_BY_ACTION: Partial<Record<Action, BproxyRequest["params"]>> = {
 	navigate: { url: "https://example.com" },
 	links: {},
+	click: { target: { selector: "button.dismiss" } },
+	hover: { target: { selector: "button.menu" } },
 	fill: {
 		target: { selector: "#email" },
 		value: "x@example.com",
@@ -173,6 +175,8 @@ describe("action contract coverage — GAP A", () => {
 			"outline",
 			"dom",
 			"scroll",
+			"click",
+			"hover",
 			"screenshot",
 			"fill",
 			"fill-form",

@@ -1,5 +1,12 @@
 /* compile-time assertions */
-import type { Action, ActionParams, ActionResult, DaemonRequestTrace, TraceEntry } from "./actions";
+import type {
+	Action,
+	ActionParams,
+	ActionResult,
+	DaemonRequestTrace,
+	ElementTarget,
+	TraceEntry,
+} from "./actions";
 import type { ErrorCode } from "./errors";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";
 import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
@@ -15,6 +22,8 @@ type _SessionCloseParams = Expect<Equals<ActionParams["session.close"], Record<s
 type _LinksParams = Expect<
 	Equals<ActionParams["links"], { selector?: string; visibleOnly?: boolean; limit?: number }>
 >;
+type _ClickParams = Expect<Equals<ActionParams["click"], { target: ElementTarget }>>;
+type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ElementTarget }>>;
 type _TabPinUsesLogicalHandle = Expect<Equals<ActionParams["tab.pin"], { tab?: TabHandle }>>;
 type _TabCloseUsesLogicalHandle = Expect<Equals<ActionParams["tab.close"], { tab?: TabHandle }>>;
 type _BindUsesLogicalTab = Expect<
@@ -54,4 +63,10 @@ type _DebugStatusExposesSessionTabs = Expect<
 		ActionResult["debug.status"]["sessionTabs"][number],
 		{ session: SessionId; tabs: Array<TabInfo> }
 	>
+>;
+type _ClickResult = Expect<
+	Equals<ActionResult["click"], { clicked: true; disappeared: boolean; stable: boolean }>
+>;
+type _HoverResult = Expect<
+	Equals<ActionResult["hover"], { hovered: true; stable: boolean; elapsed: number }>
 >;

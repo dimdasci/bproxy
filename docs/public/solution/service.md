@@ -151,7 +151,7 @@ This state is in-memory only and resets on daemon restart.
 | `session.create`, `session.list`, `session.bind`, `session.unbind`, `session.resume`, `session.close` | ✅ | ❌ (session.close forwards tab.close sub-requests) |
 | `tab.list` | ✅ (reads session tab registry) | ❌ |
 | `debug.log` | ❌ | ✅ |
-| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, ...) | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `scroll`, `click`, `hover`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, ...) | ❌ | ✅ |
 
 ### `session.*` semantics
 
@@ -322,10 +322,11 @@ Per-session delay enforcement. The agent cannot bypass it — pacing is daemon-s
 
 ```typescript
 interface SessionPacing {
-  navigate: { min: number; max: number };  // ms between navigations
-  scroll: { min: number; max: number };    // ms between scrolls
-  fill: { min: number; max: number };      // ms between field fills
-  lastAction: number;                       // timestamp of last action in this session
+  navigate: { min: number; max: number };    // ms between navigations
+  scroll: { min: number; max: number };      // ms between scrolls
+  interaction: { min: number; max: number }; // ms between click/hover actions
+  fill: { min: number; max: number };        // ms between field fills
+  lastAction: number;                         // timestamp of last action in this session
 }
 
 async function waitForSlot(session: string, action: string): Promise<void> {
@@ -342,6 +343,7 @@ async function waitForSlot(session: string, action: string): Promise<void> {
 Default pacing (human mode):
 - Navigate: 1500–4000ms
 - Scroll: 4000–8000ms
+- Interaction (`click` / `hover`): 500–2000ms
 - Fill (per field): 500–2000ms
 
 Configurable per session via `bproxy session bind --pacing human|fast`. Per-session config overrides (arbitrary `PacingConfig` literal) are deferred to a later phase.

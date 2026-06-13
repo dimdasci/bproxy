@@ -43,6 +43,15 @@ describe("request schemas", () => {
 		).toBe(true);
 	});
 
+	it("accepts click and hover params with selector or route targets", () => {
+		expect(parse("click", { target: { selector: "button.dismiss" } }).success).toBe(true);
+		expect(
+			parse("hover", {
+				target: { route: { hosts: [{ selector: "x-menu" }], target: "button" } },
+			}).success,
+		).toBe(true);
+	});
+
 	it("accepts session.create with and without label", () => {
 		expect(parse("session.create", {}).success).toBe(true);
 		expect(parse("session.create", { label: "research" }).success).toBe(true);
@@ -77,6 +86,13 @@ describe("request schemas", () => {
 	it("rejects invalid logical tab handles", () => {
 		expect(parse("session.bind", { tab: "t0" }).success).toBe(false);
 		expect(parse("session.bind", { tab: "tab1" }).success).toBe(false);
+	});
+
+	it("rejects click and hover requests with malformed targets", () => {
+		expect(parse("click", { target: {} }).success).toBe(false);
+		expect(
+			parse("hover", { target: { selector: "#x", route: { hosts: [], target: "#y" } } }).success,
+		).toBe(false);
 	});
 
 	it("rejects session.close with extra fields in strict mode", () => {

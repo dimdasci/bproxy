@@ -1,5 +1,12 @@
 import type { BproxyError, FillMethod } from "@bproxy/shared";
 import { isElementVisible } from "./dom-helpers";
+import {
+	centerPoint,
+	createGenericEvent,
+	createMouseLikeEvent,
+	createPointerLikeEvent,
+	defineEventProperty,
+} from "./synthetic-events";
 
 type EditableElement = Element & {
 	value?: unknown;
@@ -46,6 +53,18 @@ export function assertVisibleActionableElement(element: Element): void {
 	}
 }
 
+export function assertInteractableElement(element: Element): void {
+	assertVisibleActionableElement(element);
+	if (isDisabled(element)) {
+		throw elementNotActionable("Target element is disabled", { tag: tagNameOf(element) });
+	}
+	if (hasPointerEventsNone(element)) {
+		throw elementNotActionable("Target element does not accept pointer events", {
+			tag: tagNameOf(element),
+		});
+	}
+}
+
 export function applyDirectFill(element: Element, value: string): string {
 	assertWritableFillTarget(element);
 	setEditableValue(element, value);
@@ -80,12 +99,37 @@ export function focusElement(element: Element): void {
 }
 
 export function clickElement(element: Element): void {
+	const point = centerPoint(element);
+	dispatchEventSafe(element, createPointerLikeEvent("pointerdown", point, { bubbles: true }));
+	dispatchEventSafe(
+		element,
+		createMouseLikeEvent("mousedown", point, { bubbles: true, cancelable: true, detail: 1 }),
+	);
+	dispatchEventSafe(element, createPointerLikeEvent("pointerup", point, { bubbles: true }));
+	dispatchEventSafe(
+		element,
+		createMouseLikeEvent("mouseup", point, { bubbles: true, cancelable: true, detail: 1 }),
+	);
+
 	const candidate = element as EditableElement;
 	if (typeof candidate.click === "function") {
 		candidate.click();
 		return;
 	}
-	dispatchEventSafe(element, createGenericEvent("click", { bubbles: true, composed: true }));
+	dispatchEventSafe(
+		element,
+		createMouseLikeEvent("click", point, { bubbles: true, cancelable: true, detail: 1 }),
+	);
+}
+
+export function hoverElement(element: Element): void {
+	const point = centerPoint(element);
+	dispatchEventSafe(element, createPointerLikeEvent("pointerover", point, { bubbles: true }));
+	dispatchEventSafe(element, createPointerLikeEvent("pointerenter", point, { bubbles: false }));
+	dispatchEventSafe(element, createMouseLikeEvent("mouseover", point, { bubbles: true }));
+	dispatchEventSafe(element, createMouseLikeEvent("mouseenter", point, { bubbles: false }));
+	dispatchEventSafe(element, createPointerLikeEvent("pointermove", point, { bubbles: true }));
+	dispatchEventSafe(element, createMouseLikeEvent("mousemove", point, { bubbles: true }));
 }
 
 export function dispatchChangeEvent(element: Element): void {
@@ -164,6 +208,12 @@ function isReadOnly(element: Element): boolean {
 	return element.hasAttribute("readonly") || element.getAttribute("aria-readonly") === "true";
 }
 
+function hasPointerEventsNone(element: Element): boolean {
+	const view = element.ownerDocument?.defaultView;
+	if (!view || typeof view.getComputedStyle !== "function") return false;
+	return view.getComputedStyle(element).pointerEvents === "none";
+}
+
 function dispatchEventSafe(element: Element, event: Event): void {
 	const candidate = element as EditableElement;
 	candidate.dispatchEvent?.(event);
@@ -187,48 +237,6 @@ function createPasteInputEvent(type: "beforeinput" | "input", value: string): Ev
 	defineEventProperty(event, "data", value);
 	defineEventProperty(event, "inputType", "insertFromPaste");
 	return event;
-}
-
-function createGenericEvent(type: string, init: EventInit): Event {
-	if (typeof Event === "function") return new Event(type, init);
-	return {
-		type,
-		bubbles: Boolean(init.bubbles),
-		cancelable: Boolean(init.cancelable),
-		composed: Boolean(init.composed),
-		defaultPrevented: false,
-		preventDefault() {},
-		stopImmediatePropagation() {},
-		stopPropagation() {},
-		NONE: 0,
-		CAPTURING_PHASE: 1,
-		AT_TARGET: 2,
-		BUBBLING_PHASE: 3,
-		eventPhase: 2,
-		isTrusted: false,
-		returnValue: true,
-		timeStamp: Date.now(),
-		composedPath: () => [],
-		initEvent() {},
-		cancelBubble: false,
-		srcElement: null,
-		target: null,
-		currentTarget: null,
-		composedPathTarget: null,
-		bubblesInit: init.bubbles,
-	} as unknown as Event;
-}
-
-function defineEventProperty(event: Event, key: string, value: string): void {
-	try {
-		Object.defineProperty(event, key, {
-			configurable: true,
-			enumerable: true,
-			value,
-		});
-	} catch {
-		(event as unknown as Record<string, unknown>)[key] = value;
-	}
 }
 
 function tagNameOf(element: Element): string {

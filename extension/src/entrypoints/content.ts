@@ -1,4 +1,5 @@
 import { createFillHandlers } from "../content/actions/fill";
+import { createInteractionHandlers } from "../content/actions/interactions";
 import { createReadHandlers } from "../content/actions/reads";
 import { createScrollWaitHandlers } from "../content/actions/scroll-wait";
 import { createSelectHandlers } from "../content/actions/select";
@@ -32,6 +33,7 @@ export default defineContentScript({
 const handlers = {
 	...createReadHandlers(),
 	...createScrollWaitHandlers(),
+	...createInteractionHandlers(),
 	...createFillHandlers(),
 	...createSelectHandlers(),
 };
