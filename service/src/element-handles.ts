@@ -137,7 +137,8 @@ export class ElementHandleCache {
 			return;
 		}
 		const count = keys.size;
-		for (const key of [...keys]) {
+		const snapshot = Array.from(keys); // snapshot: removeEntry mutates the set
+		for (const key of snapshot) {
 			const entry = this.entries.get(key);
 			if (entry) this.removeEntry(key, entry);
 		}

@@ -52,7 +52,7 @@ function parseElementHandle(handle: string): TargetResult {
 	if (!HANDLE_PATTERN.test(handle)) {
 		return {
 			ok: false,
-			reason: "Invalid --element: must match /^(el|ln)\\d+$/.",
+			reason: String.raw`Invalid --element: must match /^(el|ln)\d+$/.`,
 		};
 	}
 	return { ok: true, target: { handle: handle as ElementHandle } };

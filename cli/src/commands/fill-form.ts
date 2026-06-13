@@ -198,7 +198,7 @@ function validateHandleTarget(handle: string, index: number): TargetOk | Validat
 	if (!HANDLE_PATTERN.test(handle)) {
 		return {
 			ok: false,
-			reason: `fields[${index}]: "target.handle" must match /^(el|ln)\\d+$/.`,
+			reason: String.raw`fields[${index}]: "target.handle" must match /^(el|ln)\d+$/.`,
 		};
 	}
 	return { ok: true, target: { handle: handle as ElementHandle } };
