@@ -307,19 +307,21 @@ extension/src/background/tabs.ts   — send navigation push in committed/history
 
 ## Implementation tasks
 
-### Task 1: Shared types
+> **Status: all tasks complete.** Implementation merged via PR#9 (click/hover primitives) and PR#10 (element handles + code quality). SonarCloud quality gate green. 787 tests pass across all workspaces.
+
+### Task 1: Shared types ✅
 
 Add `shared/src/handles.ts` with the types and pattern constant. Add `handle?: string` to `ElementInfo` and `LinkInfo` in `actions.ts`. Add error codes to `errors.ts`. Re-export from index.
 
 **Done when:** `pnpm --filter @bproxy/shared typecheck` passes. Consumers that use `ElementInfo` or `LinkInfo` see the optional `handle` field. New error codes are available.
 
-### Task 2: Extension navigation push
+### Task 2: Extension navigation push ✅
 
 In `extension/src/background/tabs.ts`, inside the existing `committed` and `history` handlers (which already fire for `frameId === 0` events), add a WS send of the navigation message. The WS client reference should be accessible from the background dispatcher context — follow the same pattern used for sending responses.
 
 **Done when:** Extension unit tests verify that top-level navigation events produce WS messages. Sub-frame events do not. Send failures (WS not connected) are silent.
 
-### Task 3: Daemon handle cache
+### Task 3: Daemon handle cache ✅
 
 Implement `service/src/element-handles.ts` as a standalone module with a clean interface:
 
@@ -335,7 +337,7 @@ Expose bounds as constructor parameters for testability (TTL, per-scope cap, glo
 
 **Done when:** Unit tests cover: minting, resolution, TTL expiry, eviction under pressure, scope mismatch, epoch mismatch, URL mismatch, replace-on-re-read, session close invalidation, tab close invalidation, epoch unavailable fails closed.
 
-### Task 4: Daemon integration
+### Task 4: Daemon integration ✅
 
 Wire the handle cache into the daemon request lifecycle:
 
@@ -347,7 +349,7 @@ Wire the handle cache into the daemon request lifecycle:
 
 **Done when:** Integration tests demonstrate a full round-trip: read → handles in response → actuator with handle → resolution → forwarded with explicit target. Error paths tested.
 
-### Task 5: CLI target UX
+### Task 5: CLI target UX ✅
 
 Extend `cli/src/targets.ts`:
 
@@ -360,13 +362,13 @@ Update all target-taking commands to include the `--element` arg definition.
 
 **Done when:** CLI unit tests verify parsing, mutual exclusion errors, format validation, and correct request body shape.
 
-### Task 6: Schema validation
+### Task 6: Schema validation ✅
 
 Update `service/src/schemas.ts` to accept the `ClientElementTarget` shape in action params that support element targeting. The schema must accept either `{ selector: string }`, `{ route: ElementRoute }`, or `{ handle: string }` — but never combinations.
 
 **Done when:** Invalid handle formats are rejected at schema validation (400). Valid handles pass through to the resolution step.
 
-### Task 7: Extension invariants check
+### Task 7: Extension invariants check ✅
 
 Verify:
 - Content-script `targeting.ts` still only accepts `ElementTarget` (no handle type imported).
@@ -376,7 +378,7 @@ Verify:
 
 **Done when:** `pnpm check` passes including architecture rules. Test explicitly asserts extension bundle does not contain handle-resolution logic.
 
-### Task 8: Architecture and documentation update
+### Task 8: Architecture and documentation update ✅
 
 This task reconciles all documentation with shipped behavior. Each file below has a specific reason for change — do not skip any.
 

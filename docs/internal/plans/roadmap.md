@@ -22,7 +22,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
 | 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
 | 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
-| 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | Planned | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
+| 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | ✅ Done | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
 | 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | ✅ Done | [phases/06-element-handles.md](./phases/06-element-handles.md) |
 | 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 6 closes_ |
 
@@ -102,9 +102,11 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/public/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG.
 
-### Phase 5 — Integration & hardening
+### Phase 5 — Integration & hardening ✅ Done
 
 **Purpose:** validate the system against documented scenarios end-to-end and harden the Phase 4 agent-DX seams found during real use. The primary planning input is [`docs/internal/journal/2026-05-24-agent-dx-tab-and-link-extraction.md`](../journal/2026-05-24-agent-dx-tab-and-link-extraction.md): fresh tab bootstrap, raw Chrome tab ids, missing structured link extraction, and fragile selector generation.
+
+**Status note:** Phase 5 is complete. All 12 tasks done: protocol scope lock, shared types update, daemon session+tab internals, extension tab actions, CLI commands, links action, selector hardening, scenario validation, inspect/snapshot UX, error hardening, documentation reconciliation, and pre-commit hooks. 732 tests at close.
 
 **Output:** generated session capability handles (6-char base32, no prefix, e.g. `m4q8z2`); session-scoped logical tab handles; `tab open` as the fresh bootstrap path (sole auto-create-session command); scoped `tab list`; `session bind --tab <handle>`; a first-class `links` action; hardened selector generation; Scenarios 1–3 from [`docs/internal/scenarios.md`](../scenarios.md) validated against the real system; deadline/error/observability hardening; documentation reconciled with shipped code; pre-commit hooks wired to a fast subset of `pnpm check` per [`docs/internal/quality-gates.md`](../quality-gates.md).
 
