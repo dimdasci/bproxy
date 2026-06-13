@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
 import type { ActionParams, TabHandle } from "../types.js";
+import { extractUrl } from "./fetch-helper.js";
 
 const T1 = "t1" as TabHandle;
 
@@ -19,7 +20,9 @@ function makeGlobals(overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArg
 	};
 }
 
-function successResponse(id: string, data: unknown = { text: "hello" }) {
+const DEFAULT_RESPONSE_DATA = { text: "hello" };
+
+function successResponse(id: string, data: unknown = DEFAULT_RESPONSE_DATA) {
 	return {
 		protocol_version: 1,
 		id,
@@ -51,7 +54,7 @@ function createMockFetch(responseBody: unknown, status = 200) {
 	const calls: { url: string; init: RequestInit }[] = [];
 
 	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		calls.push({ url: url.toString(), init: init ?? {} });
+		calls.push({ url: extractUrl(url), init: init ?? {} });
 		return Promise.resolve(
 			new Response(JSON.stringify(responseBody), {
 				status,
@@ -60,7 +63,7 @@ function createMockFetch(responseBody: unknown, status = 200) {
 		);
 	};
 
-	return { fetch: mockFetch as typeof globalThis.fetch, calls };
+	return { fetch: mockFetch, calls };
 }
 
 /** Create a writable stream that captures output */
@@ -381,7 +384,7 @@ describe("sendAction", () => {
 			Promise.resolve(new Response("not json at all", { status: 200 }));
 
 		const result = await sendAction("text", {}, makeGlobals({ home: dir }), {
-			fetch: mockFetch as typeof globalThis.fetch,
+			fetch: mockFetch,
 			requestId: reqId,
 		});
 
@@ -411,7 +414,7 @@ describe("sendAction", () => {
 		const mockFetch = (): Promise<Response> => Promise.reject(new Error("ECONNREFUSED"));
 
 		const result = await sendAction("text", {}, makeGlobals({ home: dir }), {
-			fetch: mockFetch as typeof globalThis.fetch,
+			fetch: mockFetch,
 			requestId: reqId,
 		});
 
@@ -429,7 +432,7 @@ describe("sendAction", () => {
 		const mockFetch = (): Promise<Response> => Promise.reject(abortError);
 
 		const result = await sendAction("text", {}, makeGlobals({ home: dir, timeout: "100" }), {
-			fetch: mockFetch as typeof globalThis.fetch,
+			fetch: mockFetch,
 			requestId: reqId,
 		});
 

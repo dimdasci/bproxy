@@ -17,7 +17,7 @@ export function assertIsolatedFillMethod(method: FillMethod, world: "isolated" |
 		);
 	}
 	if (world !== "isolated") {
-		throw scriptError(`fill method ${method} requires world \"isolated\"`);
+		throw scriptError(`fill method ${method} requires world "isolated"`);
 	}
 }
 
@@ -69,9 +69,7 @@ export function readEditableValue(element: Element): string {
 		return element.getAttribute("value") ?? "";
 	}
 	if (isWritableContentEditable(element)) {
-		return (element.textContent ?? "").trim() === element.textContent
-			? (element.textContent ?? "")
-			: (element.textContent ?? "");
+		return element.textContent ?? "";
 	}
 	return "";
 }
@@ -96,11 +94,11 @@ export function dispatchChangeEvent(element: Element): void {
 
 function setEditableValue(element: Element, value: string): void {
 	if (isWritableTextControl(element)) {
-		setPropertyValue(element as EditableElement, "value", value);
+		setPropertyValue(element, "value", value);
 		return;
 	}
 	if (isWritableContentEditable(element)) {
-		setPropertyValue(element as EditableElement, "textContent", value);
+		setPropertyValue(element, "textContent", value);
 		return;
 	}
 	throw elementNotActionable("Target element does not support fill writes", {

@@ -41,8 +41,9 @@ export const ACTIONS = [
 // If a new Action is added to @bproxy/shared without being appended to ACTIONS,
 // this type resolves to a non-`true` literal and the constant assignment fails.
 type _AssertCovers = Exclude<Action, (typeof ACTIONS)[number]> extends never ? true : false;
+// compile-time only: assignment fails if _AssertCovers resolves to `false`
 const _coverage: _AssertCovers = true;
-void _coverage;
+void _coverage; // NOSONAR — suppresses unused-var
 
 const elementTarget = z.union([
 	z.object({ selector: z.string() }).strict(),

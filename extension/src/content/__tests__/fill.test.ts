@@ -18,14 +18,15 @@ class NativeInputElement extends FakeElement {
 }
 
 class RejectingInputElement extends FakeElement {
-	private _value = "persisted";
+	private readonly _value = "persisted";
 
 	override get value(): string {
 		return this._value;
 	}
 
+	// Simulate a hostile controlled field that rejects the write.
 	override set value(_next: string) {
-		// Simulate a hostile controlled field that rejects the write.
+		// Intentionally empty: reject all writes to simulate a hostile controlled field.
 	}
 }
 

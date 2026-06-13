@@ -76,7 +76,7 @@ async function onSubmit(ev: SubmitEvent): Promise<void> {
 
 document.addEventListener("DOMContentLoaded", () => {
 	$<HTMLFormElement>("pair-form").addEventListener("submit", (ev) => {
-		void onSubmit(ev as SubmitEvent);
+		void onSubmit(ev);
 	});
 	setStatus("idle", "Enter the one-time code issued by the daemon.");
 });

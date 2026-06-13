@@ -257,11 +257,11 @@ function getDocument(deps: ScrollWaitDeps): ScrollWaitDocument {
 }
 
 function getWindow(deps: ScrollWaitDeps): ScrollWaitWindow {
-	return deps.window ?? window;
+	return deps.window ?? globalThis;
 }
 
 function getLocation(deps: ScrollWaitDeps): { href: string } {
-	return deps.location ?? window.location;
+	return deps.location ?? globalThis.location;
 }
 
 function pollingDeps(deps: ScrollWaitDeps, documentOverride?: ScrollWaitDocument): PollingDeps {

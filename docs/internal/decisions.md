@@ -376,12 +376,14 @@ The skill is what agents load and apply; the extension contract is the three met
 
 **Decision:** SonarQube/SonarCloud security findings, including Security Hotspots, must be resolved by changing code or tests. Marking a hotspot as "safe", accepting it in the scanner UI, or otherwise suppressing the finding without code remediation is not allowed.
 
+**Scope:** This restriction applies to production code and its associated tests (packages under `cli/`, `service/`, `extension/`, `shared/`, `views/`). Proof-of-concept code under `poc/` is exempt — findings there may be resolved directly in the scanner UI (marked as "Won't Fix" or "Safe") since POCs are throwaway explorations not shipped to users.
+
 **Rules:**
 - Treat security findings as implementation feedback, not as scanner bookkeeping.
 - Prefer removing the risky pattern entirely over documenting why it is harmless.
 - Test-only code follows the same rule: replace flagged constructs with deterministic or safer alternatives instead of marking them accepted.
-- Suppressions or scanner-side status changes are not an approved path for security issues/hotspots.
+- Suppressions or scanner-side status changes are not an approved path for security issues/hotspots in production code.
 
-**Rationale:** bproxy controls a real user browser, so security review outcomes must leave the repository safer and auditable from source code alone. Code remediation keeps future local and CI scans aligned and avoids hidden policy state in external tools.
+**Rationale:** bproxy controls a real user browser, so security review outcomes must leave the repository safer and auditable from source code alone. Code remediation keeps future local and CI scans aligned and avoids hidden policy state in external tools. POC code is excluded because it is never deployed and exists only to validate design hypotheses.
 
 ---

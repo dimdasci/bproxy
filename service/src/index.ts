@@ -31,10 +31,11 @@ async function main(): Promise<number> {
 	}
 }
 
-void main()
-	.then((code) => process.exit(code))
-	.catch((error: unknown) => {
-		const message = error instanceof Error ? error.message : String(error);
-		process.stderr.write(`${message}\n`);
-		process.exit(1);
-	});
+try {
+	const code = await main();
+	process.exit(code);
+} catch (error: unknown) {
+	const message = error instanceof Error ? error.message : String(error);
+	process.stderr.write(`${message}\n`);
+	process.exit(1);
+}

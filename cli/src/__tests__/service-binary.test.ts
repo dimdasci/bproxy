@@ -70,15 +70,14 @@ describe("resolveServiceBinary", () => {
 
 // ─── execServiceBinary ─────────────────────────────────────────────────
 
-describe("execServiceBinary", () => {
-	// Create a temp script to simulate service binary behavior
-	function writeTempScript(content: string): string {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-svc-test-"));
-		const scriptPath = join(dir, "service.mjs");
-		writeFileSync(scriptPath, content, { mode: 0o755 });
-		return scriptPath;
-	}
+function writeTempScript(content: string): string {
+	const dir = mkdtempSync(join(tmpdir(), "bproxy-svc-test-"));
+	const scriptPath = join(dir, "service.mjs");
+	writeFileSync(scriptPath, content, { mode: 0o755 });
+	return scriptPath;
+}
 
+describe("execServiceBinary", () => {
 	it("returns ok with stdout when script exits 0", async () => {
 		const script = writeTempScript(`
 			const cmd = process.argv[2];

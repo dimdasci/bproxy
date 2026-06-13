@@ -142,9 +142,9 @@ describe("CLI integration smoke", () => {
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
 		expect(parsed["running"]).toBe(true);
 		expect(typeof parsed["pid"]).toBe("number");
-		expect(parsed["pid"] as number).toBeGreaterThan(0);
+		expect(parsed["pid"]).toBeGreaterThan(0);
 		expect(typeof parsed["port"]).toBe("number");
-		expect(parsed["port"] as number).toBeGreaterThan(0);
+		expect(parsed["port"]).toBeGreaterThan(0);
 		expect(typeof parsed["pairingCode"]).toBe("string");
 		expect((parsed["pairingCode"] as string).length).toBeGreaterThan(0);
 		expect(typeof parsed["pairingExpiresAt"]).toBe("number");

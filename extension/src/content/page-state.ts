@@ -29,9 +29,11 @@ export function snapshotPageState(source: PageStateSource): PageState {
 	};
 }
 
-export function snapshotDomPageState(
-	deps: DomSnapshotDeps = { document, location: window.location },
-): PageState {
+function getDefaultDomDeps(): DomSnapshotDeps {
+	return { document: globalThis.document, location: globalThis.location };
+}
+
+export function snapshotDomPageState(deps: DomSnapshotDeps = getDefaultDomDeps()): PageState {
 	return snapshotPageState({
 		url: deps.location.href,
 		title: deps.document.title,

@@ -116,20 +116,23 @@ export class FakeElement implements QueryElementLike {
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this as QueryRootLike, selector) as FakeElement[];
+		return queryWithin(this, selector) as FakeElement[];
 	}
 
 	matches(selector: string): boolean {
-		return matchesAnySelector(this as QueryElementLike, selector);
+		return matchesAnySelector(this, selector);
 	}
 
 	closest(selector: string): FakeElement | null {
-		let current: FakeElement | null = this;
-		while (current) {
-			if (current.matches(selector)) return current;
-			current =
-				current.parentElement ??
-				(current.parentRoot instanceof FakeShadowRoot ? current.parentRoot.host : null);
+		if (this.matches(selector)) return this;
+		let ancestor: FakeElement | null =
+			this.parentElement ??
+			(this.parentRoot instanceof FakeShadowRoot ? this.parentRoot.host : null);
+		while (ancestor) {
+			if (ancestor.matches(selector)) return ancestor;
+			ancestor =
+				ancestor.parentElement ??
+				(ancestor.parentRoot instanceof FakeShadowRoot ? ancestor.parentRoot.host : null);
 		}
 		return null;
 	}
@@ -151,7 +154,7 @@ export class FakeElement implements QueryElementLike {
 			x: this.rect.left,
 			y: this.rect.top,
 			toJSON: () => ({ ...this.rect }),
-		} as DOMRect;
+		};
 	}
 
 	setRect(rect: RectInit): void {
@@ -218,7 +221,7 @@ export class FakeShadowRoot implements QueryRootLike {
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this as QueryRootLike, selector) as FakeElement[];
+		return queryWithin(this, selector) as FakeElement[];
 	}
 }
 
@@ -251,7 +254,7 @@ export class FakeDocument implements QueryRootLike {
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this as QueryRootLike, selector) as FakeElement[];
+		return queryWithin(this, selector) as FakeElement[];
 	}
 
 	setHitTest(elements: FakeElement[]): void {

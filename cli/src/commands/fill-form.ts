@@ -184,7 +184,7 @@ function validateField(entry: Record<string, unknown>, index: number): FieldOk |
 		ok: true,
 		field: {
 			target: target.target,
-			value: entry["value"] as string,
+			value: entry["value"],
 			method: entry["method"] as FillMethod,
 			world: entry["world"] as ExecutionWorld,
 		},

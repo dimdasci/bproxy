@@ -23,61 +23,50 @@ import rehypeExternalLinks from "rehype-external-links";
  * in the markdown source. Raw HTML `<a>` tags are not rewritten — none
  * exist in the current docs.
  */
+function isExternalOrSpecialUrl(url) {
+	return (
+		url.startsWith("http://") ||
+		url.startsWith("https://") ||
+		url.startsWith("//") ||
+		url.startsWith("#") ||
+		url.startsWith("mailto:")
+	);
+}
+
+function rewriteMdUrl(url, fileDir, contentRoot) {
+	const hashIdx = url.indexOf("#");
+	const rawPath = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
+	const fragment = hashIdx >= 0 ? url.slice(hashIdx) : "";
+
+	if (!rawPath.endsWith(".md") && !rawPath.endsWith(".mdx")) return url;
+
+	const absTarget = resolve(fileDir, rawPath);
+	let routePath = relative(contentRoot, absTarget);
+	routePath = routePath.split("\\").join("/");
+	routePath = routePath.replace(/\.mdx?$/, "");
+	routePath = routePath
+		.split("/")
+		.map((s) => githubSlug(s))
+		.join("/");
+	if (routePath === "index" || routePath.endsWith("/index")) {
+		routePath = routePath.replace(/\/?index$/, "");
+	}
+	return "/" + routePath + "/" + fragment;
+}
+
 function remarkRewriteMdLinks() {
 	// Content root: views/src/content/docs/ (the symlink target of ../docs)
 	const contentRoot = resolve(dirname(new URL(import.meta.url).pathname), "src/content/docs");
 
 	return (tree, file) => {
-		// file.path is absolute, e.g. /.../views/src/content/docs/solution/cli.md
 		const filePath = file.path || file.history?.[0];
 		if (!filePath) return;
-
 		const fileDir = dirname(filePath);
 
 		function walk(node) {
 			if (node.type === "link" && typeof node.url === "string") {
-				const url = node.url;
-
-				// Skip external, protocol, anchor-only, and non-.md links
-				if (
-					url.startsWith("http://") ||
-					url.startsWith("https://") ||
-					url.startsWith("//") ||
-					url.startsWith("#") ||
-					url.startsWith("mailto:")
-				) {
-					// leave as-is
-				} else {
-					// Split off #fragment
-					const hashIdx = url.indexOf("#");
-					const rawPath = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
-					const fragment = hashIdx >= 0 ? url.slice(hashIdx) : "";
-
-					if (rawPath.endsWith(".md") || rawPath.endsWith(".mdx")) {
-						// Resolve relative to current file, then make relative to content root
-						const absTarget = resolve(fileDir, rawPath);
-						let routePath = relative(contentRoot, absTarget);
-
-						// Normalise to posix separators (Windows safety)
-						routePath = routePath.split("\\").join("/");
-
-						// Strip .md / .mdx extension
-						routePath = routePath.replace(/\.mdx?$/, "");
-
-						// Slugify each segment the way Astro's glob loader does
-						routePath = routePath
-							.split("/")
-							.map((s) => githubSlug(s))
-							.join("/");
-
-						// index files map to their parent directory
-						if (routePath === "index" || routePath.endsWith("/index")) {
-							routePath = routePath.replace(/\/?index$/, "");
-						}
-
-						// Emit absolute URL: /decisions/#adr-010
-						node.url = "/" + routePath + "/" + fragment;
-					}
+				if (!isExternalOrSpecialUrl(node.url)) {
+					node.url = rewriteMdUrl(node.url, fileDir, contentRoot);
 				}
 			}
 			if (node.children) {

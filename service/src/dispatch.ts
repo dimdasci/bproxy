@@ -51,37 +51,27 @@ function createTabLock() {
 
 	return function withTabLock<T>(tabId: number, fn: () => Promise<T>): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			function run() {
-				let p: Promise<T>;
+			async function run() {
 				try {
-					p = fn();
+					const result = await fn();
+					resolve(result);
 				} catch (e) {
 					reject(e);
+				} finally {
 					unlock(tabId);
-					return;
 				}
-				p.then(
-					(v) => {
-						resolve(v);
-						unlock(tabId);
-					},
-					(e: unknown) => {
-						reject(e);
-						unlock(tabId);
-					},
-				);
 			}
 
-			if (!locked.get(tabId)) {
-				locked.set(tabId, true);
-				run();
-			} else {
+			if (locked.get(tabId)) {
 				let queue = queues.get(tabId);
 				if (!queue) {
 					queue = [];
 					queues.set(tabId, queue);
 				}
 				queue.push(run);
+			} else {
+				locked.set(tabId, true);
+				void run(); // NOSONAR
 			}
 		});
 	};

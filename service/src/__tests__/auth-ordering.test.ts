@@ -68,7 +68,7 @@ describe("auth ordering — GAP C", () => {
 	describe("negative tests: valid payload + missing/invalid auth", () => {
 		it("fails 401 without any Authorization header", async () => {
 			const cmd = makeCmd({ action: "debug.status" });
-			const res = await postCommand(cmd, undefined); // No token
+			const res = await postCommand(cmd); // No token
 			expect(res.status).toBe(401);
 		});
 

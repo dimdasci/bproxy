@@ -32,9 +32,7 @@ describe("targeting", () => {
 				target: 'input[name="email"]',
 			},
 		});
-		expect(resolveElementTarget(target, { document: page as unknown as Document })).toBe(
-			email as unknown as Element,
-		);
+		expect(resolveElementTarget(target, { document: page as unknown as Document })).toBe(email);
 	});
 
 	it("reports missing shadow hosts as ELEMENT_NOT_FOUND", () => {

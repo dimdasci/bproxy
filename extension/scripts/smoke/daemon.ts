@@ -103,7 +103,7 @@ function parsePairingCodeAnnouncement(raw: string): PairingCodeAnnouncement {
 	const pairingCode = Reflect.get(parsed, "pairingCode");
 	const expiresAt = Reflect.get(parsed, "expiresAt");
 	if (typeof pairingCode !== "string" || typeof expiresAt !== "number") {
-		throw new Error("Daemon startup announcement must include pairingCode and expiresAt");
+		throw new TypeError("Daemon startup announcement must include pairingCode and expiresAt");
 	}
 	return { pairingCode, expiresAt };
 }

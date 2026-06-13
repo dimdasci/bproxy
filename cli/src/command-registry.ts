@@ -70,12 +70,11 @@ export function allRegisteredActions(): ReadonlySet<Action> {
 // ─── Compile-time exhaustiveness assertion ─────────────────────────────
 // Every Action must appear in exactly one of the two sets above.
 // If this errors, a new Action was added to shared without updating the registry.
-type _AssertCoverage = {
+// Suppress unused warning — exists only for the compile-time check.
+type _Use = {
 	[A in Action]: A extends
 		| (typeof DESTRUCTIVE_ACTIONS extends ReadonlySet<infer D> ? D : never)
 		| (typeof NON_DESTRUCTIVE_ACTIONS extends ReadonlySet<infer N> ? N : never)
 		? true
 		: never;
 };
-// Suppress unused warning — exists only for the compile-time check.
-type _Use = _AssertCoverage;

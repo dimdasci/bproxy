@@ -5,7 +5,7 @@ set -euo pipefail
 
 DIST="${1:-views/dist}"
 
-if [ ! -d "$DIST" ]; then
+if [[ ! -d "$DIST" ]]; then
   echo "ERROR: dist directory '$DIST' not found. Run pnpm docs:build first." >&2
   exit 1
 fi
@@ -13,7 +13,7 @@ fi
 # Match href="<relative>.md..." but exclude external URLs (http/https)
 HITS=$(grep -rn 'href="[^"]*\.md[x]\?[^"]*"' "$DIST" | grep -v 'https\?://' || true)
 
-if [ -n "$HITS" ]; then
+if [[ -n "$HITS" ]]; then
   echo "ERROR: Found internal .md links in built HTML (these will 404):" >&2
   echo "$HITS" >&2
   echo "" >&2

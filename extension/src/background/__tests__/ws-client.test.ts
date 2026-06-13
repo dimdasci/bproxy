@@ -289,11 +289,11 @@ describe("buildSubprotocols", () => {
 		const encoded = tail.slice("auth.".length);
 		// Mirror the daemon's `Buffer.from(x, "base64url").toString("utf8")`.
 		const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
-		const std = padded.replace(/-/g, "+").replace(/_/g, "/");
+		const std = padded.replaceAll("-", "+").replaceAll("_", "/");
 		const decoded = atob(std);
 		// Convert binary string back to UTF-8.
 		const bytes = new Uint8Array(decoded.length);
-		for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+		for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.codePointAt(i)!;
 		expect(new TextDecoder().decode(bytes)).toBe(token);
 	});
 
