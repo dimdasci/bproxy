@@ -76,56 +76,33 @@ describe("parseTarget", () => {
 		}
 	});
 
-	it("rejects invalid handle format", () => {
-		const result = parseTarget(undefined, undefined, "e17");
+	it.each([
+		["invalid handle format", undefined, undefined, "e17", "must match"],
+		["invalid JSON in --route-json", undefined, "not json", undefined, "not valid JSON"],
+		["route-json missing target field", undefined, '{"hosts":[]}', undefined, "must be"],
+	] as const)("rejects %s", (_label, selector, route, element, fragment) => {
+		const result = parseTarget(selector, route, element);
 		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toContain("must match");
-		}
+		if (!result.ok) expect(result.reason).toContain(fragment);
 	});
 
-	it("rejects invalid JSON in --route-json", () => {
-		const result = parseTarget(undefined, "not json", undefined);
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toContain("not valid JSON");
-		}
-	});
-
-	it("rejects route-json missing target field", () => {
-		const result = parseTarget(undefined, '{"hosts":[]}', undefined);
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toContain("must be");
-		}
-	});
-
-	it("rejects route-json with empty target", () => {
-		const result = parseTarget(undefined, '{"hosts":[],"target":""}', undefined);
-		expect(result.ok).toBe(false);
-	});
-
-	it("rejects route-json with non-array hosts", () => {
-		const result = parseTarget(undefined, '{"hosts":"not-array","target":"x"}', undefined);
-		expect(result.ok).toBe(false);
-	});
-
-	it("rejects route-json with invalid host entry (missing selector)", () => {
-		const result = parseTarget(undefined, '{"hosts":[{"index":0}],"target":"x"}', undefined);
-		expect(result.ok).toBe(false);
-	});
-
-	it("rejects route-json with invalid host entry (non-string selector)", () => {
-		const result = parseTarget(undefined, '{"hosts":[{"selector":123}],"target":"x"}', undefined);
-		expect(result.ok).toBe(false);
-	});
-
-	it("rejects route-json with invalid host entry (non-number index)", () => {
-		const result = parseTarget(
-			undefined,
+	it.each([
+		["route-json with empty target", '{"hosts":[],"target":""}'],
+		["route-json with non-array hosts", '{"hosts":"not-array","target":"x"}'],
+		[
+			"route-json with invalid host entry (missing selector)",
+			'{"hosts":[{"index":0}],"target":"x"}',
+		],
+		[
+			"route-json with invalid host entry (non-string selector)",
+			'{"hosts":[{"selector":123}],"target":"x"}',
+		],
+		[
+			"route-json with invalid host entry (non-number index)",
 			'{"hosts":[{"selector":"x","index":"a"}],"target":"x"}',
-			undefined,
-		);
+		],
+	] as const)("rejects %s", (_label, route) => {
+		const result = parseTarget(undefined, route, undefined);
 		expect(result.ok).toBe(false);
 	});
 

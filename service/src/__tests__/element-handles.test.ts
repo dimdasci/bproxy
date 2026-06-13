@@ -15,6 +15,26 @@ function link(selector: string, href: string, text: string): LinkInfo {
 	return { text, href, target: { selector } };
 }
 
+/** Navigate and mint a single element handle; returns the cache for further assertions. */
+function mintWithEpoch(
+	cache: ElementHandleCache,
+	navUrl = "https://example.test/",
+	mintUrl = navUrl,
+): ElementHandleCache {
+	cache.handleNavigation(CHROME_TAB, navUrl);
+	const pageEpoch = cache.getPageEpoch(CHROME_TAB)?.epoch ?? 0;
+	cache.mint(
+		SESSION,
+		TAB_1,
+		CHROME_TAB,
+		"elements",
+		[element("button.submit")],
+		mintUrl,
+		pageEpoch,
+	);
+	return cache;
+}
+
 describe("ElementHandleCache", () => {
 	it("mints element and link handles with action-specific prefixes", () => {
 		const cache = new ElementHandleCache();
@@ -79,18 +99,7 @@ describe("ElementHandleCache", () => {
 	});
 
 	it("fails closed when epoch data is unavailable", () => {
-		const cache = new ElementHandleCache();
-		cache.handleNavigation(CHROME_TAB, "https://example.test/");
-		const pageEpoch = cache.getPageEpoch(CHROME_TAB)?.epoch ?? 0;
-		cache.mint(
-			SESSION,
-			TAB_1,
-			CHROME_TAB,
-			"elements",
-			[element("button.submit")],
-			"https://example.test/",
-			pageEpoch,
-		);
+		const cache = mintWithEpoch(new ElementHandleCache());
 		cache.clearPageEpochs();
 
 		const resolved = cache.resolve(SESSION, TAB_1, "el1");
@@ -98,18 +107,7 @@ describe("ElementHandleCache", () => {
 	});
 
 	it("eagerly invalidates handles when the page epoch changes", () => {
-		const cache = new ElementHandleCache();
-		cache.handleNavigation(CHROME_TAB, "https://example.test/");
-		const pageEpoch = cache.getPageEpoch(CHROME_TAB)?.epoch ?? 0;
-		cache.mint(
-			SESSION,
-			TAB_1,
-			CHROME_TAB,
-			"elements",
-			[element("button.submit")],
-			"https://example.test/",
-			pageEpoch,
-		);
+		const cache = mintWithEpoch(new ElementHandleCache());
 		cache.handleNavigation(CHROME_TAB, "https://example.test/next");
 
 		expect(cache.size()).toBe(0);
@@ -118,17 +116,10 @@ describe("ElementHandleCache", () => {
 	});
 
 	it("returns stale when the URL no longer matches the minted page", () => {
-		const cache = new ElementHandleCache();
-		cache.handleNavigation(CHROME_TAB, "https://example.test/current");
-		const pageEpoch = cache.getPageEpoch(CHROME_TAB)?.epoch ?? 0;
-		cache.mint(
-			SESSION,
-			TAB_1,
-			CHROME_TAB,
-			"elements",
-			[element("button.submit")],
+		const cache = mintWithEpoch(
+			new ElementHandleCache(),
+			"https://example.test/current",
 			"https://example.test/original",
-			pageEpoch,
 		);
 
 		const resolved = cache.resolve(SESSION, TAB_1, "el1");
