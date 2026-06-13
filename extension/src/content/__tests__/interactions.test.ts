@@ -108,6 +108,38 @@ describe("interaction actions", () => {
 		expect(result).toMatchObject({ hovered: true, stable: true, elapsed: 180 });
 		expect(sleeps).toEqual([180]);
 	});
+
+	it("click fails with TAB_NOT_VISIBLE if tab becomes hidden during settle", async () => {
+		const button = el("button", { attrs: { id: "dismiss" }, text: "Dismiss" });
+		const page = pageDoc(button);
+		const clock = createVirtualClock([0]);
+
+		await expect(
+			handleClick(request("click", { target: { selector: "#dismiss" } }), {
+				document: page as unknown as Document,
+				now: clock.now,
+				random: clock.random,
+				sleep: async (ms) => {
+					await clock.sleep(ms);
+					page.visibilityState = "hidden";
+				},
+			}),
+		).rejects.toMatchObject({ code: "TAB_NOT_VISIBLE" });
+	});
+
+	it("click fails with ELEMENT_NOT_ACTIONABLE for a disabled target", async () => {
+		const disabled = el("button", {
+			attrs: { id: "submit", disabled: true },
+			text: "Submit",
+		});
+		const page = pageDoc(disabled);
+
+		await expect(
+			handleClick(request("click", { target: { selector: "#submit" } }), {
+				document: page as unknown as Document,
+			}),
+		).rejects.toMatchObject({ code: "ELEMENT_NOT_ACTIONABLE" });
+	});
 });
 
 function request<A extends ContentRpcRequest["action"]>(

@@ -244,6 +244,18 @@ Payload must be `{ "fields": [...] }` where each field has `target`, `value`, `m
 - `--selector` / `--route-json`: scroll exactly that resolved element. bproxy does not infer or fall back to other scroll containers.
 - Result includes `moved`, `before`, `after`, and `scrolledPx` so agents can tell whether anything actually moved.
 
+### `click --selector/--route-json`
+
+- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Sends `click` with `{ target }`
+- Classified as destructive
+
+### `hover --selector/--route-json`
+
+- Target: exactly one of `--selector <css>` or `--route-json <json>`
+- Sends `hover` with `{ target }`
+- Classified as destructive
+
 There is intentionally no `eval` command. Arbitrary page/runtime investigation belongs to browser debugging tools such as CDP/devtools, not bproxy.
 
 ## Command Registry
@@ -259,18 +271,6 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 Writes structured JSON to stderr. Each entry includes: `requestId`, `action`, `session`, `url`, `elapsed`, `httpStatus`, `errorCode`. Token values are never included.
 
 ## Debugger Policy
-
-### `click --selector/--route-json`
-
-- Target: exactly one of `--selector <css>` or `--route-json <json>`
-- Sends `click` with `{ target }`
-- Classified as destructive
-
-### `hover --selector/--route-json`
-
-- Target: exactly one of `--selector <css>` or `--route-json <json>`
-- Sends `hover` with `{ target }`
-- Classified as destructive
 
 The CLI does not add `--enable-debugger-mode` flags to `service start`. Extension `DEBUGGER_DISABLED` policy responses pass through as protocol errors (exit `1`). Arbitrary page eval is out of scope.
 

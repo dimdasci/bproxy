@@ -69,6 +69,7 @@ async function waitForSettle(document_: Document, deps: InteractionActionDeps) {
 		{
 			read: () => subtreeSignature(document_.body ?? document_.documentElement),
 			timeoutMs: SETTLE_TIMEOUT_MS,
+			respectVisibility: true,
 		},
 		pollingDeps(deps),
 	);
