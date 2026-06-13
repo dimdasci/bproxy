@@ -5,6 +5,7 @@ import type { Logger } from "pino";
 import { makeHeaderAuthHook } from "./auth";
 import { createClients } from "./clients";
 import { createDispatch } from "./dispatch";
+import { ElementHandleCache } from "./element-handles";
 import { createPacing } from "./pacing";
 import { createPairingStore, type PairingStore } from "./pairing";
 import { createPending } from "./pending";
@@ -38,6 +39,7 @@ interface ObjectGraph {
 	sessions: SessionRegistry;
 	pairing: PairingStore;
 	dispatch: ReturnType<typeof createDispatch>;
+	elementHandles: ElementHandleCache;
 	pacing: ReturnType<typeof createPacing>;
 	newClientId: () => string;
 	startedAt: number;
@@ -84,10 +86,12 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 			opts.logger.info({ id, event: "replay", ws_client: wsClient });
 		},
 	});
+	const elementHandles = new ElementHandleCache({ logger: opts.logger });
 	const dispatch = createDispatch({
 		clients,
 		pending,
 		sessions,
+		elementHandles,
 		onForwarded: ({ id, wsClient, tab }) => {
 			opts.logger.info({ id, event: "forwarded", ws_client: wsClient, tab });
 		},
@@ -109,6 +113,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		pending,
 		sessions,
 		dispatch,
+		elementHandles,
 		pacing,
 		pairing,
 		newClientId,
@@ -131,6 +136,7 @@ async function registerRoutes(
 			pacing: deps.pacing,
 			logger: opts.logger,
 			sessions: deps.sessions,
+			elementHandles: deps.elementHandles,
 			trace: deps.pushTrace,
 			debug: {
 				clients: deps.clients,
@@ -157,6 +163,7 @@ async function registerRoutes(
 			pending: deps.pending,
 			logger: opts.logger,
 			newClientId: deps.newClientId,
+			elementHandles: deps.elementHandles,
 		}),
 	);
 }

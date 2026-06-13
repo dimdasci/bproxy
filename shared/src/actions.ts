@@ -1,5 +1,7 @@
 import type { ErrorCode } from "./errors";
+import type { ClientElementTarget, ElementHandle } from "./handles";
 import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
+import type { ElementTarget } from "./targets";
 
 export type Action =
 	| "navigate"
@@ -40,17 +42,6 @@ export type Action =
 export type FillMethod = "direct" | "paste" | "runtime-api";
 export type ExecutionWorld = "isolated" | "main";
 
-/** Shadow-DOM route representation (ADR-014) */
-export interface ElementRoute {
-	hosts: Array<{ selector: string; index?: number }>; // shadow host chain from document
-	target: string; // selector within deepest shadow root
-}
-
-/** Target must be exactly one strategy: light-DOM selector or shadow route */
-export type ElementTarget =
-	| { selector: string; route?: never }
-	| { selector?: never; route: ElementRoute };
-
 /**
  * Composed from ElementTarget so an ElementInfo can be passed directly
  * anywhere an ElementTarget is expected.
@@ -64,6 +55,7 @@ export type ElementInfo = ElementTarget & {
 	required?: boolean;
 	options?: string[]; // for select/dropdown
 	role?: string;
+	handle?: ElementHandle;
 	// Framework/runtime markers for method selection
 	hasShadowRoot?: boolean;
 	runtimeHandle?: "quill" | "lexical" | "prosemirror" | "codemirror" | "monaco" | "slate";
@@ -73,6 +65,7 @@ export interface LinkInfo {
 	text: string;
 	href: string;
 	target: ElementTarget;
+	handle?: ElementHandle;
 	title?: string;
 	rel?: string;
 	targetAttr?: string;
@@ -144,25 +137,25 @@ export interface ActionParams {
 	dom: { selector?: string; depth?: number };
 	inspect: { selector: string; properties?: string[]; limit?: number };
 	snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
-	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down" };
-	click: { target: ElementTarget };
-	hover: { target: ElementTarget };
+	scroll: { target?: ClientElementTarget; by?: string; direction?: "up" | "down" };
+	click: { target: ClientElementTarget };
+	hover: { target: ClientElementTarget };
 	screenshot: { activate?: boolean; debugger?: boolean };
 	fill: {
-		target: ElementTarget;
+		target: ClientElementTarget;
 		value: string;
 		method: FillMethod;
 		world: ExecutionWorld;
 	};
 	"fill-form": {
 		fields: Array<{
-			target: ElementTarget;
+			target: ClientElementTarget;
 			value: string;
 			method: FillMethod;
 			world: ExecutionWorld;
 		}>;
 	};
-	select: { trigger: ElementTarget; optionText: string };
+	select: { trigger: ClientElementTarget; optionText: string };
 	wait: { strategy: "selector" | "url" | "navigation"; target: string; timeout?: number };
 	"require-human": { reason: string; forAttach?: string };
 	"tab.list": Record<string, never>;
@@ -235,9 +228,57 @@ export interface ActionResult {
 	};
 }
 
+export interface ForwardedActionParams {
+	navigate: ActionParams["navigate"];
+	text: ActionParams["text"];
+	links: ActionParams["links"];
+	images: ActionParams["images"];
+	elements: ActionParams["elements"];
+	outline: ActionParams["outline"];
+	dom: ActionParams["dom"];
+	inspect: ActionParams["inspect"];
+	snapshot: ActionParams["snapshot"];
+	scroll: { target?: ElementTarget; by?: string; direction?: "up" | "down" };
+	click: { target: ElementTarget };
+	hover: { target: ElementTarget };
+	screenshot: ActionParams["screenshot"];
+	fill: {
+		target: ElementTarget;
+		value: string;
+		method: FillMethod;
+		world: ExecutionWorld;
+	};
+	"fill-form": {
+		fields: Array<{
+			target: ElementTarget;
+			value: string;
+			method: FillMethod;
+			world: ExecutionWorld;
+		}>;
+	};
+	select: { trigger: ElementTarget; optionText: string };
+	wait: ActionParams["wait"];
+	"require-human": ActionParams["require-human"];
+	"tab.list": ActionParams["tab.list"];
+	"tab.pin": ActionParams["tab.pin"];
+	"tab.unpin": ActionParams["tab.unpin"];
+	"tab.open": ActionParams["tab.open"];
+	"tab.close": ActionParams["tab.close"];
+	"session.create": ActionParams["session.create"];
+	"session.list": ActionParams["session.list"];
+	"session.bind": ActionParams["session.bind"];
+	"session.unbind": ActionParams["session.unbind"];
+	"session.resume": ActionParams["session.resume"];
+	"session.close": ActionParams["session.close"];
+	"debug.log": ActionParams["debug.log"];
+	"debug.last": ActionParams["debug.last"];
+	"debug.status": ActionParams["debug.status"];
+}
+
 // ─── Compile-time guard ────────────────────────────────────────────────
 // Every Action must have ActionParams and ActionResult entries.
 // If this line errors, a new Action was added without updating both interfaces.
 // Suppress unused-type warnings — these exist only for the compile-time check.
 type _AssertParams = { [A in Action]: ActionParams[A] };
+type _AssertForwardedParams = { [A in Action]: ForwardedActionParams[A] };
 type _AssertResults = { [A in Action]: ActionResult[A] };

@@ -22,12 +22,13 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 2 | Daemon | Routing, auth, pacing, lifecycle | ✅ Done | [phases/02-daemon.md](./phases/02-daemon.md) |
 | 3 | Extension | Browser-side execution | ✅ Done | [phases/03-extension.md](./phases/03-extension.md) |
 | 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
-| 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | Planned | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
-| 6 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 5 closes_ |
+| 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | ✅ Done | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
+| 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | ✅ Done | [phases/06-element-handles.md](./phases/06-element-handles.md) |
+| 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 6 closes_ |
 
 Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
 
-**Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing all seven plans up front would lock in assumptions before they've been tested.
+**Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing every later phase plan up front would lock in assumptions before they've been tested.
 
 ## Per-phase summary
 
@@ -101,23 +102,37 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Views integration:** `cli` added to `KNOWN_WORKSPACES` in `views/scripts/regen.ts`; `pnpm views:regen` produces `docs/public/views/auto/cli-components.svg`; Container diagram in `02-containers.md` gets a `click CLI` directive linking to the generated SVG.
 
-### Phase 5 — Integration & hardening
+### Phase 5 — Integration & hardening ✅ Done
 
 **Purpose:** validate the system against documented scenarios end-to-end and harden the Phase 4 agent-DX seams found during real use. The primary planning input is [`docs/internal/journal/2026-05-24-agent-dx-tab-and-link-extraction.md`](../journal/2026-05-24-agent-dx-tab-and-link-extraction.md): fresh tab bootstrap, raw Chrome tab ids, missing structured link extraction, and fragile selector generation.
+
+**Status note:** Phase 5 is complete. All 12 tasks done: protocol scope lock, shared types update, daemon session+tab internals, extension tab actions, CLI commands, links action, selector hardening, scenario validation, inspect/snapshot UX, error hardening, documentation reconciliation, and pre-commit hooks. 732 tests at close.
 
 **Output:** generated session capability handles (6-char base32, no prefix, e.g. `m4q8z2`); session-scoped logical tab handles; `tab open` as the fresh bootstrap path (sole auto-create-session command); scoped `tab list`; `session bind --tab <handle>`; a first-class `links` action; hardened selector generation; Scenarios 1–3 from [`docs/internal/scenarios.md`](../scenarios.md) validated against the real system; deadline/error/observability hardening; documentation reconciled with shipped code; pre-commit hooks wired to a fast subset of `pnpm check` per [`docs/internal/quality-gates.md`](../quality-gates.md).
 
 **Done when:** a fresh paired setup can run `tab open -> navigate -> text -> links -> session close` without fake tab ids, raw Chrome ids, implicit shared `default` state, manual rebinding, or external HTML parsing; `session close` automatically closes session-owned Chrome tabs; Scenario 1 (Google research) runs autonomously to completion; Scenario 2 (LinkedIn snapshot) handles scroll/pause/`HUMAN_REQUIRED` correctly; Scenario 3 (form fill) fills a real application form to the user-review step; docs match the implemented command and response shapes; pre-commit hooks block commits that fail the selected fast gates.
 
-**Out of scope:** public npm packaging, release artifacts, extension distribution, installer/update flows, broad existing-tab adoption, closed shadow-root support, new stealth mechanisms, arbitrary page eval, debugger control paths, and generalized scroll-container inference. Phase 5 hardens behaviour; Phase 6 packages it.
+**Out of scope:** public npm packaging, release artifacts, extension distribution, installer/update flows, broad existing-tab adoption, closed shadow-root support, new stealth mechanisms, arbitrary page eval, debugger control paths, and generalized scroll-container inference. Phase 5 hardens behaviour; Phase 7 packages it.
 
 **Detail:** [phases/05-integration-hardening.md](./phases/05-integration-hardening.md).
 
-### Phase 6 — Distribution & installation
+### Phase 6 — Element target aliases
+
+**Purpose:** close the read→act targeting gap found during real browser use by adding short-lived daemon-owned element target aliases. This is an architecture-first feature phase: the core work is stale-page safety, memory bounds, target type separation, invalidation semantics, and observability.
+
+**Output:** read actions such as `elements` and `links` return opaque handles like `el1` / `ln3` alongside normal explicit targets; target-taking commands accept `--element elN|lnN`; the daemon resolves aliases back to `ElementTarget` before forwarding; the extension remains unaware of handle storage and receives only explicit selector/route targets.
+
+**Done when:** an agent can run `elements` or `links`, then safely call `click`, `hover`, `fill`, `select`, or explicit-target `scroll` with a returned handle; stale/expired/out-of-scope handles fail closed with machine-readable errors; cache bounds and no-page-mutation invariants are tested; docs match shipped semantics.
+
+**Out of scope:** native DOM handles, page-visible marker attributes, extension-owned cross-command identity, selector repair, click-by-text, fallback chains, method auto-selection, arbitrary eval, persistent MAIN-world state, and long-lived persisted handle stores.
+
+**Detail:** [phases/06-element-handles.md](./phases/06-element-handles.md).
+
+### Phase 7 — Distribution & installation
 
 **Purpose:** make the hardened system installable and updatable outside the monorepo.
 
-**Output:** a documented distribution shape for CLI + daemon + extension artifacts. The likely direction is one user-facing `bproxy` distribution that bundles or installs the CLI and daemon while preserving separate internal workspaces; the exact package shape is decided at Phase 6 start, after Phase 5 proves the workflow.
+**Output:** a documented distribution shape for CLI + daemon + extension artifacts. The likely direction is one user-facing `bproxy` distribution that bundles or installs the CLI and daemon while preserving separate internal workspaces; the exact package shape is decided at Phase 7 start, after Phase 6 proves the daily-driver read→act workflow.
 
 **Done when:** a user can install bproxy from published/release artifacts, load or install the extension, start the daemon, pair the extension, run a smoke command, and upgrade without breaking existing `BPROXY_HOME` token/state semantics.
 

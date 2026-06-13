@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Logger } from "pino";
 import type { WebSocket } from "ws";
 import type { ClientsRegistry } from "../clients";
+import type { ElementHandleCache } from "../element-handles";
 import type { PendingMap } from "../pending";
 
 export interface WsRouteDeps {
@@ -11,6 +12,7 @@ export interface WsRouteDeps {
 	pending: PendingMap;
 	logger: Logger;
 	newClientId: () => string;
+	elementHandles: ElementHandleCache;
 }
 
 export function wsRoute(deps: WsRouteDeps) {
@@ -40,6 +42,10 @@ export function wsRoute(deps: WsRouteDeps) {
 						socket.send(JSON.stringify({ type: "pong", ts: readHeartbeatTs(msg) }));
 						return;
 					}
+					if (isNavigationMessage(msg)) {
+						deps.elementHandles.handleNavigation(msg.tabId, msg.url);
+						return;
+					}
 					if (hasResponseId(msg)) {
 						deps.pending.resolveById(msg.id, msg);
 					}
@@ -51,6 +57,7 @@ export function wsRoute(deps: WsRouteDeps) {
 			socket.on("close", (_code?: number, reason?: Buffer) => {
 				clearInterval(heartbeat);
 				deps.clients.remove(id);
+				if (deps.clients.size() === 0) deps.elementHandles.clearPageEpochs();
 				deps.logger.info({
 					event: "ws_disconnect",
 					ws_client: id,
@@ -72,6 +79,24 @@ function isHeartbeatPing(value: unknown): value is { type: "ping"; ts?: unknown 
 
 function readHeartbeatTs(value: { ts?: unknown }): number | undefined {
 	return typeof value.ts === "number" ? value.ts : undefined;
+}
+
+function isNavigationMessage(value: unknown): value is {
+	type: "navigation";
+	tabId: number;
+	url: string;
+	cause: "committed" | "history_state";
+} {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		(value as Record<string, unknown>)["type"] === "navigation" &&
+		typeof (value as Record<string, unknown>)["tabId"] === "number" &&
+		typeof (value as Record<string, unknown>)["url"] === "string" &&
+		((value as Record<string, unknown>)["cause"] === "committed" ||
+			(value as Record<string, unknown>)["cause"] === "history_state")
+	);
 }
 
 function hasResponseId(value: unknown): value is BproxyResponse & { id: string } {

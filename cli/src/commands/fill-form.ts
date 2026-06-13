@@ -1,18 +1,18 @@
 import { readFileSync } from "node:fs";
+import { HANDLE_PATTERN } from "@bproxy/shared";
 import { defineCommand } from "citty";
 import { sendAction } from "../client.js";
 import { executeExitPlan, exitUsageError } from "../exit.js";
+import { VALID_METHODS, VALID_WORLDS } from "../fill-constants.js";
 import { extractGlobals, globalArgs } from "../globals.js";
 import type {
 	ActionParams,
+	ClientElementTarget,
+	ElementHandle,
 	ElementRoute,
-	ElementTarget,
 	ExecutionWorld,
 	FillMethod,
 } from "../types.js";
-
-const VALID_METHODS: FillMethod[] = ["direct", "paste", "runtime-api"];
-const VALID_WORLDS: ExecutionWorld[] = ["isolated", "main"];
 
 export default defineCommand({
 	meta: { description: "Fill multiple form fields" },
@@ -24,8 +24,6 @@ export default defineCommand({
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
-
-		// Resolve payload from exactly one source
 		const payload = resolvePayload(
 			args.json as string | undefined,
 			args.file as string | undefined,
@@ -36,7 +34,6 @@ export default defineCommand({
 			return;
 		}
 
-		// Validate payload shape
 		const validation = validateFieldsPayload(payload.value);
 		if (!validation.ok) {
 			executeExitPlan(exitUsageError(validation.reason));
@@ -49,12 +46,11 @@ export default defineCommand({
 	},
 });
 
-// ─── Payload resolution ────────────────────────────────────────────────
-
 interface PayloadOk {
 	ok: true;
 	value: string;
 }
+
 interface PayloadError {
 	ok: false;
 	reason: string;
@@ -66,7 +62,6 @@ function resolvePayload(
 	stdin: boolean,
 ): PayloadOk | PayloadError {
 	const sources = [json !== undefined, file !== undefined, stdin].filter(Boolean).length;
-
 	if (sources === 0) {
 		return { ok: false, reason: "Provide exactly one of --json, --file, or --stdin." };
 	}
@@ -76,21 +71,21 @@ function resolvePayload(
 			reason: "Provide exactly one of --json, --file, or --stdin, not multiple.",
 		};
 	}
+	if (json !== undefined) return { ok: true, value: json };
+	if (file !== undefined) return readPayloadFile(file);
+	return readPayloadStdin();
+}
 
-	if (json !== undefined) {
-		return { ok: true, value: json };
+function readPayloadFile(file: string): PayloadOk | PayloadError {
+	try {
+		return { ok: true, value: readFileSync(file, "utf8") };
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { ok: false, reason: `Failed to read --file "${file}": ${msg}` };
 	}
+}
 
-	if (file !== undefined) {
-		try {
-			return { ok: true, value: readFileSync(file, "utf8") };
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			return { ok: false, reason: `Failed to read --file "${file}": ${msg}` };
-		}
-	}
-
-	// stdin
+function readPayloadStdin(): PayloadOk | PayloadError {
 	try {
 		return { ok: true, value: readFileSync(0, "utf8") };
 	} catch (err) {
@@ -99,10 +94,8 @@ function resolvePayload(
 	}
 }
 
-// ─── Payload validation ────────────────────────────────────────────────
-
 interface FieldEntry {
-	target: ElementTarget;
+	target: ClientElementTarget;
 	value: string;
 	method: FillMethod;
 	world: ExecutionWorld;
@@ -112,37 +105,39 @@ interface ValidationOk {
 	ok: true;
 	fields: FieldEntry[];
 }
+
 interface ValidationError {
 	ok: false;
 	reason: string;
 }
 
 function validateFieldsPayload(raw: string): ValidationOk | ValidationError {
+	const parsed = parsePayload(raw);
+	if (!parsed.ok) return parsed;
+	if (!Array.isArray(parsed.value["fields"])) {
+		return { ok: false, reason: 'Payload must contain a "fields" array.' };
+	}
+
+	const fields: FieldEntry[] = [];
+	for (const [index, item] of parsed.value["fields"].entries()) {
+		const validated = validateField(item, index);
+		if (!validated.ok) return validated;
+		fields.push(validated.field);
+	}
+	return { ok: true, fields };
+}
+
+function parsePayload(raw: string): { ok: true; value: Record<string, unknown> } | ValidationError {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw);
 	} catch {
 		return { ok: false, reason: "Payload is not valid JSON." };
 	}
-
 	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
 		return { ok: false, reason: 'Payload must be an object with a "fields" array.' };
 	}
-
-	const obj = parsed as Record<string, unknown>;
-	if (!Array.isArray(obj["fields"])) {
-		return { ok: false, reason: 'Payload must contain a "fields" array.' };
-	}
-
-	const fields: FieldEntry[] = [];
-	for (let i = 0; i < obj["fields"].length; i++) {
-		const entry = obj["fields"][i] as Record<string, unknown>;
-		const result = validateField(entry, i);
-		if (!result.ok) return result;
-		fields.push(result.field);
-	}
-
-	return { ok: true, fields };
+	return { ok: true, value: parsed as Record<string, unknown> };
 }
 
 interface FieldOk {
@@ -150,89 +145,63 @@ interface FieldOk {
 	field: FieldEntry;
 }
 
-function validateField(entry: Record<string, unknown>, index: number): FieldOk | ValidationError {
-	if (entry === null || typeof entry !== "object") {
+function validateField(entry: unknown, index: number): FieldOk | ValidationError {
+	if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
 		return { ok: false, reason: `fields[${index}]: must be an object.` };
 	}
-
-	// Validate target
-	const target = validateTarget(entry["target"], index);
+	const record = entry as Record<string, unknown>;
+	const target = validateTarget(record["target"], index);
 	if (!target.ok) return target;
-
-	// Validate value
-	if (typeof entry["value"] !== "string") {
-		return { ok: false, reason: `fields[${index}]: "value" must be a string.` };
-	}
-
-	// Validate method
-	if (!VALID_METHODS.includes(entry["method"] as FillMethod)) {
-		return {
-			ok: false,
-			reason: `fields[${index}]: "method" must be one of: ${VALID_METHODS.join(", ")}.`,
-		};
-	}
-
-	// Validate world
-	if (!VALID_WORLDS.includes(entry["world"] as ExecutionWorld)) {
-		return {
-			ok: false,
-			reason: `fields[${index}]: "world" must be one of: ${VALID_WORLDS.join(", ")}.`,
-		};
-	}
-
+	const value = validateValue(record["value"], index);
+	if (!value.ok) return value;
+	const method = validateMethod(record["method"], index);
+	if (!method.ok) return method;
+	const world = validateWorld(record["world"], index);
+	if (!world.ok) return world;
 	return {
 		ok: true,
 		field: {
 			target: target.target,
-			value: entry["value"],
-			method: entry["method"] as FillMethod,
-			world: entry["world"] as ExecutionWorld,
+			value: value.value,
+			method: method.method,
+			world: world.world,
 		},
 	};
 }
 
 interface TargetOk {
 	ok: true;
-	target: ElementTarget;
+	target: ClientElementTarget;
 }
 
 function validateTarget(target: unknown, index: number): TargetOk | ValidationError {
-	if (target === null || typeof target !== "object") {
+	if (target === null || typeof target !== "object" || Array.isArray(target)) {
 		return { ok: false, reason: `fields[${index}]: "target" must be an object.` };
 	}
-
-	const t = target as Record<string, unknown>;
-	const hasSelector = typeof t["selector"] === "string";
-	const hasRoute = t["route"] !== undefined && t["route"] !== null;
-
-	const exclusivity = checkTargetExclusivity(hasSelector, hasRoute, index);
-	if (exclusivity) return exclusivity;
-
-	if (hasSelector) {
-		return { ok: true, target: { selector: t["selector"] as string } };
+	const record = target as Record<string, unknown>;
+	const hasSelector = typeof record["selector"] === "string";
+	const hasRoute = record["route"] !== undefined && record["route"] !== null;
+	const hasHandle = typeof record["handle"] === "string";
+	const kindCount = [hasSelector, hasRoute, hasHandle].filter(Boolean).length;
+	if (kindCount !== 1) {
+		return {
+			ok: false,
+			reason: `fields[${index}]: "target" must have exactly one of "selector", "route", or "handle".`,
+		};
 	}
-
-	return validateRouteTarget(t["route"] as Record<string, unknown>, index);
+	if (hasSelector) return { ok: true, target: { selector: record["selector"] as string } };
+	if (hasHandle) return validateHandleTarget(record["handle"] as string, index);
+	return validateRouteTarget(record["route"] as Record<string, unknown>, index);
 }
 
-function checkTargetExclusivity(
-	hasSelector: boolean,
-	hasRoute: boolean,
-	index: number,
-): ValidationError | null {
-	if (hasSelector && hasRoute) {
+function validateHandleTarget(handle: string, index: number): TargetOk | ValidationError {
+	if (!HANDLE_PATTERN.test(handle)) {
 		return {
 			ok: false,
-			reason: `fields[${index}]: "target" must have either "selector" or "route", not both.`,
+			reason: String.raw`fields[${index}]: "target.handle" must match /^(el|ln)\d+$/.`,
 		};
 	}
-	if (!hasSelector && !hasRoute) {
-		return {
-			ok: false,
-			reason: `fields[${index}]: "target" must have either "selector" or "route".`,
-		};
-	}
-	return null;
+	return { ok: true, target: { handle: handle as ElementHandle } };
 }
 
 function validateRouteTarget(
@@ -245,6 +214,41 @@ function validateRouteTarget(
 	if (!Array.isArray(route["hosts"])) {
 		return { ok: false, reason: `fields[${index}]: "target.route.hosts" must be an array.` };
 	}
-
 	return { ok: true, target: { route: route as unknown as ElementRoute } };
+}
+
+function validateValue(
+	value: unknown,
+	index: number,
+): { ok: true; value: string } | ValidationError {
+	if (typeof value !== "string") {
+		return { ok: false, reason: `fields[${index}]: "value" must be a string.` };
+	}
+	return { ok: true, value };
+}
+
+function validateMethod(
+	method: unknown,
+	index: number,
+): { ok: true; method: FillMethod } | ValidationError {
+	if (!VALID_METHODS.includes(method as FillMethod)) {
+		return {
+			ok: false,
+			reason: `fields[${index}]: "method" must be one of: ${VALID_METHODS.join(", ")}.`,
+		};
+	}
+	return { ok: true, method: method as FillMethod };
+}
+
+function validateWorld(
+	world: unknown,
+	index: number,
+): { ok: true; world: ExecutionWorld } | ValidationError {
+	if (!VALID_WORLDS.includes(world as ExecutionWorld)) {
+		return {
+			ok: false,
+			reason: `fields[${index}]: "world" must be one of: ${VALID_WORLDS.join(", ")}.`,
+		};
+	}
+	return { ok: true, world: world as ExecutionWorld };
 }

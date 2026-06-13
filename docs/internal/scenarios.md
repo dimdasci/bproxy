@@ -40,6 +40,14 @@ bproxy tab open --url "https://www.google.com/search?q=solution+architect+jobs&t
 
 bproxy text -s m4q7z2 --selector main
 bproxy links -s m4q7z2 --selector "#search" --visible-only --limit 20
+# -> { ok: true, data: { links: [{ text: "Example result", href: "https://example.com", handle: "ln3", ... }, ...] } }
+
+# If a site flow really requires a click after inspection, the agent can reuse the returned handle.
+bproxy click -s m4q7z2 --element ln3
+
+# Selector-based targeting still works when the agent already knows the exact target.
+# bproxy click -s m4q7z2 --selector 'a[data-result="3"]'
+
 bproxy session close -s m4q7z2
 ```
 

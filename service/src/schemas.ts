@@ -1,4 +1,4 @@
-import type { Action, BproxyRequest } from "@bproxy/shared";
+import { type Action, type BproxyRequest, HANDLE_PATTERN } from "@bproxy/shared";
 import { z } from "zod";
 import { TAB_HANDLE_PATTERN } from "./sessions";
 
@@ -47,7 +47,7 @@ type _AssertCovers = Exclude<Action, (typeof ACTIONS)[number]> extends never ? t
 const _coverage: _AssertCovers = true;
 void _coverage; // NOSONAR — suppresses unused-var
 
-const elementTarget = z.union([
+const explicitElementTarget = z.union([
 	z.object({ selector: z.string() }).strict(),
 	z
 		.object({
@@ -57,6 +57,11 @@ const elementTarget = z.union([
 			}),
 		})
 		.strict(),
+]);
+
+const clientElementTarget = z.union([
+	explicitElementTarget,
+	z.object({ handle: z.string().regex(HANDLE_PATTERN) }).strict(),
 ]);
 
 const fillMethod = z.enum(["direct", "paste", "runtime-api"]);
@@ -94,13 +99,13 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 		.strict(),
 	scroll: z
 		.object({
-			target: elementTarget.optional(),
+			target: clientElementTarget.optional(),
 			by: z.string().optional(),
 			direction: z.enum(["up", "down"]).optional(),
 		})
 		.strict(),
-	click: z.object({ target: elementTarget }).strict(),
-	hover: z.object({ target: elementTarget }).strict(),
+	click: z.object({ target: clientElementTarget }).strict(),
+	hover: z.object({ target: clientElementTarget }).strict(),
 	screenshot: z
 		.object({
 			activate: z.boolean().optional(),
@@ -109,7 +114,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 		.strict(),
 	fill: z
 		.object({
-			target: elementTarget,
+			target: clientElementTarget,
 			value: z.string(),
 			method: fillMethod,
 			world: executionWorld,
@@ -120,7 +125,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 			fields: z.array(
 				z
 					.object({
-						target: elementTarget,
+						target: clientElementTarget,
 						value: z.string(),
 						method: fillMethod,
 						world: executionWorld,
@@ -129,7 +134,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 			),
 		})
 		.strict(),
-	select: z.object({ trigger: elementTarget, optionText: z.string() }).strict(),
+	select: z.object({ trigger: clientElementTarget, optionText: z.string() }).strict(),
 	wait: z
 		.object({
 			strategy: z.enum(["selector", "url", "navigation"]),

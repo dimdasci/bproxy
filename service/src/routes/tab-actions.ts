@@ -179,5 +179,6 @@ async function handleTabClose(
 	const closed = await dispatchAndPause(cmd, deps, { targetTabId: resolved.chromeTabId });
 	if (!closed.ok) return closed;
 	deps.sessions.removeTab(cmd.session, resolved.tab);
+	deps.elementHandles.invalidateForTab(resolved.chromeTabId);
 	return success(cmd, { tab: resolved.tab, closed: true }, closed.page);
 }

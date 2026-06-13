@@ -11,6 +11,7 @@ export default defineCommand({
 		...globalArgs,
 		selector: { type: "string", description: "CSS selector for the element to scroll" },
 		"route-json": { type: "string", description: "JSON route for shadow DOM scroll target" },
+		element: { type: "string", description: "Short-lived element handle (e.g. el5)" },
 		by: { type: "string", description: "Scroll amount (e.g. 'viewport', '500px')" },
 		direction: { type: "string", description: "Scroll direction: up or down" },
 	},
@@ -20,6 +21,7 @@ export default defineCommand({
 		const targetResult = parseOptionalTarget(
 			args.selector as string | undefined,
 			args["route-json"] as string | undefined,
+			args.element as string | undefined,
 		);
 		if (!targetResult.ok) {
 			executeExitPlan(exitUsageError(targetResult.reason));

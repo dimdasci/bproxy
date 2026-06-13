@@ -1,4 +1,10 @@
-import type { Action, ActionParams, ActionResult, BproxyError, PageState } from "@bproxy/shared";
+import type {
+	Action,
+	ActionResult,
+	BproxyError,
+	ForwardedActionParams,
+	PageState,
+} from "@bproxy/shared";
 
 export type ContentAction = Extract<
 	Action,
@@ -23,7 +29,7 @@ export type ContentRpcRequest<A extends ContentAction = ContentAction> = {
 	kind: "bproxy.content.request";
 	id: string;
 	action: A;
-	params: ActionParams[A];
+	params: ForwardedActionParams[A];
 };
 
 export type ContentRpcResponse<A extends ContentAction = ContentAction> =
@@ -103,7 +109,7 @@ export function registerContentRpcListener(
 export function toContentRpcRequest<A extends ContentAction>(input: {
 	id: string;
 	action: A;
-	params: ActionParams[A];
+	params: ForwardedActionParams[A];
 }): ContentRpcRequest<A> {
 	return {
 		kind: "bproxy.content.request",
@@ -207,7 +213,7 @@ function parseContentRpcRequest(raw: unknown): ParseContentRequestResult {
 			kind: "bproxy.content.request",
 			id,
 			action: raw["action"],
-			params: raw["params"] as ActionParams[ContentAction],
+			params: raw["params"] as ForwardedActionParams[ContentAction],
 		},
 	};
 }

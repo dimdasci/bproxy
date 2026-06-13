@@ -28,6 +28,7 @@ service/
     ├── config.ts             # env-based configuration
     ├── debug-actions.ts      # debug.status / debug.last handlers
     ├── dispatch.ts           # route command to correct WS client + tab
+    ├── element-handles.ts    # daemon-owned handle cache + page-epoch tracking
     ├── logger.ts             # structured JSON logger (pino-compatible)
     ├── pacing.ts             # per-session delay enforcement
     ├── pairing.ts            # pairing code generation and validation
@@ -132,7 +133,7 @@ app.post('/', {
 });
 ```
 
-The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires.
+The route is synchronous from the CLI's perspective: POST blocks until the extension responds or deadline expires. After successful `elements` or `links` responses, the daemon decorates actionable entries with short-lived handles (`el1`, `ln1`, ...) before returning to the CLI.
 
 **Status precedence (normative):** for `POST /`, auth failure (`401`) takes precedence over request-body parse/schema failures (`400`).
 
@@ -236,7 +237,7 @@ Token activation contract:
 
 **File:** `src/routes/ws.ts`
 
-Extension connects here. Multiple clients are supported (for example one per Chrome profile), as long as they authenticate with the currently active extension token. In addition to WS-level `ping`, the daemon now answers the extension's app-level `{ type: "ping" }` messages with `{ type: "pong" }` so the MV3 service worker can detect stale-but-not-yet-closed sockets.
+Extension connects here. Multiple clients are supported (for example one per Chrome profile), as long as they authenticate with the currently active extension token. In addition to WS-level `ping`, the daemon now answers the extension's app-level `{ type: "ping" }` messages with `{ type: "pong" }` so the MV3 service worker can detect stale-but-not-yet-closed sockets. The same route also accepts unsolicited navigation push messages from the extension: `{ type: "navigation", tabId, url, cause: "committed" | "history_state" }`.
 
 ```typescript
 app.get('/ws', { websocket: true }, (socket, request) => {
@@ -257,6 +258,11 @@ app.get('/ws', { websocket: true }, (socket, request) => {
     // Extension app-level heartbeat.
     if (msg?.type === 'ping') {
       socket.send(JSON.stringify({ type: 'pong', ts: msg.ts }));
+      return;
+    }
+
+    if (msg?.type === 'navigation') {
+      elementHandles.handleNavigation(msg.tabId, msg.url);
       return;
     }
 
@@ -313,6 +319,18 @@ function send(client: WebSocket, cmd: BproxyRequest): Promise<BproxyResponse> {
 ### Per-tab serialization
 
 Commands targeting the same tab are serialized (queue, not parallel). Prevents race conditions where two commands compete for the same content script.
+
+## Element Handle Cache
+
+`src/element-handles.ts` owns short-lived daemon-side aliases for read→act workflows.
+
+- `elements` mints `el1`, `el2`, ... and `links` mints `ln1`, `ln2`, ...
+- handles are scoped to `{session, logical tab, page}`
+- page identity uses a daemon-maintained navigation epoch plus the minted page URL
+- resolution happens before forwarding, so the extension still receives only explicit `ElementTarget` params
+- bounds are enforced in memory only: TTL 120s, per-scope cap 200, global cap 1000
+- fresh reads replace prior handles for the same `{session, tab, sourceAction}` scope
+- session close and explicit tab close invalidate affected handles; WS disconnect clears epoch knowledge so later resolutions fail closed as stale until a fresh navigation is observed
 
 ## Pacing Engine
 
@@ -491,6 +509,9 @@ The daemon wraps extension errors and adds its own:
 | `TAB_NOT_FOUND` | target | Session has no bound tab |
 | `TAB_HANDLE_NOT_FOUND` | target | Logical tab handle not registered in any session |
 | `TAB_NOT_IN_SESSION` | target | Tab exists but belongs to another session |
+| `ELEMENT_HANDLE_NOT_FOUND` | target | Handle unknown, expired, or evicted; re-run the read action |
+| `ELEMENT_HANDLE_STALE` | target | Handle no longer matches the current page epoch/URL, or epoch data is unavailable |
+| `ELEMENT_HANDLE_SCOPE_MISMATCH` | target | Handle belongs to another logical tab in the same session |
 | `HUMAN_REQUIRED` | policy | Session is paused (interstitial detected) |
 | `PAIRING_CODE_INVALID` | policy | Pair claim used unknown code |
 | `PAIRING_CODE_EXPIRED` | policy | Pair claim used expired code |
@@ -525,6 +546,9 @@ Structured JSON via Fastify's pino logger. Every log line includes the request `
 | `ws_connect` | Extension WS client connected | `ws_client`, `remote` |
 | `ws_disconnect` | Extension WS client dropped | `ws_client`, `reason` |
 | `pacing_config` | Session pacing changed | `session`, `mode` |
+| `handle_mint` | Read response decorated with fresh handles | `session`, `tab`, `sourceAction`, `count`, `firstHandle`, `lastHandle` |
+| `handle_resolve` | Handle resolution attempt | `handle`, `session`, `tab`, `outcome` |
+| `handle_invalidate` | Handle batch invalidated or evicted | `session?`, `tab?`, `cause`, `count` |
 
 ### Log Verbosity
 

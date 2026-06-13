@@ -2,12 +2,10 @@ import { readFileSync } from "node:fs";
 import { defineCommand } from "citty";
 import { sendAction } from "../client.js";
 import { executeExitPlan, exitUsageError } from "../exit.js";
+import { VALID_METHODS, VALID_WORLDS } from "../fill-constants.js";
 import { extractGlobals, globalArgs } from "../globals.js";
 import { parseTarget } from "../targets.js";
 import type { ActionParams, ExecutionWorld, FillMethod } from "../types.js";
-
-const VALID_METHODS: FillMethod[] = ["direct", "paste", "runtime-api"];
-const VALID_WORLDS: ExecutionWorld[] = ["isolated", "main"];
 
 export default defineCommand({
 	meta: { description: "Fill a form field" },
@@ -15,6 +13,7 @@ export default defineCommand({
 		...globalArgs,
 		selector: { type: "string", description: "CSS selector for the target element" },
 		"route-json": { type: "string", description: "JSON route for shadow DOM target" },
+		element: { type: "string", description: "Short-lived element handle (e.g. el5)" },
 		value: { type: "string", description: "Value to fill" },
 		"value-file": { type: "string", description: "Read value from file" },
 		"value-stdin": {
@@ -40,6 +39,7 @@ export default defineCommand({
 		const targetResult = parseTarget(
 			args.selector as string | undefined,
 			args["route-json"] as string | undefined,
+			args.element as string | undefined,
 		);
 		if (!targetResult.ok) {
 			executeExitPlan(exitUsageError(targetResult.reason));

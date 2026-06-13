@@ -47,7 +47,9 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 ### Proxy Daemon
 
-A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, the logical-tab registry, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind --tab tN` changes the logical binding, the next forwarded command resolves that handle to the new internal Chrome tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
+A long-running localhost process that bridges the CLI (HTTP) and the extension (WebSocket). Owns auth, pacing enforcement, request lifecycle (pending map, timeout, replay-on-reconnect), session state, the logical-tab registry, the short-lived element-handle cache, and per-tab serialized dispatch. Session rebinding is immediate: after `session.bind --tab tN` changes the logical binding, the next forwarded command resolves that handle to the new internal Chrome tab target. Supports multiple WS clients (one per Chrome profile). Lifecycle ownership is per state directory (`BPROXY_HOME`): one daemon per directory, deterministic `start/stop/status` semantics.
+
+**Element target aliases.** The daemon mints short-lived aliases such as `el1` and `ln3` from successful `elements` / `links` reads, scoped to `{session, logical tab, page}`. It tracks page identity with a daemon-owned navigation epoch plus the minted page URL, using top-level navigation push messages from the extension background worker. Handle resolution happens before dispatch, so the extension still receives only explicit `ElementTarget` values. The store is bounded in memory (TTL, per-scope cap, global cap) and invalidated on re-read, session close, explicit tab close, or page change.
 
 Implementation: `docs/public/solution/service.md`
 
@@ -105,7 +107,7 @@ The shared contract between all three components. Every message uses the same JS
   "protocol_version": 1,
   "id": "01HZX9C2K8R7Q3VG9MNPYJVZ4D",
   "action": "fill",
-  "params": { "selector": "input[name='email']", "value": "user@example.com" },
+  "params": { "target": { "handle": "el1" }, "value": "user@example.com", "method": "paste", "world": "isolated" },
   "session": "m4q7z2",
   "deadline": 1714000030000,
   "destructive": true
@@ -160,9 +162,9 @@ Errors use a single RFC 9457-aligned envelope:
 |--------------|---------------------------------------------------------------------------------------|
 | `navigate`   | `chrome.tabs.update`. Waits for load. URL-driven.                                    |
 | `text`       | ISOLATED-world innerText extraction. Default selector: `body`.                       |
-| `links`      | Structured visible-link extraction with optional selector scope and limit.            |
+| `links`      | Structured visible-link extraction with optional selector scope and limit; actionable links may include `handle: "lnN"`. |
 | `images`     | Visible images with src/alt/dimensions.                                              |
-| `elements`   | Interactive elements with stable selectors. `--form` variant for form fields.        |
+| `elements`   | Interactive elements with stable selectors. `--form` variant for form fields. Actionable entries may include `handle: "elN"`. |
 | `outline`    | Landmarks + heading hierarchy.                                                        |
 | `dom`        | Simplified subtree at controlled depth.                                               |
 | `inspect`    | Computed style, layout rect, and scroll info for specific selectors.                 |

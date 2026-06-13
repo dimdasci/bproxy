@@ -16,6 +16,7 @@ shared/
     ├── index.ts              # re-exports
     ├── protocol.ts           # request/response envelope
     ├── actions.ts            # action names, per-action params and results
+    ├── handles.ts            # daemon-owned element handle aliases at the CLI/daemon boundary
     ├── errors.ts             # error codes, categories, structured error shape
     └── sessions.ts           # session/tab identifiers, pacing config
 ```
@@ -120,6 +121,11 @@ export type ElementTarget =
   | { selector: string; route?: never }
   | { selector?: never; route: ElementRoute };
 
+// Short-lived daemon-owned alias, accepted only at the CLI/daemon boundary.
+export type ElementHandle = string & { readonly __brand: 'ElementHandle' };
+export interface ElementHandleRef { handle: ElementHandle }
+export type ClientElementTarget = ElementTarget | ElementHandleRef;
+
 // Params per action — exhaustive, compiler-checked
 export interface ActionParams {
   navigate: { url: string };
@@ -131,25 +137,25 @@ export interface ActionParams {
   dom: { selector?: string; depth?: number };
   inspect: { selector: string; properties?: string[]; limit?: number };
   snapshot: { selector?: string; maxDepth?: number; interactiveOnly?: boolean };
-  scroll: { target?: ElementTarget; by?: string; direction?: 'up' | 'down' };
-  click: { target: ElementTarget };
-  hover: { target: ElementTarget };
+  scroll: { target?: ClientElementTarget; by?: string; direction?: 'up' | 'down' };
+  click: { target: ClientElementTarget };
+  hover: { target: ClientElementTarget };
   screenshot: { activate?: boolean; debugger?: boolean };
   fill: {
-    target: ElementTarget;
+    target: ClientElementTarget;
     value: string;
     method: FillMethod;    // NOT optional — agent must choose
     world: ExecutionWorld; // NOT optional — 'isolated' or 'main'
   };
   'fill-form': {
     fields: Array<{
-      target: ElementTarget;
+      target: ClientElementTarget;
       value: string;
       method: FillMethod;
       world: ExecutionWorld;
     }>
   };
-  select: { trigger: ElementTarget; optionText: string };
+  select: { trigger: ClientElementTarget; optionText: string };
   wait: { strategy: 'selector' | 'url' | 'navigation'; target: string; timeout?: number };
   'require-human': { reason: string; forAttach?: string };
   'tab.list': Record<string, never>;
@@ -241,6 +247,9 @@ export type ErrorCode =
   | 'SESSION_NOT_FOUND'
   | 'TAB_HANDLE_NOT_FOUND'
   | 'TAB_NOT_IN_SESSION'
+  | 'ELEMENT_HANDLE_NOT_FOUND'
+  | 'ELEMENT_HANDLE_STALE'
+  | 'ELEMENT_HANDLE_SCOPE_MISMATCH'
   // Policy
   | 'HUMAN_REQUIRED'
   | 'DEBUGGER_DISABLED'
@@ -327,6 +336,7 @@ export interface TabInfo {
 // passed directly anywhere an ElementTarget is expected.
 export type ElementInfo = ElementTarget & {
   tag: string;
+  handle?: ElementHandle;
   type?: string;           // input type
   label?: string;
   value?: string;
@@ -342,6 +352,7 @@ export interface LinkInfo {
   text: string;
   href: string;
   target: ElementTarget;
+  handle?: ElementHandle;
   title?: string;
   rel?: string;
   targetAttr?: string;

@@ -150,6 +150,7 @@ async function handleSessionClose(
 		closedTabs += 1;
 	}
 
+	deps.elementHandles.invalidateForSession(cmd.session);
 	deps.sessions.close(cmd.session);
 	if (firstFatalError) return failure(cmd, firstFatalError);
 	return success(cmd, { session: cmd.session, closedTabs });

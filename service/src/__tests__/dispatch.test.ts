@@ -1,9 +1,10 @@
 import type { BproxyForwardedRequest, BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
-import { createClients } from "../clients";
-import { createDispatch } from "../dispatch";
-import { createPending } from "../pending";
-import { createSessionRegistry } from "../sessions";
+import { type ClientsRegistry, createClients } from "../clients";
+import { createDispatch, type DispatchDeps } from "../dispatch";
+import { ElementHandleCache } from "../element-handles";
+import { createPending, type PendingMap } from "../pending";
+import { createSessionRegistry, type SessionRegistry } from "../sessions";
 
 const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
 const SESSION_A = "aaaaaa" as BproxyRequest["session"];
@@ -40,12 +41,27 @@ function createSeededRegistry(...sessionIds: BproxyRequest["session"][]) {
 	return sessions;
 }
 
+function createDispatchForTest(
+	clients: ClientsRegistry,
+	pending: PendingMap,
+	sessions: SessionRegistry,
+	onForwarded?: DispatchDeps["onForwarded"],
+) {
+	return createDispatch({
+		clients,
+		pending,
+		sessions,
+		elementHandles: new ElementHandleCache(),
+		onForwarded,
+	});
+}
+
 describe("dispatch", () => {
 	it("returns NO_EXTENSION when no clients are connected", async () => {
 		const sessions = createSeededRegistry(DEFAULT_SESSION);
 		sessions.bind(DEFAULT_SESSION, 42);
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients: createClients(), pending, sessions });
+		const dispatch = createDispatchForTest(createClients(), pending, sessions);
 		const response = await dispatch.send(req("a"));
 		expect(response).toMatchObject({ ok: false, error: { code: "NO_EXTENSION" } });
 	});
@@ -56,7 +72,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 		const response = await dispatch.send(req("a"));
 		expect(response).toMatchObject({ ok: false, error: { code: "SESSION_NOT_FOUND" } });
 		expect(sessions.get(DEFAULT_SESSION)).toBeNull();
@@ -69,7 +85,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 		const response = await dispatch.send(req("a"));
 		expect(response).toMatchObject({ ok: false, error: { code: "TAB_NOT_FOUND" } });
 	});
@@ -81,7 +97,7 @@ describe("dispatch", () => {
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const onForwarded = vi.fn();
-		const dispatch = createDispatch({ clients, pending, sessions, onForwarded });
+		const dispatch = createDispatchForTest(clients, pending, sessions, onForwarded);
 
 		const promise = dispatch.send({
 			...req("open"),
@@ -112,7 +128,7 @@ describe("dispatch", () => {
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
 		const onForwarded = vi.fn();
-		const dispatch = createDispatch({ clients, pending, sessions, onForwarded });
+		const dispatch = createDispatchForTest(clients, pending, sessions, onForwarded);
 
 		const promise = dispatch.send(req("a"));
 		expect(sendMock).toHaveBeenCalledOnce();
@@ -130,7 +146,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 
 		const p1 = dispatch.send(req("a"));
 		const first = sendMock.mock.calls[0]![0] as BproxyForwardedRequest;
@@ -153,7 +169,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 
 		const response = await dispatch.send(req("a"));
 		expect(response).toMatchObject({ ok: false, error: { code: "HUMAN_REQUIRED" } });
@@ -168,7 +184,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 
 		const response = await dispatch.send(req("a"));
 		expect(response.ok).toBe(false);
@@ -186,7 +202,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 
 		const p1 = dispatch.send(req("a"));
 		const p2 = dispatch.send(req("b"));
@@ -216,7 +232,7 @@ describe("dispatch", () => {
 		const sendMock = vi.fn();
 		clients.add({ id: "c1", send: sendMock });
 		const pending = createPending({ maxSize: 10 });
-		const dispatch = createDispatch({ clients, pending, sessions });
+		const dispatch = createDispatchForTest(clients, pending, sessions);
 
 		const pa = dispatch.send(req("a", SESSION_A));
 		const pb = dispatch.send(req("b", SESSION_B));

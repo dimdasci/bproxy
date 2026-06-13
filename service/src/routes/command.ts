@@ -1,4 +1,11 @@
-import type { BproxyRequest, BproxyResponse, DaemonRequestTrace, SessionId } from "@bproxy/shared";
+import type {
+	BproxyRequest,
+	BproxyResponse,
+	DaemonRequestTrace,
+	ElementInfo,
+	LinkInfo,
+	SessionId,
+} from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import { handleDaemonLocal, isDaemonLocal } from "../debug-actions";
 import { parseRequest } from "../schemas";
@@ -12,7 +19,42 @@ async function executeCommand(cmd: BproxyRequest, deps: CommandRouteDeps): Promi
 	if (isDaemonLocal(cmd.action)) return handleDaemonLocal(cmd, deps.debug);
 	if (isSessionLocal(cmd.action)) return await handleSessionLocal(cmd, deps);
 	if (isTabMediated(cmd.action)) return await handleTabMediated(cmd, deps);
-	return await dispatchAndPause(cmd, deps);
+	const response = await dispatchAndPause(cmd, deps);
+	return decorateReadHandles(cmd, deps, response);
+}
+
+function decorateReadHandles(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	response: BproxyResponse,
+): BproxyResponse {
+	if (!response.ok) return response;
+	if (cmd.action !== "elements" && cmd.action !== "links") return response;
+	const bound = deps.sessions.resolveBound(cmd.session);
+	if (!bound) return response;
+	const pageEpoch = deps.elementHandles.getPageEpoch(bound.chromeTabId)?.epoch ?? 0;
+	if (cmd.action === "elements") {
+		const elements = deps.elementHandles.mint(
+			cmd.session,
+			bound.tab,
+			bound.chromeTabId,
+			"elements",
+			(response.data as { elements: ElementInfo[] }).elements,
+			response.page.url,
+			pageEpoch,
+		) as ElementInfo[];
+		return { ...response, data: { ...(response.data as object), elements } };
+	}
+	const links = deps.elementHandles.mint(
+		cmd.session,
+		bound.tab,
+		bound.chromeTabId,
+		"links",
+		(response.data as { links: LinkInfo[] }).links,
+		response.page.url,
+		pageEpoch,
+	) as LinkInfo[];
+	return { ...response, data: { ...(response.data as object), links } };
 }
 
 function logResponse(

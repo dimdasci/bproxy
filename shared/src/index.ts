@@ -4,10 +4,9 @@ export type {
 	ActionResult,
 	DaemonRequestTrace,
 	ElementInfo,
-	ElementRoute,
-	ElementTarget,
 	ExecutionWorld,
 	FillMethod,
+	ForwardedActionParams,
 	Heading,
 	InspectElement,
 	Landmark,
@@ -21,6 +20,12 @@ export type {
 	RetryHint,
 } from "./errors";
 export type {
+	ClientElementTarget,
+	ElementHandle,
+	ElementHandleRef,
+} from "./handles";
+export { HANDLE_PATTERN } from "./handles";
+export type {
 	BproxyErrorResponse,
 	BproxyForwardedRequest,
 	BproxyRequest,
@@ -28,7 +33,6 @@ export type {
 	BproxySuccessResponse,
 	PageState,
 } from "./protocol";
-
 export type {
 	PacingConfig,
 	PacingMode,
@@ -37,5 +41,5 @@ export type {
 	TabHandle,
 	TabInfo,
 } from "./sessions";
-
 export { PACING_PRESETS } from "./sessions";
+export type { ElementRoute, ElementTarget } from "./targets";

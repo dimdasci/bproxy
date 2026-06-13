@@ -160,6 +160,7 @@ export default defineBackground(() => {
 		setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
 		clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
 		rpcTimeoutMs: CONTENT_RPC_TIMEOUT_MS,
+		sendNavigation: (message) => (client ? client.send(JSON.stringify(message)) : false),
 	});
 	tabs.start();
 	client = createWsClient(

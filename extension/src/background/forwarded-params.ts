@@ -1,11 +1,13 @@
-import type { ActionParams, BproxyForwardedRequest } from "@bproxy/shared";
+import type { BproxyForwardedRequest, ForwardedActionParams } from "@bproxy/shared";
 import type { ForwardedAction } from "./forwarded-actions";
 
 export function paramsValidForAction<A extends ForwardedAction>(
 	action: A,
 	value: unknown,
-): value is ActionParams[A] {
-	const validators: { [K in ForwardedAction]: (input: unknown) => input is ActionParams[K] } = {
+): value is ForwardedActionParams[A] {
+	const validators: {
+		[K in ForwardedAction]: (input: unknown) => input is ForwardedActionParams[K];
+	} = {
 		navigate: isNavigateParams,
 		text: isSelectorParams,
 		links: isLinksParams,
@@ -33,15 +35,15 @@ export function paramsValidForAction<A extends ForwardedAction>(
 	return validators[action](value);
 }
 
-function isNavigateParams(value: unknown): value is ActionParams["navigate"] {
+function isNavigateParams(value: unknown): value is ForwardedActionParams["navigate"] {
 	return isStrictObject(value, ["url"]) && typeof value["url"] === "string";
 }
 
-function isSelectorParams(value: unknown): value is ActionParams["text"] {
+function isSelectorParams(value: unknown): value is ForwardedActionParams["text"] {
 	return isOptionalStringObject(value, ["selector"]);
 }
 
-function isLinksParams(value: unknown): value is ActionParams["links"] {
+function isLinksParams(value: unknown): value is ForwardedActionParams["links"] {
 	return (
 		isStrictObject(value, ["selector", "visibleOnly", "limit"]) &&
 		(value["selector"] === undefined || typeof value["selector"] === "string") &&
@@ -50,7 +52,7 @@ function isLinksParams(value: unknown): value is ActionParams["links"] {
 	);
 }
 
-function isElementsParams(value: unknown): value is ActionParams["elements"] {
+function isElementsParams(value: unknown): value is ForwardedActionParams["elements"] {
 	return isOptionalBooleanObject(value, ["form"]);
 }
 
@@ -58,7 +60,7 @@ function isEmptyParams(value: unknown): value is Record<string, never> {
 	return isStrictObject(value, []);
 }
 
-function isDomParams(value: unknown): value is ActionParams["dom"] {
+function isDomParams(value: unknown): value is ForwardedActionParams["dom"] {
 	return (
 		isStrictObject(value, ["selector", "depth"]) &&
 		(value["selector"] === undefined || typeof value["selector"] === "string") &&
@@ -66,7 +68,7 @@ function isDomParams(value: unknown): value is ActionParams["dom"] {
 	);
 }
 
-function isScrollParams(value: unknown): value is ActionParams["scroll"] {
+function isScrollParams(value: unknown): value is ForwardedActionParams["scroll"] {
 	return (
 		isStrictObject(value, ["target", "by", "direction"]) &&
 		(value["target"] === undefined || isElementTarget(value["target"])) &&
@@ -77,15 +79,15 @@ function isScrollParams(value: unknown): value is ActionParams["scroll"] {
 	);
 }
 
-function isElementTargetParams(value: unknown): value is ActionParams["click"] {
+function isElementTargetParams(value: unknown): value is ForwardedActionParams["click"] {
 	return isStrictObject(value, ["target"]) && isElementTarget(value["target"]);
 }
 
-function isScreenshotParams(value: unknown): value is ActionParams["screenshot"] {
+function isScreenshotParams(value: unknown): value is ForwardedActionParams["screenshot"] {
 	return isOptionalBooleanObject(value, ["activate", "debugger"]);
 }
 
-function isFillParams(value: unknown): value is ActionParams["fill"] {
+function isFillParams(value: unknown): value is ForwardedActionParams["fill"] {
 	return (
 		isStrictObject(value, ["target", "value", "method", "world"]) &&
 		isElementTarget(value["target"]) &&
@@ -97,7 +99,7 @@ function isFillParams(value: unknown): value is ActionParams["fill"] {
 	);
 }
 
-function isFillFormParams(value: unknown): value is ActionParams["fill-form"] {
+function isFillFormParams(value: unknown): value is ForwardedActionParams["fill-form"] {
 	return (
 		isStrictObject(value, ["fields"]) &&
 		Array.isArray(value["fields"]) &&
@@ -114,7 +116,7 @@ function isFillFormParams(value: unknown): value is ActionParams["fill-form"] {
 	);
 }
 
-function isSelectParams(value: unknown): value is ActionParams["select"] {
+function isSelectParams(value: unknown): value is ForwardedActionParams["select"] {
 	return (
 		isStrictObject(value, ["trigger", "optionText"]) &&
 		isElementTarget(value["trigger"]) &&
@@ -122,7 +124,7 @@ function isSelectParams(value: unknown): value is ActionParams["select"] {
 	);
 }
 
-function isWaitParams(value: unknown): value is ActionParams["wait"] {
+function isWaitParams(value: unknown): value is ForwardedActionParams["wait"] {
 	return (
 		isStrictObject(value, ["strategy", "target", "timeout"]) &&
 		(value["strategy"] === "selector" ||
@@ -133,7 +135,7 @@ function isWaitParams(value: unknown): value is ActionParams["wait"] {
 	);
 }
 
-function isRequireHumanParams(value: unknown): value is ActionParams["require-human"] {
+function isRequireHumanParams(value: unknown): value is ForwardedActionParams["require-human"] {
 	return (
 		isStrictObject(value, ["reason", "forAttach"]) &&
 		typeof value["reason"] === "string" &&
@@ -141,7 +143,7 @@ function isRequireHumanParams(value: unknown): value is ActionParams["require-hu
 	);
 }
 
-function isOptionalTabHandleParams(value: unknown): value is ActionParams["tab.pin"] {
+function isOptionalTabHandleParams(value: unknown): value is ForwardedActionParams["tab.pin"] {
 	return (
 		isStrictObject(value, ["tab"]) &&
 		(value["tab"] === undefined ||
@@ -149,7 +151,7 @@ function isOptionalTabHandleParams(value: unknown): value is ActionParams["tab.p
 	);
 }
 
-function isDebugLogParams(value: unknown): value is ActionParams["debug.log"] {
+function isDebugLogParams(value: unknown): value is ForwardedActionParams["debug.log"] {
 	return (
 		isStrictObject(value, ["id", "limit"]) &&
 		(value["id"] === undefined || typeof value["id"] === "string") &&
@@ -157,7 +159,7 @@ function isDebugLogParams(value: unknown): value is ActionParams["debug.log"] {
 	);
 }
 
-function isInspectParams(value: unknown): value is ActionParams["inspect"] {
+function isInspectParams(value: unknown): value is ForwardedActionParams["inspect"] {
 	return (
 		isStrictObject(value, ["selector", "properties", "limit"]) &&
 		typeof value["selector"] === "string" &&
@@ -168,7 +170,7 @@ function isInspectParams(value: unknown): value is ActionParams["inspect"] {
 	);
 }
 
-function isSnapshotParams(value: unknown): value is ActionParams["snapshot"] {
+function isSnapshotParams(value: unknown): value is ForwardedActionParams["snapshot"] {
 	return (
 		isStrictObject(value, ["selector", "maxDepth", "interactiveOnly"]) &&
 		(value["selector"] === undefined || typeof value["selector"] === "string") &&
@@ -177,7 +179,7 @@ function isSnapshotParams(value: unknown): value is ActionParams["snapshot"] {
 	);
 }
 
-function isElementTarget(value: unknown): value is ActionParams["fill"]["target"] {
+function isElementTarget(value: unknown): value is ForwardedActionParams["fill"]["target"] {
 	if (!isRecord(value)) return false;
 	if (hasOnlyKeys(value, ["selector"])) {
 		return typeof value["selector"] === "string";

@@ -141,6 +141,176 @@ describe("round-trip — happy path", () => {
 		expect(body.data.extensionToken.length).toBeGreaterThan(0);
 	});
 
+	it("decorates read results with handles and resolves them before forwarding", async () => {
+		built.sessions.bind(currentSession, 42);
+		const ws = await connectClient();
+		ws.send(
+			JSON.stringify({
+				type: "navigation",
+				tabId: 42,
+				url: "https://example.test/",
+				cause: "committed",
+			}),
+		);
+
+		let clickTarget: unknown;
+		ws.on("message", (raw: unknown) => {
+			const req = JSON.parse(String(raw)) as BproxyRequest & { params: Record<string, unknown> };
+			if (req.action === "elements") {
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: { elements: [{ selector: "button.submit", tag: "button", label: "Submit" }] },
+						page: {
+							url: "https://example.test/",
+							title: "Example",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					}),
+				);
+				return;
+			}
+			if (req.action === "click") {
+				clickTarget = req.params["target"];
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: { clicked: true, disappeared: false, stable: true },
+						page: {
+							url: "https://example.test/",
+							title: "Example",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					}),
+				);
+			}
+		});
+
+		const elementsRes = await postCommand(makeCmd({ action: "elements", params: {} }));
+		const elementsBody = (await elementsRes.json()) as BproxyResponse<"elements">;
+		expect(elementsBody.ok).toBe(true);
+		if (!elementsBody.ok) throw new Error("elements should succeed");
+		expect(elementsBody.data.elements[0]?.handle).toBe("el1");
+
+		const clickRes = await postCommand(
+			makeCmd({
+				action: "click",
+				params: { target: { handle: "el1" } } as unknown as BproxyRequest["params"],
+				destructive: true,
+			}),
+		);
+		const clickBody = (await clickRes.json()) as BproxyResponse<"click">;
+		expect(clickBody.ok).toBe(true);
+		expect(clickTarget).toEqual({ selector: "button.submit" });
+		ws.close();
+	});
+
+	it("resolves multiple handles in fill-form fields before forwarding", async () => {
+		built.sessions.bind(currentSession, 42);
+		const ws = await connectClient();
+		ws.send(
+			JSON.stringify({
+				type: "navigation",
+				tabId: 42,
+				url: "https://example.test/form",
+				cause: "committed",
+			}),
+		);
+
+		let forwardedFields: unknown;
+		ws.on("message", (raw: unknown) => {
+			const req = JSON.parse(String(raw)) as BproxyRequest & { params: Record<string, unknown> };
+			if (req.action === "elements") {
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: {
+							elements: [
+								{ selector: "input.name", tag: "input", label: "Name" },
+								{ selector: "input.email", tag: "input", label: "Email" },
+								{ selector: "input.phone", tag: "input", label: "Phone" },
+							],
+						},
+						page: {
+							url: "https://example.test/form",
+							title: "Form",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					}),
+				);
+				return;
+			}
+			if (req.action === "fill-form") {
+				forwardedFields = req.params["fields"];
+				ws.send(
+					JSON.stringify({
+						protocol_version: 1,
+						id: req.id,
+						ok: true,
+						data: {
+							results: [
+								{ target: { selector: "input.name" }, filled: true, verifiedValue: "Alice" },
+								{ target: { selector: "input.email" }, filled: true, verifiedValue: "a@b.com" },
+								{ target: { selector: "input.phone" }, filled: true, verifiedValue: "555" },
+							],
+						},
+						page: {
+							url: "https://example.test/form",
+							title: "Form",
+							state: "ready",
+							busy: false,
+						},
+						replay: false,
+					}),
+				);
+			}
+		});
+
+		// Read elements to mint handles
+		const elementsRes = await postCommand(makeCmd({ action: "elements", params: {} }));
+		const elementsBody = (await elementsRes.json()) as BproxyResponse<"elements">;
+		expect(elementsBody.ok).toBe(true);
+		if (!elementsBody.ok) throw new Error("elements should succeed");
+		expect(elementsBody.data.elements.map((e) => e.handle)).toEqual(["el1", "el2", "el3"]);
+
+		// Use handles in fill-form
+		const fillFormRes = await postCommand(
+			makeCmd({
+				action: "fill-form",
+				params: {
+					fields: [
+						{ target: { handle: "el1" }, value: "Alice", method: "direct", world: "isolated" },
+						{ target: { handle: "el2" }, value: "a@b.com", method: "paste", world: "isolated" },
+						{ target: { handle: "el3" }, value: "555", method: "direct", world: "main" },
+					],
+				} as unknown as BproxyRequest["params"],
+				destructive: true,
+			}),
+		);
+		const fillFormBody = (await fillFormRes.json()) as BproxyResponse<"fill-form">;
+		expect(fillFormBody.ok).toBe(true);
+
+		// Verify all handles were resolved to explicit targets before forwarding
+		expect(forwardedFields).toEqual([
+			{ target: { selector: "input.name" }, value: "Alice", method: "direct", world: "isolated" },
+			{ target: { selector: "input.email" }, value: "a@b.com", method: "paste", world: "isolated" },
+			{ target: { selector: "input.phone" }, value: "555", method: "direct", world: "main" },
+		]);
+		ws.close();
+	});
+
 	it("responds to app-level heartbeat ping with pong", async () => {
 		const ws = await connectClient();
 		const pongPromise = new Promise<unknown>((resolve) => {
