@@ -13,37 +13,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
-import { extractUrl } from "./fetch-helper.js";
+import {
+	createMockFetch,
+	makeGlobals,
+	setupTempHome,
+	successResponse,
+} from "./command-test-helpers.js";
 
-// ─── Test infrastructure ───────────────────────────────────────────────
-
-function setupTempHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-cmd-test-"));
-	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
-	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
-	return dir;
-}
-
-function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
-	return {
-		session: "m4q7z2",
-		timeout: "5000",
-		home,
-		verbose: false,
-		...overrides,
-	};
-}
-
-function successResponse(id: string, data: unknown = {}) {
-	return {
-		protocol_version: 1,
-		id,
-		ok: true,
-		data,
-		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
-		replay: false,
-	};
-}
+// ─── Test infrastructure (local additions) ─────────────────────────────
 
 function errorResponse(id: string, code: string, message = "error") {
 	return {
@@ -52,21 +29,6 @@ function errorResponse(id: string, code: string, message = "error") {
 		ok: false,
 		error: { code, message },
 	};
-}
-
-function createMockFetch(responseBody: unknown) {
-	const calls: { url: string; body: Record<string, unknown> }[] = [];
-	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
-		calls.push({ url: extractUrl(url), body: JSON.parse(bodyStr) as Record<string, unknown> });
-		return Promise.resolve(
-			new Response(JSON.stringify(responseBody), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			}),
-		);
-	};
-	return { fetch: mockFetch, calls };
 }
 
 async function sendWithCapture(

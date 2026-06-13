@@ -8,71 +8,14 @@
  * - Payload validation (fill-form)
  * - Request params sent to daemon
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
-import { extractUrl } from "./fetch-helper.js";
-
-// ─── Test infrastructure ───────────────────────────────────────────────
-
-function setupTempHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-write-test-"));
-	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
-	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
-	return dir;
-}
-
-function makeGlobals(home: string, overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
-	return {
-		session: "m4q7z2",
-		timeout: "5000",
-		home,
-		verbose: false,
-		...overrides,
-	};
-}
-
-function successResponse(id: string, data: unknown = {}) {
-	return {
-		protocol_version: 1,
-		id,
-		ok: true,
-		data,
-		page: { url: "https://example.com", title: "Example", state: "ready", busy: false },
-		replay: false,
-	};
-}
-
-function createMockFetch(responseBody: unknown, status = 200) {
-	const calls: { url: string; body: Record<string, unknown> }[] = [];
-	const mockFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		const bodyStr = typeof init?.body === "string" ? init.body : "{}";
-		calls.push({ url: extractUrl(url), body: JSON.parse(bodyStr) as Record<string, unknown> });
-		return Promise.resolve(
-			new Response(JSON.stringify(responseBody), {
-				status,
-				headers: { "Content-Type": "application/json" },
-			}),
-		);
-	};
-	return { fetch: mockFetch, calls };
-}
-
-async function sendWithCapture(
-	action: string,
-	params: Record<string, unknown>,
-	home: string,
-	globals?: Partial<ClientGlobalArgs>,
-) {
-	const requestId = "test-id-001";
-	const { fetch, calls } = createMockFetch(successResponse(requestId));
-	const opts: SendOptions = { fetch, requestId };
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper
-	const plan = await sendAction(action as any, params as any, makeGlobals(home, globals), opts);
-	return { plan, calls };
-}
+import { type SendOptions, sendAction } from "../client.js";
+import {
+	createMockFetch,
+	makeGlobals,
+	sendWithCapture,
+	setupTempHome,
+} from "./command-test-helpers.js";
 
 // ─── fill command tests ────────────────────────────────────────────────
 
@@ -254,55 +197,31 @@ describe("fill-form command", () => {
 
 // ─── click / hover command tests ───────────────────────────────────────
 
-describe("click command", () => {
-	it("sends click action with selector target", async () => {
+describe.each(["click", "hover"] as const)("%s command", (action) => {
+	it(`sends ${action} action with selector target`, async () => {
 		const home = setupTempHome();
-		const params = { target: { selector: "#dismiss" } };
-		const { plan, calls } = await sendWithCapture("click", params, home);
+		const params = { target: { selector: "#target" } };
+		const { plan, calls } = await sendWithCapture(action, params, home);
 
 		expect(plan.code).toBe(0);
 		expect(calls[0]!.body).toMatchObject({
-			action: "click",
-			params: { target: { selector: "#dismiss" } },
+			action,
+			params: { target: { selector: "#target" } },
 		});
 	});
 
-	it("sends click action with route target", async () => {
+	it(`sends ${action} action with route target`, async () => {
 		const home = setupTempHome();
-		const params = {
-			target: { route: { hosts: [{ selector: "x-modal" }], target: "button.close" } },
-		};
-		const { plan, calls } = await sendWithCapture("click", params, home);
+		const route = { hosts: [{ selector: "x-modal" }], target: "button.close" };
+		const { plan, calls } = await sendWithCapture(action, { target: { route } }, home);
 
 		expect(plan.code).toBe(0);
-		expect((calls[0]!.body["params"] as Record<string, unknown>)["target"]).toEqual({
-			route: { hosts: [{ selector: "x-modal" }], target: "button.close" },
-		});
+		expect((calls[0]!.body["params"] as Record<string, unknown>)["target"]).toEqual({ route });
 	});
 
-	it("marks click as destructive", async () => {
+	it(`marks ${action} as destructive`, async () => {
 		const home = setupTempHome();
-		const { calls } = await sendWithCapture("click", { target: { selector: "#x" } }, home);
-		expect(calls[0]!.body["destructive"]).toBe(true);
-	});
-});
-
-describe("hover command", () => {
-	it("sends hover action with selector target", async () => {
-		const home = setupTempHome();
-		const params = { target: { selector: "#menu" } };
-		const { plan, calls } = await sendWithCapture("hover", params, home);
-
-		expect(plan.code).toBe(0);
-		expect(calls[0]!.body).toMatchObject({
-			action: "hover",
-			params: { target: { selector: "#menu" } },
-		});
-	});
-
-	it("marks hover as destructive", async () => {
-		const home = setupTempHome();
-		const { calls } = await sendWithCapture("hover", { target: { selector: "#x" } }, home);
+		const { calls } = await sendWithCapture(action, { target: { selector: "#x" } }, home);
 		expect(calls[0]!.body["destructive"]).toBe(true);
 	});
 });

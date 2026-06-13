@@ -5,6 +5,14 @@ import {
 	queryWithin,
 } from "./fake-dom-query";
 
+function querySelectorImpl(root: QueryRootLike, selector: string): FakeElement | null {
+	return (queryWithin(root, selector)[0] as FakeElement | undefined) ?? null;
+}
+
+function querySelectorAllImpl(root: QueryRootLike, selector: string): FakeElement[] {
+	return queryWithin(root, selector) as FakeElement[];
+}
+
 type AttrValue = string | true;
 
 type RectInit = {
@@ -133,11 +141,11 @@ export class FakeElement implements QueryElementLike {
 	}
 
 	querySelector(selector: string): FakeElement | null {
-		return this.querySelectorAll(selector)[0] ?? null;
+		return querySelectorImpl(this, selector);
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this, selector) as FakeElement[];
+		return querySelectorAllImpl(this, selector);
 	}
 
 	matches(selector: string): boolean {
@@ -244,11 +252,11 @@ export class FakeShadowRoot implements QueryRootLike {
 	}
 
 	querySelector(selector: string): FakeElement | null {
-		return this.querySelectorAll(selector)[0] ?? null;
+		return querySelectorImpl(this, selector);
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this, selector) as FakeElement[];
+		return querySelectorAllImpl(this, selector);
 	}
 }
 
@@ -280,11 +288,11 @@ export class FakeDocument implements QueryRootLike {
 	}
 
 	querySelector(selector: string): FakeElement | null {
-		return this.querySelectorAll(selector)[0] ?? null;
+		return querySelectorImpl(this, selector);
 	}
 
 	querySelectorAll(selector: string): FakeElement[] {
-		return queryWithin(this, selector) as FakeElement[];
+		return querySelectorAllImpl(this, selector);
 	}
 
 	setHitTest(elements: FakeElement[]): void {

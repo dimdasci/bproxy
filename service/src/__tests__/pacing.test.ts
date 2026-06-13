@@ -52,7 +52,13 @@ describe("pacing engine", () => {
 	});
 
 	it("waits a delay inside the preset range under real jitter", async () => {
-		const h = createTestHarness({ random: () => Math.random() });
+		// Deterministic PRNG (linear congruential) to avoid Math.random() security hotspot
+		let seed = 42;
+		const prng = () => {
+			seed = (seed * 1664525 + 1013904223) >>> 0;
+			return seed / 0x100000000;
+		};
+		const h = createTestHarness({ random: prng });
 
 		await h.pacing.waitForSlot(SESSION, "navigate");
 		await h.pacing.waitForSlot(SESSION, "navigate");
