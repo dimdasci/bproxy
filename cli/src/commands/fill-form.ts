@@ -3,6 +3,7 @@ import { HANDLE_PATTERN } from "@bproxy/shared";
 import { defineCommand } from "citty";
 import { sendAction } from "../client.js";
 import { executeExitPlan, exitUsageError } from "../exit.js";
+import { VALID_METHODS, VALID_WORLDS } from "../fill-constants.js";
 import { extractGlobals, globalArgs } from "../globals.js";
 import type {
 	ActionParams,
@@ -12,9 +13,6 @@ import type {
 	ExecutionWorld,
 	FillMethod,
 } from "../types.js";
-
-const VALID_METHODS: FillMethod[] = ["direct", "paste", "runtime-api"];
-const VALID_WORLDS: ExecutionWorld[] = ["isolated", "main"];
 
 export default defineCommand({
 	meta: { description: "Fill multiple form fields" },

@@ -5,6 +5,7 @@ import type {
 	BproxyRequest,
 	BproxyResponse,
 	ElementTarget,
+	TabHandle,
 } from "@bproxy/shared";
 import type { ClientsRegistry } from "./clients";
 import type { ElementHandleCache } from "./element-handles";
@@ -122,44 +123,49 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				});
 			}
 
-			const tabId = resolveTargetTabId(cmd, deps.sessions, options.targetTabId);
-			if (tabId.kind === "error") {
-				return errorResponse(cmd.id, tabId.error);
-			}
-
-			const rewritten = rewriteHandleTargets(cmd, deps, options.targetTabId);
-			if (rewritten.kind === "error") {
-				return errorResponse(cmd.id, rewritten.error);
+			const resolved = resolveDispatchTarget(cmd, deps, options.targetTabId);
+			if (resolved.kind === "error") {
+				return errorResponse(cmd.id, resolved.error);
 			}
 
 			const forwarded: BproxyForwardedRequest = {
 				...cmd,
-				params: rewritten.params,
-				target: { tabId: tabId.value },
+				params: resolved.params,
+				target: { tabId: resolved.tabId },
 			};
 			const registerPending = () =>
 				deps.pending.register(forwarded, (wireCmd) => {
-					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: tabId.value });
+					deps.onForwarded?.({ id: wireCmd.id, wsClient: client.id, tab: resolved.tabId });
 					client.send(wireCmd);
 				});
-			if (tabId.value === null) {
+			if (resolved.tabId === null) {
 				return await registerPending();
 			}
-			return await withTabLock(tabId.value, registerPending);
+			return await withTabLock(resolved.tabId, registerPending);
 		},
 	};
 }
 
-function rewriteHandleTargets(
+type DispatchResolved =
+	| { kind: "ok"; tabId: number | null; params: BproxyForwardedRequest["params"] }
+	| { kind: "error"; error: BproxyError };
+
+function resolveDispatchTarget(
 	cmd: BproxyRequest,
 	deps: DispatchDeps,
 	overrideTabId: number | null | undefined,
-):
-	| { kind: "ok"; params: BproxyForwardedRequest["params"] }
-	| { kind: "error"; error: BproxyError } {
-	if (overrideTabId !== undefined || BACKGROUND_HANDLED_ACTIONS.has(cmd.action)) {
-		return { kind: "ok", params: cmd.params as BproxyForwardedRequest["params"] };
+): DispatchResolved {
+	if (overrideTabId !== undefined) {
+		return {
+			kind: "ok",
+			tabId: overrideTabId,
+			params: cmd.params as BproxyForwardedRequest["params"],
+		};
 	}
+	if (BACKGROUND_HANDLED_ACTIONS.has(cmd.action)) {
+		return { kind: "ok", tabId: null, params: cmd.params as BproxyForwardedRequest["params"] };
+	}
+
 	const bound = deps.sessions.resolveBound(cmd.session);
 	if (!bound) {
 		return {
@@ -172,13 +178,16 @@ function rewriteHandleTargets(
 			},
 		};
 	}
-	return resolveParamsForAction(cmd, deps.elementHandles, bound.tab);
+
+	const params = resolveParamsForAction(cmd, deps.elementHandles, bound.tab);
+	if (params.kind === "error") return params;
+	return { kind: "ok", tabId: bound.chromeTabId, params: params.params };
 }
 
 function resolveParamsForAction(
 	cmd: BproxyRequest,
 	elementHandles: ElementHandleCache,
-	tab: NonNullable<ReturnType<SessionRegistry["resolveBound"]>>["tab"],
+	tab: TabHandle,
 ):
 	| { kind: "ok"; params: BproxyForwardedRequest["params"] }
 	| { kind: "error"; error: BproxyError } {
@@ -202,7 +211,7 @@ function resolveParamsForAction(
 function resolveSingleTargetParams(
 	cmd: BproxyRequest,
 	elementHandles: ElementHandleCache,
-	tab: NonNullable<ReturnType<SessionRegistry["resolveBound"]>>["tab"],
+	tab: TabHandle,
 	key: "target" | "trigger",
 ):
 	| { kind: "ok"; params: BproxyForwardedRequest["params"] }
@@ -219,7 +228,7 @@ function resolveSingleTargetParams(
 function resolveOptionalTargetParams(
 	cmd: BproxyRequest,
 	elementHandles: ElementHandleCache,
-	tab: NonNullable<ReturnType<SessionRegistry["resolveBound"]>>["tab"],
+	tab: TabHandle,
 ):
 	| { kind: "ok"; params: BproxyForwardedRequest["params"] }
 	| { kind: "error"; error: BproxyError } {
@@ -238,7 +247,7 @@ function resolveOptionalTargetParams(
 function resolveFillFormParams(
 	cmd: BproxyRequest,
 	elementHandles: ElementHandleCache,
-	tab: NonNullable<ReturnType<SessionRegistry["resolveBound"]>>["tab"],
+	tab: TabHandle,
 ):
 	| { kind: "ok"; params: BproxyForwardedRequest["params"] }
 	| { kind: "error"; error: BproxyError } {
@@ -255,7 +264,7 @@ function resolveFillFormParams(
 function resolveClientTarget(
 	cmd: BproxyRequest,
 	elementHandles: ElementHandleCache,
-	tab: NonNullable<ReturnType<SessionRegistry["resolveBound"]>>["tab"],
+	tab: TabHandle,
 	value: unknown,
 ): { kind: "ok"; target: ElementTarget } | { kind: "error"; error: BproxyError } {
 	if (!isHandleRef(value)) return { kind: "ok", target: value as ElementTarget };
@@ -271,31 +280,4 @@ function isHandleRef(value: unknown): value is { handle: string } {
 		!Array.isArray(value) &&
 		typeof (value as Record<string, unknown>)["handle"] === "string"
 	);
-}
-
-function resolveTargetTabId(
-	cmd: BproxyRequest,
-	sessions: SessionRegistry,
-	overrideTabId: number | null | undefined,
-): { kind: "ok"; value: number | null } | { kind: "error"; error: BproxyError } {
-	if (overrideTabId !== undefined) {
-		return { kind: "ok", value: overrideTabId };
-	}
-	if (BACKGROUND_HANDLED_ACTIONS.has(cmd.action)) {
-		return { kind: "ok", value: null };
-	}
-
-	const bound = sessions.resolveBound(cmd.session);
-	if (!bound) {
-		return {
-			kind: "error",
-			error: {
-				code: "TAB_NOT_FOUND",
-				category: "target",
-				retry: "never",
-				message: `Session '${cmd.session}' has no bound tab`,
-			},
-		};
-	}
-	return { kind: "ok", value: bound.chromeTabId };
 }

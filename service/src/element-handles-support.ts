@@ -6,6 +6,7 @@ import type {
 	SessionId,
 	TabHandle,
 } from "@bproxy/shared";
+import type { Logger } from "pino";
 import type {
 	HandleEntry,
 	HandleError,
@@ -85,7 +86,7 @@ export function scopeMismatchError(
 function resolveElementTarget(
 	entry: ElementInfo,
 ): { target: ElementTarget; hints?: HandleHints } | null {
-	const target = pickElementTarget(entry);
+	const target = extractElementTarget(entry);
 	if (!target) return null;
 	return {
 		target,
@@ -94,17 +95,71 @@ function resolveElementTarget(
 }
 
 function resolveLinkTarget(entry: LinkInfo): { target: ElementTarget; hints?: HandleHints } | null {
-	const target = pickElementTarget(entry.target);
+	const target = extractElementTarget(entry.target);
 	if (!target) return null;
 	return { target, hints: { href: entry.href, textSnippet: entry.text } };
 }
 
-function pickElementTarget(target: unknown): ElementTarget | null {
-	if (!target || typeof target !== "object") return null;
-	const record = target as Record<string, unknown>;
-	if (typeof record["selector"] === "string") return { selector: record["selector"] };
-	if (record["route"] && typeof record["route"] === "object") {
-		return { route: record["route"] as Extract<ElementTarget, { route: unknown }>["route"] };
+function extractElementTarget(target: ElementTarget): ElementTarget | null {
+	if ("selector" in target && typeof target.selector === "string") {
+		return { selector: target.selector };
+	}
+	if ("route" in target && target.route) {
+		return { route: target.route };
 	}
 	return null;
+}
+
+export function logMint(
+	logger: Pick<Logger, "info"> | undefined,
+	session: SessionId,
+	tab: TabHandle,
+	sourceAction: HandleSourceAction,
+	minted: HandleEntry[],
+): void {
+	if (minted.length === 0) return;
+	logger?.info({
+		event: "handle_mint",
+		session,
+		tab,
+		sourceAction,
+		count: minted.length,
+		firstHandle: minted[0]?.handle,
+		lastHandle: minted.at(-1)?.handle,
+	});
+}
+
+export function logInvalidate(
+	logger: Pick<Logger, "info"> | undefined,
+	scope: { session: SessionId; tab?: TabHandle } | undefined,
+	cause: string,
+	count: number,
+): void {
+	logger?.info({
+		event: "handle_invalidate",
+		session: scope?.session,
+		tab: scope?.tab,
+		cause,
+		count,
+	});
+}
+
+export function addToIndex<K>(index: Map<K, Set<string>>, indexKey: K, primaryKey: string): void {
+	let set = index.get(indexKey);
+	if (!set) {
+		set = new Set();
+		index.set(indexKey, set);
+	}
+	set.add(primaryKey);
+}
+
+export function removeFromIndex<K>(
+	index: Map<K, Set<string>>,
+	indexKey: K,
+	primaryKey: string,
+): void {
+	const set = index.get(indexKey);
+	if (!set) return;
+	set.delete(primaryKey);
+	if (set.size === 0) index.delete(indexKey);
 }

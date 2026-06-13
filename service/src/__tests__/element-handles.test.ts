@@ -97,7 +97,7 @@ describe("ElementHandleCache", () => {
 		expect(resolved).toMatchObject({ ok: false, error: { code: "ELEMENT_HANDLE_STALE" } });
 	});
 
-	it("returns stale when the page epoch has changed", () => {
+	it("eagerly invalidates handles when the page epoch changes", () => {
 		const cache = new ElementHandleCache();
 		cache.handleNavigation(CHROME_TAB, "https://example.test/");
 		const pageEpoch = cache.getPageEpoch(CHROME_TAB)?.epoch ?? 0;
@@ -112,8 +112,9 @@ describe("ElementHandleCache", () => {
 		);
 		cache.handleNavigation(CHROME_TAB, "https://example.test/next");
 
+		expect(cache.size()).toBe(0);
 		const resolved = cache.resolve(SESSION, TAB_1, "el1");
-		expect(resolved).toMatchObject({ ok: false, error: { code: "ELEMENT_HANDLE_STALE" } });
+		expect(resolved).toMatchObject({ ok: false, error: { code: "ELEMENT_HANDLE_NOT_FOUND" } });
 	});
 
 	it("returns stale when the URL no longer matches the minted page", () => {
