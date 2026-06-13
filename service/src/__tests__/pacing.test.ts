@@ -7,72 +7,68 @@ import { createSessionRegistry } from "../sessions";
 const SESSION = "m4q8z2" as BproxyRequest["session"];
 const FAST_SESSION = "f4st22" as BproxyRequest["session"];
 
+function createTestHarness(opts: { random?: () => number; session?: string } = {}) {
+	let clock = 0;
+	const sleeps: number[] = [];
+	const sessions = createSessionRegistry();
+	const sid = (opts.session ?? SESSION) as BproxyRequest["session"];
+	sessions.getOrCreate(sid);
+	const pacing = createPacing({
+		sessions,
+		now: () => clock,
+		sleep: async (ms) => {
+			sleeps.push(ms);
+			clock += ms;
+		},
+		random: opts.random ?? (() => 0.5),
+	});
+	return {
+		pacing,
+		sessions,
+		sleeps,
+		get clock() {
+			return clock;
+		},
+		set clock(v: number) {
+			clock = v;
+		},
+		advance(ms: number) {
+			clock += ms;
+		},
+	};
+}
+
 describe("pacing engine", () => {
 	it("waits the configured delay on a paced action (pinned jitter)", async () => {
-		let clock = 1_000_000;
-		const sleeps: number[] = [];
-		const sessions = createSessionRegistry();
-		sessions.getOrCreate(SESSION);
-		const pacing = createPacing({
-			sessions,
-			now: () => clock,
-			sleep: async (ms) => {
-				sleeps.push(ms);
-				clock += ms;
-			},
-			random: () => 0.5,
-		});
+		const h = createTestHarness();
+		h.clock = 1_000_000;
 
-		await pacing.waitForSlot(SESSION, "navigate");
-		expect(sleeps).toEqual([]);
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		expect(h.sleeps).toEqual([]);
 
-		clock += 100;
-		await pacing.waitForSlot(SESSION, "navigate");
-		expect(sleeps).toEqual([2750 - 100]);
+		h.advance(100);
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		expect(h.sleeps).toEqual([2750 - 100]);
 	});
 
 	it("waits a delay inside the preset range under real jitter", async () => {
-		let clock = 0;
-		const sleeps: number[] = [];
-		const sessions = createSessionRegistry();
-		sessions.getOrCreate(SESSION);
-		const pacing = createPacing({
-			sessions,
-			now: () => clock,
-			sleep: async (ms) => {
-				sleeps.push(ms);
-				clock += ms;
-			},
-			random: () => Math.random(),
-		});
+		const h = createTestHarness({ random: () => Math.random() });
 
-		await pacing.waitForSlot(SESSION, "navigate");
-		await pacing.waitForSlot(SESSION, "navigate");
-		expect(sleeps.length).toBe(1);
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		expect(h.sleeps.length).toBe(1);
 		const { min, max } = PACING_PRESETS.human.navigate;
-		expect(sleeps[0]).toBeGreaterThanOrEqual(min - 1);
-		expect(sleeps[0]).toBeLessThanOrEqual(max);
+		expect(h.sleeps[0]).toBeGreaterThanOrEqual(min - 1);
+		expect(h.sleeps[0]).toBeLessThanOrEqual(max);
 	});
 
 	it("paces click and hover through the interaction bucket", async () => {
-		let clock = 0;
-		const sleeps: number[] = [];
-		const sessions = createSessionRegistry();
-		sessions.getOrCreate(SESSION);
-		const pacing = createPacing({
-			sessions,
-			now: () => clock,
-			sleep: async (ms) => {
-				sleeps.push(ms);
-				clock += ms;
-			},
-			random: () => 0.5,
-		});
+		const h = createTestHarness();
 
-		await pacing.waitForSlot(SESSION, "click");
-		clock += 10;
-		await pacing.waitForSlot(SESSION, "hover");
-		expect(sleeps).toEqual([1250 - 10]);
+		await h.pacing.waitForSlot(SESSION, "click");
+		h.advance(10);
+		await h.pacing.waitForSlot(SESSION, "hover");
+		expect(h.sleeps).toEqual([1250 - 10]);
 	});
 
 	it("passes through unpaced actions immediately", async () => {
@@ -89,44 +85,21 @@ describe("pacing engine", () => {
 	});
 
 	it("respects per-session pacing mode override (pinned)", async () => {
-		let clock = 0;
-		const sleeps: number[] = [];
-		const sessions = createSessionRegistry();
-		sessions.getOrCreate(FAST_SESSION);
-		sessions.bind(FAST_SESSION, 1, "fast");
-		const pacing = createPacing({
-			sessions,
-			now: () => clock,
-			sleep: async (ms) => {
-				sleeps.push(ms);
-				clock += ms;
-			},
-			random: () => 0.5,
-		});
+		const h = createTestHarness({ session: FAST_SESSION });
+		h.sessions.bind(FAST_SESSION, 1, "fast");
 
-		await pacing.waitForSlot(FAST_SESSION, "fill");
-		clock += 10;
-		await pacing.waitForSlot(FAST_SESSION, "fill");
-		expect(sleeps).toEqual([250 - 10]);
+		await h.pacing.waitForSlot(FAST_SESSION, "fill");
+		h.advance(10);
+		await h.pacing.waitForSlot(FAST_SESSION, "fill");
+		expect(h.sleeps).toEqual([250 - 10]);
 	});
 
 	it("never sleeps when elapsed already exceeds the configured delay", async () => {
-		let clock = 0;
-		const sleep = vi.fn(async (ms: number) => {
-			clock += ms;
-		});
-		const sessions = createSessionRegistry();
-		sessions.getOrCreate(SESSION);
-		const pacing = createPacing({
-			sessions,
-			now: () => clock,
-			sleep,
-			random: () => 0.5,
-		});
+		const h = createTestHarness();
 
-		await pacing.waitForSlot(SESSION, "navigate");
-		clock += 10_000;
-		await pacing.waitForSlot(SESSION, "navigate");
-		expect(sleep).not.toHaveBeenCalled();
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		h.advance(10_000);
+		await h.pacing.waitForSlot(SESSION, "navigate");
+		expect(h.sleeps).toHaveLength(0);
 	});
 });

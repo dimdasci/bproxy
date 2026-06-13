@@ -33,26 +33,7 @@ export function createPointerLikeEvent(
 			isPrimary: true,
 		});
 	}
-	const event =
-		typeof MouseEvent === "function"
-			? new MouseEvent(type, {
-					bubbles: options.bubbles,
-					cancelable: true,
-					composed: true,
-					clientX: point.clientX,
-					clientY: point.clientY,
-					button: 0,
-					buttons: 1,
-				})
-			: createGenericEvent(type, {
-					bubbles: options.bubbles,
-					cancelable: true,
-					composed: true,
-				});
-	defineEventProperty(event, "clientX", point.clientX);
-	defineEventProperty(event, "clientY", point.clientY);
-	defineEventProperty(event, "button", 0);
-	defineEventProperty(event, "buttons", 1);
+	const event = createMouseFallback(type, point, { bubbles: options.bubbles, cancelable: true });
 	defineEventProperty(event, "pointerType", "mouse");
 	defineEventProperty(event, "isPrimary", true);
 	return event;
@@ -75,16 +56,34 @@ export function createMouseLikeEvent(
 			detail: options.detail ?? 0,
 		});
 	}
-	const event = createGenericEvent(type, {
+	const event = createMouseFallback(type, point, {
 		bubbles: options.bubbles,
-		cancelable: options.cancelable,
-		composed: true,
+		cancelable: options.cancelable ?? false,
 	});
+	defineEventProperty(event, "detail", options.detail ?? 0);
+	return event;
+}
+
+function createMouseFallback(
+	type: string,
+	point: MousePoint,
+	init: { bubbles: boolean; cancelable: boolean },
+): Event {
+	const event =
+		typeof MouseEvent === "function"
+			? new MouseEvent(type, {
+					...init,
+					composed: true,
+					clientX: point.clientX,
+					clientY: point.clientY,
+					button: 0,
+					buttons: 1,
+				})
+			: createGenericEvent(type, { ...init, composed: true });
 	defineEventProperty(event, "clientX", point.clientX);
 	defineEventProperty(event, "clientY", point.clientY);
 	defineEventProperty(event, "button", 0);
 	defineEventProperty(event, "buttons", 1);
-	defineEventProperty(event, "detail", options.detail ?? 0);
 	return event;
 }
 
