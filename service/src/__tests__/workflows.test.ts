@@ -1,18 +1,20 @@
 import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { buildCapturedLogger, type CapturedLogger } from "../logger";
-import { type BuiltServer, buildServer } from "../server";
-import { connectWsClient } from "./helpers/integration";
-import { createTestStateDir, removeTestStateDir } from "./helpers/test-state-dir";
+import type { BuiltServer } from "../server";
+import {
+	connectWsClient,
+	setupTestServer,
+	type TestServerContext,
+	teardownTestServer,
+} from "./helpers/integration";
 
 const daemonToken = "test-daemon-token";
 const extensionToken = "test-extension-token";
 
+let ctx: TestServerContext;
 let built: BuiltServer;
-let stateDir: string;
 let port: number;
-let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
 const T1 = "t1" as TabHandle;
 
@@ -44,23 +46,12 @@ function connectClient(): Promise<WebSocket> {
 }
 
 beforeEach(async () => {
-	stateDir = createTestStateDir();
-	captured = buildCapturedLogger();
-	built = await buildServer({
-		port: 0,
-		stateDir,
-		daemonToken,
-		extensionToken,
-		logger: captured.logger,
-	});
-	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
-	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
-	currentSession = built.sessions.create().id;
+	ctx = await setupTestServer({ daemonToken, extensionToken });
+	({ built, port, currentSession } = ctx);
 });
 
 afterEach(async () => {
-	await built.app.close();
-	removeTestStateDir(stateDir);
+	await teardownTestServer(ctx);
 });
 
 describe("end-to-end workflows — Phase 5 task 3", () => {
