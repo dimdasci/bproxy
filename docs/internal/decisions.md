@@ -309,19 +309,22 @@ The skill is what agents load and apply; the extension contract is the three met
 ---
 
 ## ADR-022: Extension-control routing for background tab actions
-**Date:** 2026-05-29
+**Date:** 2026-05-29 (rewritten 2026-06-14)
 **Status:** Accepted
 
-**Decision:** Phase 5 keeps one request envelope across daemon↔extension traffic and routes tab-management actions by action name in the extension background service worker.
+**Decision:** Phase 5 keeps one request envelope across daemon↔extension traffic and splits tab-management actions into two tiers based on authority:
+
+- **Daemon-local** — `tab.list` is resolved entirely within the daemon from its session tab registry. It never reaches the extension. This enforces the session-scoped visibility boundary: the daemon is the authority for which tabs an agent may see, and exposing the Chrome tabs API to this query would leak operator-opened tabs.
+- **Extension-background-handled** — `tab.open` and `tab.close` are forwarded to the extension background service worker (not to a content script) because they require the Chrome `tabs.create` / `tabs.remove` APIs.
 
 **Rules:**
 - The existing `BproxyRequest` envelope is reused; no Phase 5 wire fork is introduced.
 - Actions that do not target an existing tab may set `target.tabId` to `null` on the daemon↔extension wire.
-- The background SW owns a fixed background-handled action set: `tab.open`, `tab.list`, and `tab.close`.
-- Background-handled actions are executed locally in the SW and are not forwarded to a content script.
-- All other forwarded browser actions require a resolved Chrome tab id and continue through the existing tab-targeted path.
+- The extension background SW owns a fixed background-handled action set: `tab.open` and `tab.close`. These are executed locally in the SW and are not forwarded to a content script.
+- `tab.list` is handled by the daemon without a WS client connection; it succeeds even when no extension is connected.
+- All other forwarded browser actions (`tab.pin`, `tab.unpin`, `navigate`, `screenshot`, `require-human`) require a resolved Chrome tab id and continue through the existing tab-targeted path.
 
-**Rationale:** `tab open` must work in a fresh session with no pre-bound tab. Reusing the existing envelope keeps shared protocol churn low while making the bootstrap path explicit.
+**Rationale:** The daemon is the security boundary for tab visibility. `tab.list` returning only session-owned tabs is a policy decision — not a browser-API query — so it belongs in the daemon. `tab.open` must work in a fresh session with no pre-bound tab; `tab.close` requires Chrome API access. Reusing the existing envelope keeps shared protocol churn low while making the bootstrap path and the visibility boundary explicit.
 
 ---
 
