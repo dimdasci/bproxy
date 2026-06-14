@@ -107,18 +107,22 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 ---
 
 ## ADR-010: WebSocket auth transport — two-token model
-**Date:** 2026-05-13 (rewritten)
+**Date:** 2026-05-13 (rewritten 2026-06-14)
 **Status:** Accepted
 
-**Decision:** Route-specific auth with two distinct tokens:
+**Decision:** Route-specific auth with two distinct long-lived tokens and one short-lived pairing code:
 - **Daemon token** (`~/.bproxy/token`) — CLI→daemon HTTP auth
 - **Extension token** — issued during pairing, extension→daemon WS auth
+- **Pairing code** — one-time, short-TTL, body-transmitted auth factor for the claim route
 
-**Transport specifics:**
-- **HTTP (`POST /`, `POST /pair/claim`):** `Authorization: Bearer {daemonToken}`
-- **WS (`GET /ws`):** `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+**Transport specifics (per route):**
+- **`POST /`** — `Authorization: Bearer {daemonToken}` (header-auth, validated at `onRequest` before body parse)
+- **`GET /ws`** — `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}` (header-auth, validated at `onRequest` before upgrade)
+- **`POST /pair/claim`** — pairing code in request body `{ "code": "ABCD-EFGH" }` (body-auth, validated after body parse); no daemon Bearer token required; `chrome-extension://` Origin required at ingress
 
-**Note:** `POST /pair/claim` requires pairing code validation flow, not daemon bearer token (see ADR-011).
+**Ingress gate (all routes):** Host, Origin, and Sec-Fetch-Site checks run at `onRequest` for every route — unauthenticated cross-site or proxy-forwarded requests are rejected before body parsing regardless of route.
+
+**Why `/pair/claim` uses body-auth:** The auth hook runs at `onRequest` (before Fastify parses the body) so that header-auth routes reject attackers before triggering any route logic. Since the pairing code is transmitted in the body, it cannot be validated at that stage — validation is deferred to the route handler. The ingress gate still protects the route with Host + Origin + Sec-Fetch-Site checks.
 
 ---
 
