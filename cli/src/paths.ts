@@ -67,3 +67,11 @@ export function resolveStatePaths(
 		logs: logDir(stateDir),
 	};
 }
+
+/**
+ * Resolve the session-scoped temp directory path.
+ * Used by CLI to determine default output location for file artifacts.
+ */
+export function sessionTmpPath(stateDir: string, sessionId: string): string {
+	return resolve(stateDir, "tmp", "sessions", sessionId);
+}

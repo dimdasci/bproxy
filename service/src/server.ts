@@ -17,6 +17,7 @@ import { createSessionRegistry, type SessionRegistry } from "./sessions";
 
 export interface BuildServerOptions {
 	port: number;
+	stateDir: string;
 	daemonToken: string;
 	extensionToken: string;
 	logger: Logger;
@@ -146,6 +147,7 @@ async function registerRoutes(
 			logger: opts.logger,
 			sessions: deps.sessions,
 			elementHandles: deps.elementHandles,
+			stateDir: opts.stateDir,
 			trace: deps.pushTrace,
 			debug: {
 				clients: deps.clients,

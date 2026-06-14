@@ -37,7 +37,7 @@ type _BindUsesLogicalTab = Expect<
 type _TabOpenUsesLogicalHandles = Expect<
 	Equals<
 		ActionResult["tab.open"],
-		{ session: SessionId; tab: TabHandle; bound: boolean; url: string }
+		{ session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string }
 	>
 >;
 type _TabListIsScoped = Expect<

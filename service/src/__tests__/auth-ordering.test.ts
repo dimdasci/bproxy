@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../logger";
 import { type BuiltServer, buildServer } from "../server";
+import { createTestStateDir, removeTestStateDir } from "./helpers/test-state-dir";
 
 const daemonToken = "test-ordering-token";
 const wsToken = "test-ext-token";
 
 let built: BuiltServer;
+let stateDir: string;
 let port: number;
 let captured: CapturedLogger;
 const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
@@ -49,9 +51,11 @@ function connectClient(clientToken = wsToken): Promise<WebSocket> {
 }
 
 beforeEach(async () => {
+	stateDir = createTestStateDir();
 	captured = buildCapturedLogger();
 	built = await buildServer({
 		port: 0,
+		stateDir,
 		daemonToken,
 		extensionToken: wsToken,
 		logger: captured.logger,
@@ -62,6 +66,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await built.app.close();
+	removeTestStateDir(stateDir);
 });
 
 describe("auth ordering — GAP C", () => {

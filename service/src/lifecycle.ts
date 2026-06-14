@@ -13,6 +13,7 @@ import type {
 } from "./pairing-file";
 import { readPairingFile, removePairingFile, writePairingFile } from "./pairing-file";
 import { buildServer } from "./server";
+import { wipeSessionsTmpDir } from "./session-tmp";
 import { createSessionRegistry } from "./sessions";
 
 export type { LifecycleStartResult, LifecycleStatusResult, LifecycleStopResult, PairingMetadata };
@@ -169,6 +170,7 @@ export function writePidFile(config: ServiceConfig, pid: number): void {
 
 export async function startForeground(config: ServiceConfig): Promise<void> {
 	ensureStateDir(config);
+	wipeSessionsTmpDir(config.stateDir);
 	const logger = buildLogger(config);
 	const daemonToken = writeToken(config);
 	const extensionToken = readExtensionToken(config) ?? "";
@@ -185,6 +187,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 
 	const built = await buildServer({
 		port: config.port,
+		stateDir: config.stateDir,
 		daemonToken,
 		extensionToken,
 		logger,
@@ -213,6 +216,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 			} finally {
 				clearToken(config);
 				cleanupRuntimeState(config);
+				wipeSessionsTmpDir(config.stateDir);
 				resolveShutdown();
 			}
 		})();

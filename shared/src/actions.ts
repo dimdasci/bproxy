@@ -209,9 +209,9 @@ export interface ActionResult {
 	"tab.list": { session: SessionId; tabs: Array<TabInfo> };
 	"tab.pin": { tab: TabHandle; pinned: true };
 	"tab.unpin": { tab: TabHandle; pinned: false };
-	"tab.open": { session: SessionId; tab: TabHandle; bound: boolean; url: string };
+	"tab.open": { session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string };
 	"tab.close": { tab: TabHandle; closed: true };
-	"session.create": { session: SessionId; label?: string };
+	"session.create": { session: SessionId; label?: string; tmpDir: string };
 	"session.list": { sessions: Array<SessionInfo> };
 	"session.bind": { session: SessionId; tab: TabHandle };
 	"session.unbind": Record<string, never>;

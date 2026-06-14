@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildCapturedLogger } from "../logger";
 import { createPairingStore, type PairingStore } from "../pairing";
 import { type BuiltServer, buildServer } from "../server";
+import { createTestStateDir, removeTestStateDir } from "./helpers/test-state-dir";
 
 interface PairingErrorBody {
 	ok: false;
@@ -14,11 +15,13 @@ interface PairingSuccessBody {
 }
 
 let built: BuiltServer;
+let stateDir: string;
 let now: number;
 
 async function makeServer(pairing?: PairingStore): Promise<BuiltServer> {
 	return buildServer({
 		port: 9615,
+		stateDir,
 		daemonToken: "daemon-token",
 		extensionToken: "extension-token",
 		logger: buildCapturedLogger().logger,
@@ -46,11 +49,13 @@ function bodyOf<T>(response: { body: string }): T {
 
 beforeEach(async () => {
 	now = 0;
+	stateDir = createTestStateDir();
 	built = await makeServer();
 });
 
 afterEach(async () => {
 	await built.app.close();
+	removeTestStateDir(stateDir);
 });
 
 describe("POST /pair/claim rate limiting", () => {

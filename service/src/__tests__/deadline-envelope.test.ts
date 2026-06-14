@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../logger";
 import { type BuiltServer, buildServer } from "../server";
+import { createTestStateDir, removeTestStateDir } from "./helpers/test-state-dir";
 
 const daemonToken = "test-deadline-token";
 const extensionToken = "test-ext-token";
 
 let built: BuiltServer;
+let stateDir: string;
 let port: number;
 let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
@@ -64,8 +66,15 @@ function connectClient(): Promise<WebSocket> {
 
 beforeEach(async () => {
 	commandSequence = 0;
+	stateDir = createTestStateDir();
 	captured = buildCapturedLogger();
-	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
+	built = await buildServer({
+		port: 0,
+		stateDir,
+		daemonToken,
+		extensionToken,
+		logger: captured.logger,
+	});
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
 	currentSession = built.sessions.create().id;
@@ -73,6 +82,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await built.app.close();
+	removeTestStateDir(stateDir);
 });
 
 describe("deadline and timeout behaviour", () => {
