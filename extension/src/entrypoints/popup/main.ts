@@ -13,6 +13,7 @@ const STATUS_FRIENDLY: Record<PairingErrorCode, string> = {
 	PAIRING_CODE_INVALID: "Code not recognized. Re-issue a code in the daemon and try again.",
 	PAIRING_CODE_EXPIRED: "Code expired. Re-issue a code in the daemon and try again.",
 	PAIRING_CODE_CONSUMED: "Code was already claimed. Issue a fresh code in the daemon.",
+	PAIRING_RATE_LIMITED: "Too many failed pairing attempts. Wait a minute and try again.",
 	INVALID_PAYLOAD_SHAPE: "Daemon returned an unexpected response.",
 	INVALID_WS_URL: "Daemon WebSocket URL is not loopback — refusing to pair.",
 	UNSUPPORTED_PROTOCOL_VERSION: "Daemon protocol version is unsupported by this extension.",

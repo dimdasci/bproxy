@@ -11,6 +11,7 @@ export type PairingErrorCode =
 	| "PAIRING_CODE_INVALID"
 	| "PAIRING_CODE_EXPIRED"
 	| "PAIRING_CODE_CONSUMED"
+	| "PAIRING_RATE_LIMITED"
 	| "INVALID_PAYLOAD_SHAPE"
 	| "INVALID_WS_URL"
 	| "UNSUPPORTED_PROTOCOL_VERSION"
@@ -55,6 +56,7 @@ type ValidateErr = { ok: false; code: PairingErrorCode; message?: string };
  *   2. Validate the daemon's success envelope (`{ ok, data }`) and the
  *      bootstrap payload (loopback `wsUrl`, `protocolVersion === 1`,
  *      future `expiresAt`, non-empty nonce/token).
+ *      Daemon pairing failures, including rate limiting, pass through by code.
  *   3. Persist via the typed `bootstrapItem` storage seam.
  *   4. Fire-and-forget `chrome.runtime.sendMessage({ type: "pair.complete" })`
  *      so the background worker can re-read storage and reconnect.
@@ -197,6 +199,7 @@ const DAEMON_ERROR_CODES: ReadonlySet<PairingErrorCode> = new Set<PairingErrorCo
 	"PAIRING_CODE_INVALID",
 	"PAIRING_CODE_EXPIRED",
 	"PAIRING_CODE_CONSUMED",
+	"PAIRING_RATE_LIMITED",
 ]);
 
 function extractDaemonErrorCode(body: unknown): PairingErrorCode | null {

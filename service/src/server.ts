@@ -8,6 +8,7 @@ import { createDispatch } from "./dispatch";
 import { ElementHandleCache } from "./element-handles";
 import { createPacing } from "./pacing";
 import { createPairingStore, type PairingStore } from "./pairing";
+import { createPairingRateLimiter, type PairingRateLimiter } from "./pairing-rate-limit";
 import { createPending } from "./pending";
 import { commandRoute } from "./routes/command";
 import { pairRoute } from "./routes/pair";
@@ -20,6 +21,8 @@ export interface BuildServerOptions {
 	extensionToken: string;
 	logger: Logger;
 	pairing?: PairingStore;
+	pairingRateLimiter?: PairingRateLimiter;
+	pairingRateLimitNow?: () => number;
 	sessions?: SessionRegistry;
 	traces?: () => readonly DaemonRequestTrace[];
 	onExtensionTokenChanged?: (token: string) => void;
@@ -31,6 +34,7 @@ export interface BuiltServer {
 	pending: ReturnType<typeof createPending>;
 	sessions: SessionRegistry;
 	pairing: PairingStore;
+	pairingRateLimiter: PairingRateLimiter;
 }
 
 interface ObjectGraph {
@@ -38,6 +42,7 @@ interface ObjectGraph {
 	pending: ReturnType<typeof createPending>;
 	sessions: SessionRegistry;
 	pairing: PairingStore;
+	pairingRateLimiter: PairingRateLimiter;
 	dispatch: ReturnType<typeof createDispatch>;
 	elementHandles: ElementHandleCache;
 	pacing: ReturnType<typeof createPacing>;
@@ -103,6 +108,9 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		random: () => Math.random(),
 	});
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
+	const pairingRateLimiter =
+		opts.pairingRateLimiter ??
+		createPairingRateLimiter({ now: opts.pairingRateLimitNow ?? (() => Date.now()) });
 	let clientCounter = 0;
 	const newClientId = (): string => `client-${++clientCounter}`;
 	const ring = createTraceRing();
@@ -116,6 +124,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		elementHandles,
 		pacing,
 		pairing,
+		pairingRateLimiter,
 		newClientId,
 		startedAt: Date.now(),
 		traces,
@@ -152,6 +161,7 @@ async function registerRoutes(
 	await app.register(
 		pairRoute({
 			pairing: deps.pairing,
+			rateLimiter: deps.pairingRateLimiter,
 			logger: opts.logger,
 			wsUrl: () => `ws://127.0.0.1:${getPort()}/ws`,
 			activateExtensionToken,
@@ -206,5 +216,6 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		pending: deps.pending,
 		sessions: deps.sessions,
 		pairing: deps.pairing,
+		pairingRateLimiter: deps.pairingRateLimiter,
 	};
 }

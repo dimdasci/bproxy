@@ -94,6 +94,7 @@ The extension has no manual token-entry UI. Pairing is explicit and popup-driven
 Security properties:
 - Pairing code is one-time and expires quickly (TTL 5 minutes).
 - Claim route validates pairing code only; no daemon bearer token required.
+- `/pair/claim` has a global in-memory failed-attempt throttle (5 failures / 60s). This is localhost-scoped foolproofing, not per-source attribution or DDoS protection.
 - Daemon never exposes long-lived token over unauthenticated endpoint.
 - Bootstrap payload includes cryptographic nonce; extension enforces single accept.
 - Pairing events are logged and auditable.

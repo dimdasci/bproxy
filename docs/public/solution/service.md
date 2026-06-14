@@ -32,6 +32,7 @@ service/
     ├── logger.ts             # structured JSON logger (pino-compatible)
     ├── pacing.ts             # per-session delay enforcement
     ├── pairing.ts            # pairing code generation and validation
+    ├── pairing-rate-limit.ts # global in-memory failed-attempt throttle for /pair/claim
     ├── pairing-file.ts       # pairing.json file I/O
     ├── pending.ts            # pending-request map, timeout, replay-on-reconnect
     ├── schemas.ts            # Zod schemas for ActionParams validation
@@ -214,9 +215,11 @@ Response (200):
 Validation/security checks:
 - pairing code exists, not expired (TTL 5 min), not already consumed
 - code compare is constant-time
-- per-source rate limit (e.g. 5/min)
+- global in-memory failed-attempt throttle: 5 route-handled failures per 60 seconds on `/pair/claim`
 - claim consumes code atomically (one-time)
 - bootstrap payload nonce is unique (extension enforces single accept)
+
+The throttle is localhost-scoped, daemon-owned memory only, and deliberately global rather than per-source. Localhost source identity is weak, so this is best-effort foolproofing against repeated failed pairing attempts, not a strong attribution control or DDoS-grade defense.
 
 **No daemon bearer token required** — pairing code is the auth factor for this route.
 
@@ -522,11 +525,18 @@ These belong to a **separate contract** from the protocol error taxonomy. They a
 
 | Code | HTTP | When |
 |---|---|---|
-| `PAIRING_CODE_INVALID` | 400/401 | Submitted code is unknown |
+| `PAIRING_CODE_INVALID` | 400/401 | Parsed body is missing a string `code`, has extra fields, or submitted code is unknown |
 | `PAIRING_CODE_EXPIRED` | 401 | Code existed but TTL elapsed |
 | `PAIRING_CODE_CONSUMED` | 401 | Code was already claimed (one-time) |
+| `PAIRING_RATE_LIMITED` | 429 | Global failed-attempt throttle is active (5 failures / 60s) |
 
-Per-source rate limiting is documented as future work in the threat model; `PAIRING_RATE_LIMITED` is not yet implemented.
+All route-handled pairing failures use the simplified envelope:
+
+```json
+{ "ok": false, "error": { "code": "PAIRING_CODE_INVALID" } }
+```
+
+`PAIRING_RATE_LIMITED` rejects all `/pair/claim` attempts while the window is active, including a request that otherwise contains the valid one-time code. The limiter is in-memory and resets on daemon restart.
 
 ## Observability
 
@@ -559,6 +569,9 @@ Structured JSON via Fastify's pino logger. Every log line includes the request `
 | `handle_mint` | Read response decorated with fresh handles | `session`, `tab`, `sourceAction`, `count`, `firstHandle`, `lastHandle` |
 | `handle_resolve` | Handle resolution attempt | `handle`, `session`, `tab`, `outcome` |
 | `handle_invalidate` | Handle batch invalidated or evicted | `session?`, `tab?`, `cause`, `count` |
+| `pair_claim_failed` | Pairing claim failed after body validation | `code` |
+| `pair_claim_rate_limited` | Pairing claim rejected by global failed-attempt throttle | none |
+| `pair_claim_ok` | Pairing claim succeeded and extension token activated | none |
 
 ### Log Verbosity
 
