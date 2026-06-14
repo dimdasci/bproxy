@@ -496,7 +496,9 @@ The parent process reading the file does **not** delete it. The daemon owns the 
 
 ## Error Responses
 
-The daemon wraps extension errors and adds its own:
+### Protocol errors (`POST /`)
+
+These use the shared `BproxyError` envelope (`{ code, category, retry, message, ... }`) defined in `@bproxy/shared` and are returned through the normal command route. The CLI maps them to exit code `1`.
 
 | Code | Category | When |
 |---|---|---|
@@ -513,10 +515,18 @@ The daemon wraps extension errors and adds its own:
 | `ELEMENT_HANDLE_STALE` | target | Handle no longer matches the current page epoch/URL, or epoch data is unavailable |
 | `ELEMENT_HANDLE_SCOPE_MISMATCH` | target | Handle belongs to another logical tab in the same session |
 | `HUMAN_REQUIRED` | policy | Session is paused (interstitial detected) |
-| `PAIRING_CODE_INVALID` | policy | Pair claim used unknown code |
-| `PAIRING_CODE_EXPIRED` | policy | Pair claim used expired code |
-| `PAIRING_CODE_CONSUMED` | policy | Pair claim reused one-time code |
-| `PAIRING_RATE_LIMITED` | transport | Too many claim attempts |
+
+### Pairing errors (`POST /pair/claim`)
+
+These belong to a **separate contract** from the protocol error taxonomy. They are returned on the pairing route only, consumed exclusively by the extension popup, and use a simplified envelope `{ ok: false, error: { code } }` without `category`/`retry`/`message` fields. They are **not** part of the shared `ErrorCode` type.
+
+| Code | HTTP | When |
+|---|---|---|
+| `PAIRING_CODE_INVALID` | 400/401 | Submitted code is unknown |
+| `PAIRING_CODE_EXPIRED` | 401 | Code existed but TTL elapsed |
+| `PAIRING_CODE_CONSUMED` | 401 | Code was already claimed (one-time) |
+
+Per-source rate limiting is documented as future work in the threat model; `PAIRING_RATE_LIMITED` is not yet implemented.
 
 ## Observability
 

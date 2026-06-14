@@ -86,7 +86,7 @@ The extension has no manual token-entry UI. Pairing is explicit and popup-driven
 2. CLI prints pairing code in machine-readable output (`{pairingCode, expiresAt}`)
 3. User opens extension popup, enters pairing code
 4. Popup calls `POST /pair/claim` with the code, receives bootstrap payload
-5. Popup stores `{extensionToken, wsUrl, protocol}` in `chrome.storage.local`
+5. Popup stores `{extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce}` in `chrome.storage.local`
 6. Popup notifies background SW; SW reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
 7. The claimed token is active immediately for WS auth; daemon accepts only the latest claimed extension token (single-active-token policy).
 8. Daemon persists active extension token to `~/.bproxy/extension-token` (0600), so restart is transparent for a single-user setup (extension reconnects without re-pairing).
@@ -150,11 +150,11 @@ Errors use a single RFC 9457-aligned envelope:
 - **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url }`.
 - **Scoped privacy:** `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
 - **Bind/close rules:** `session bind --tab tN` accepts logical tab handles only; `session close -s <id>` closes all session-owned Chrome tabs.
-- **Extension-control wire shape:** the daemon reuses the existing `BproxyRequest` envelope and sets `target.tabId` to `null` for actions that do not target an existing tab. The background service worker routes `tab.open`, `tab.list`, and `tab.close` by action name without forwarding them to a content script.
+- **Extension-control wire shape:** the daemon reuses the existing `BproxyRequest` envelope and sets `target.tabId` to `null` for actions that do not target an existing tab. The background service worker routes `tab.open` and `tab.close` by action name without forwarding them to a content script. `tab.list` is daemon-local — the daemon resolves it from its own session tab registry without extension involvement, enforcing the session-scoped visibility boundary.
 - **Structured links:** `links` is a first-class read action for structured visible-link extraction, traversing open shadow roots by default.
 - **Diagnostic commands:** `inspect` returns computed styles, layout rects, and scroll info for specific selectors; `snapshot` returns an accessible DOM tree serialization.
 - **Capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the shared error contract for the generated-session/logical-tab model.
-- **Screenshot file output:** `screenshot --output-dir <dir>` materializes the captured image to disk and returns `{ format, file, size }` instead of a base64 blob.
+- **Screenshot file output:** `screenshot --output-dir <dir>` is a CLI-local transformation — the protocol still returns `{ base64, format }` from the extension, but the CLI writes the decoded image to disk and emits `{ format, file, size }` on stdout instead of the base64 blob.
 
 ## Actions
 

@@ -107,18 +107,22 @@ Composed five-concern stack: `tsc` (strict), Biome v2 (format), ESLint v9 (lint 
 ---
 
 ## ADR-010: WebSocket auth transport — two-token model
-**Date:** 2026-05-13 (rewritten)
+**Date:** 2026-05-13 (rewritten 2026-06-14)
 **Status:** Accepted
 
-**Decision:** Route-specific auth with two distinct tokens:
+**Decision:** Route-specific auth with two distinct long-lived tokens and one short-lived pairing code:
 - **Daemon token** (`~/.bproxy/token`) — CLI→daemon HTTP auth
 - **Extension token** — issued during pairing, extension→daemon WS auth
+- **Pairing code** — one-time, short-TTL, body-transmitted auth factor for the claim route
 
-**Transport specifics:**
-- **HTTP (`POST /`, `POST /pair/claim`):** `Authorization: Bearer {daemonToken}`
-- **WS (`GET /ws`):** `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
+**Transport specifics (per route):**
+- **`POST /`** — `Authorization: Bearer {daemonToken}` (header-auth, validated at `onRequest` before body parse)
+- **`GET /ws`** — `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}` (header-auth, validated at `onRequest` before upgrade)
+- **`POST /pair/claim`** — pairing code in request body `{ "code": "ABCD-EFGH" }` (body-auth, validated after body parse); no daemon Bearer token required; `chrome-extension://` Origin required at ingress
 
-**Note:** `POST /pair/claim` requires pairing code validation flow, not daemon bearer token (see ADR-011).
+**Ingress gate (all routes):** Host, Origin, and Sec-Fetch-Site checks run at `onRequest` for every route — unauthenticated cross-site or proxy-forwarded requests are rejected before body parsing regardless of route.
+
+**Why `/pair/claim` uses body-auth:** The auth hook runs at `onRequest` (before Fastify parses the body) so that header-auth routes reject attackers before triggering any route logic. Since the pairing code is transmitted in the body, it cannot be validated at that stage — validation is deferred to the route handler. The ingress gate still protects the route with Host + Origin + Sec-Fetch-Site checks.
 
 ---
 
@@ -309,19 +313,22 @@ The skill is what agents load and apply; the extension contract is the three met
 ---
 
 ## ADR-022: Extension-control routing for background tab actions
-**Date:** 2026-05-29
+**Date:** 2026-05-29 (rewritten 2026-06-14)
 **Status:** Accepted
 
-**Decision:** Phase 5 keeps one request envelope across daemon↔extension traffic and routes tab-management actions by action name in the extension background service worker.
+**Decision:** Phase 5 keeps one request envelope across daemon↔extension traffic and splits tab-management actions into two tiers based on authority:
+
+- **Daemon-local** — `tab.list` is resolved entirely within the daemon from its session tab registry. It never reaches the extension. This enforces the session-scoped visibility boundary: the daemon is the authority for which tabs an agent may see, and exposing the Chrome tabs API to this query would leak operator-opened tabs.
+- **Extension-background-handled** — `tab.open` and `tab.close` are forwarded to the extension background service worker (not to a content script) because they require the Chrome `tabs.create` / `tabs.remove` APIs.
 
 **Rules:**
 - The existing `BproxyRequest` envelope is reused; no Phase 5 wire fork is introduced.
 - Actions that do not target an existing tab may set `target.tabId` to `null` on the daemon↔extension wire.
-- The background SW owns a fixed background-handled action set: `tab.open`, `tab.list`, and `tab.close`.
-- Background-handled actions are executed locally in the SW and are not forwarded to a content script.
-- All other forwarded browser actions require a resolved Chrome tab id and continue through the existing tab-targeted path.
+- The extension background SW owns a fixed background-handled action set: `tab.open` and `tab.close`. These are executed locally in the SW and are not forwarded to a content script.
+- `tab.list` is handled by the daemon without a WS client connection; it succeeds even when no extension is connected.
+- All other forwarded browser actions (`tab.pin`, `tab.unpin`, `navigate`, `screenshot`, `require-human`) require a resolved Chrome tab id and continue through the existing tab-targeted path.
 
-**Rationale:** `tab open` must work in a fresh session with no pre-bound tab. Reusing the existing envelope keeps shared protocol churn low while making the bootstrap path explicit.
+**Rationale:** The daemon is the security boundary for tab visibility. `tab.list` returning only session-owned tabs is a policy decision — not a browser-API query — so it belongs in the daemon. `tab.open` must work in a fresh session with no pre-bound tab; `tab.close` requires Chrome API access. Reusing the existing envelope keeps shared protocol churn low while making the bootstrap path and the visibility boundary explicit.
 
 ---
 

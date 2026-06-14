@@ -116,9 +116,11 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Detail:** [phases/05-integration-hardening.md](./phases/05-integration-hardening.md).
 
-### Phase 6 — Element target aliases
+### Phase 6 — Element target aliases ✅ Done
 
 **Purpose:** close the read→act targeting gap found during real browser use by adding short-lived daemon-owned element target aliases. This is an architecture-first feature phase: the core work is stale-page safety, memory bounds, target type separation, invalidation semantics, and observability.
+
+**Status note:** Phase 6 is complete. All 8 tasks done: shared types (`ClientElementTarget`, `ElementHandle`, handle error codes), extension navigation push messages, daemon handle cache with page-epoch tracking, daemon integration (decoration + resolution in dispatch), CLI `--element` target parsing, schema validation, extension invariant checks, and architecture/documentation update. 739 tests at close.
 
 **Output:** read actions such as `elements` and `links` return opaque handles like `el1` / `ln3` alongside normal explicit targets; target-taking commands accept `--element elN|lnN`; the daemon resolves aliases back to `ElementTarget` before forwarding; the extension remains unaware of handle storage and receives only explicit selector/route targets.
 
