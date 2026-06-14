@@ -25,10 +25,9 @@ class RejectingInputElement extends FakeElement {
 	}
 
 	// Simulate a hostile controlled field that rejects the write.
+	// biome-ignore lint/correctness/noUnusedVariables: intentional no-op setter
 	override set value(_next: string) {
-		// Intentionally ignore _next: revert to controlled state (framework overwrites agent's value)
-		void _next;
-		this._value = this._value;
+		// Intentionally no-op: controlled field rejects agent writes
 	}
 }
 

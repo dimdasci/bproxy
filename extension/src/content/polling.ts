@@ -80,11 +80,11 @@ export async function pollUntilStable(
 		checks += 1;
 		const nextValue = options.read();
 		const matched = nextValue === value;
-		if (!matched) {
+		if (matched) {
+			consecutiveStable += 1;
+		} else {
 			value = nextValue;
 			consecutiveStable = 1;
-		} else {
-			consecutiveStable += 1;
 		}
 
 		if (consecutiveStable >= stableCount) {
