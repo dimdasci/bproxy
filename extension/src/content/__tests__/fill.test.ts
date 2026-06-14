@@ -26,7 +26,8 @@ class RejectingInputElement extends FakeElement {
 
 	// Simulate a hostile controlled field that rejects the write.
 	override set value(_next: string) {
-		// Reject: revert to controlled state (framework overwrites agent's value)
+		// Intentionally ignore _next: revert to controlled state (framework overwrites agent's value)
+		void _next;
 		this._value = this._value;
 	}
 }

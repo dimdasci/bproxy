@@ -45,8 +45,11 @@ function routeFor(url: string, method: string): "command" | "pair" | "ws" | null
 
 function parseBearer(header: string | undefined): string | null {
 	if (!header) return null;
-	const m = /^Bearer\s+(.+)$/i.exec(header);
-	return m ? (m[1] ?? null) : null;
+	const prefix = "bearer ";
+	if (header.length <= prefix.length) return null;
+	if (header.slice(0, prefix.length).toLowerCase() !== prefix) return null;
+	const token = header.slice(prefix.length).trim();
+	return token.length > 0 ? token : null;
 }
 
 function parseWsAuth(header: string | undefined): string | null {

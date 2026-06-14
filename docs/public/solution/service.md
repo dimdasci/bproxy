@@ -157,7 +157,7 @@ This state is in-memory only and resets on daemon restart.
 
 ### `session.*` semantics
 
-- `session.create` — generates a new 6-character base32 `SessionId` with default pacing; returns `{ session, label? }`.
+- `session.create` — generates a new 6-character base32 `SessionId` with default pacing; returns `{ session, label?, tmpDir }`.
 - `session.list` — returns daemon's current in-memory session snapshot.
 - `session.bind` — binds a session to a logical `TabHandle`. Rebinding is immediate: the very next forwarded command resolves the new tab.
 - `session.unbind` — clears tab binding; idempotent.

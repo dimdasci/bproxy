@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,6 +8,7 @@ import type {
 	LifecycleStatusResult,
 	LifecycleStopResult,
 } from "../lifecycle";
+import { createTestStateDir } from "./helpers/test-state-dir";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, "../../dist/index.mjs");
@@ -40,7 +40,7 @@ function stopDaemon(home: string): Promise<number | null> {
 
 let home: string;
 beforeEach(() => {
-	home = mkdtempSync(join(tmpdir(), "bproxy-start-output-"));
+	home = createTestStateDir("bproxy-start-output-");
 	if (!existsSync(BIN)) {
 		throw new Error("Run `pnpm --filter @bproxy/service build` first");
 	}

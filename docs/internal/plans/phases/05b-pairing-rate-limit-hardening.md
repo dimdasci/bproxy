@@ -1,7 +1,7 @@
 # Phase 05b — Pairing rate-limit hardening
 
-**Date:** 2026-06-14  
-**Status:** Implemented  
+**Date:** 2026-06-14\
+**Status:** Implemented\
 **Context:** v1 hardening pass; close pairing-route security/documentation gap with minimal viable localhost-appropriate protection.
 
 ## Implementation status

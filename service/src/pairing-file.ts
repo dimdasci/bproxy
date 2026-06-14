@@ -27,7 +27,7 @@ export interface LifecycleStatusResult {
 }
 
 export function writePairingFile(config: ServiceConfig, meta: PairingMetadata): void {
-	mkdirSync(config.stateDir, { recursive: true });
+	mkdirSync(config.stateDir, { recursive: true, mode: 0o700 });
 	const path = stateFile(config.stateDir, "pairing.json");
 	const tmp = `${path}.${process.pid}.tmp`;
 	writeFileSync(tmp, JSON.stringify(meta), { mode: 0o600 });

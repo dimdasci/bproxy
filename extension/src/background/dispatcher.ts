@@ -109,13 +109,16 @@ async function executeRequest(
 	}
 }
 
-function buildSuccess<A extends ForwardedAction>(
-	request: BproxyForwardedRequest<A>,
+function buildSuccess(
+	request: BproxyForwardedRequest<ForwardedAction>,
 	result: ExecutedAction,
 ): BproxyResponse {
+	// ExecutedAction.data is untyped (unknown) at the dispatcher boundary;
+	// the handler contract guarantees it matches the action's result shape.
+	const data = result.data as ActionResult[ForwardedAction];
 	return successResponse({
 		request,
-		data: result.data as ActionResult[A],
+		data,
 		page: result.page,
 	});
 }

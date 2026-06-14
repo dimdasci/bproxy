@@ -5,7 +5,7 @@
  * `BPROXY_HOME/tmp/sessions/<session-id>/` for agent-facing file output
  * (screenshots, exports). Cleaned on session close or daemon stop.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -37,12 +37,34 @@ export function removeSessionTmpDir(stateDir: string, sessionId: string): void {
 }
 
 /**
- * Wipe all session temp directories (daemon startup / shutdown cleanup).
+ * Wipe the entire `BPROXY_HOME/tmp/` tree (daemon startup / shutdown).
+ * Per ADR-028, daemon startup and shutdown wipe `BPROXY_HOME/tmp/`.
  */
-export function wipeSessionsTmpDir(stateDir: string): void {
+export function wipeTmpDir(stateDir: string): void {
 	try {
-		rmSync(resolve(stateDir, "tmp", "sessions"), { recursive: true, force: true });
+		rmSync(resolve(stateDir, "tmp"), { recursive: true, force: true });
 	} catch {
 		/* best effort */
+	}
+}
+
+/**
+ * Remove orphaned atomic-write staging files (`*.tmp` siblings) in the
+ * state directory. Per ADR-028, daemon startup removes stale siblings
+ * left by crashed previous runs.
+ */
+export function removeOrphanedTmpFiles(stateDir: string): void {
+	try {
+		for (const entry of readdirSync(stateDir)) {
+			if (entry.endsWith(".tmp")) {
+				try {
+					rmSync(resolve(stateDir, entry), { force: true });
+				} catch {
+					/* best effort */
+				}
+			}
+		}
+	} catch {
+		/* stateDir may not exist yet */
 	}
 }

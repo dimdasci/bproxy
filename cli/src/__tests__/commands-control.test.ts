@@ -8,8 +8,7 @@
  * - Argument validation (logical tab handles, pacing, count, limit)
  * - HUMAN_REQUIRED responses pass through as exit 1 (protocol JSON)
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
@@ -19,6 +18,7 @@ import {
 	setupTempHome,
 	successResponse,
 } from "./command-test-helpers.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Test infrastructure (local additions) ─────────────────────────────
 
@@ -332,7 +332,7 @@ describe("top-level status (debug.status alias)", () => {
 	});
 
 	it("requires token preflight (tested via missing token)", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-cmd-test-"));
+		const dir = createTestStateDir("bproxy-cmd-test-");
 		writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
 		// No token file → should fail with exit 2
 

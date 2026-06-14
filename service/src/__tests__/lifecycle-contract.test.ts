@@ -1,9 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
+import { createTestStateDir } from "./helpers/test-state-dir";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, "../../dist/index.mjs");
@@ -41,7 +41,7 @@ function waitForState(home: string, expectedRunning: boolean, timeoutMs = 5000):
 
 let home: string;
 beforeEach(() => {
-	home = mkdtempSync(join(tmpdir(), "bproxy-contract-"));
+	home = createTestStateDir("bproxy-contract-");
 	if (!existsSync(BIN)) {
 		throw new Error("Run `pnpm --filter @bproxy/service build` first");
 	}
@@ -254,8 +254,8 @@ describe("lifecycle contract - GAP E", () => {
 
 	describe("state directory isolation", () => {
 		it("different BPROXY_HOME values are isolated", { timeout: 20000 }, async () => {
-			const home1 = mkdtempSync(join(tmpdir(), "bproxy-isolated-1-"));
-			const home2 = mkdtempSync(join(tmpdir(), "bproxy-isolated-2-"));
+			const home1 = createTestStateDir("bproxy-isolated-1-");
+			const home2 = createTestStateDir("bproxy-isolated-2-");
 
 			const start1 = spawn(process.execPath, [BIN, "start"], {
 				env: { ...process.env, BPROXY_HOME: home1, BPROXY_PORT: "0" },

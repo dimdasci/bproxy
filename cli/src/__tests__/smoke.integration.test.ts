@@ -16,11 +16,11 @@
  * - Stop through CLI, verify status becomes running:false
  */
 import { execSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ describe("CLI integration smoke", () => {
 	let tempHome: string;
 
 	beforeEach(() => {
-		tempHome = mkdtempSync(join(tmpdir(), "bproxy-smoke-"));
+		tempHome = createTestStateDir("bproxy-smoke-");
 	});
 
 	afterEach(async () => {

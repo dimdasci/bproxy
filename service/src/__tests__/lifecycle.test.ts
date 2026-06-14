@@ -1,10 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import { readExtensionToken, writeExtensionToken, writeToken } from "../lifecycle";
+import { createTestStateDir } from "./helpers/test-state-dir";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, "../../dist/index.mjs");
@@ -57,7 +57,7 @@ async function runDaemonized(home: string, signal: "SIGTERM" | "SIGINT"): Promis
 
 let home: string;
 beforeEach(() => {
-	home = mkdtempSync(join(tmpdir(), "bproxy-test-"));
+	home = createTestStateDir("bproxy-test-");
 });
 
 describe("lifecycle smoke", () => {

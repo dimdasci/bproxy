@@ -8,13 +8,13 @@
  *   4. Stdout is machine JSON for success/error; stderr for diagnostics
  *   5. Exit codes are deterministic per response shape
  */
-import { mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction } from "../client.js";
 import { allRegisteredActions } from "../command-registry.js";
 import type { Action } from "../types.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Test infrastructure ───────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ const CLI_SRC = resolve(import.meta.dirname, "..");
 const COMMANDS_DIR = resolve(CLI_SRC, "commands");
 
 function setupTempHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-design-test-"));
+	const dir = createTestStateDir("bproxy-design-test-");
 	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
 	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
 	return dir;
@@ -436,7 +436,7 @@ describe("exit code determinism", () => {
 	});
 
 	it("missing token → exit 2", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-design-test-"));
+		const dir = createTestStateDir("bproxy-design-test-");
 		writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
 		const requestId = "exit-003";
 		const fetch = createMockFetch(successResponse(requestId));

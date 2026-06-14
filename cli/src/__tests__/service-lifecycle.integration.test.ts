@@ -13,11 +13,11 @@
  * - token file mode
  * - extension-token preservation across stop/start
  */
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { execServiceBinary } from "../service-binary.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Test setup ────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ describe("service lifecycle integration", () => {
 	let childEnv: NodeJS.ProcessEnv;
 
 	beforeEach(() => {
-		tempHome = mkdtempSync(join(tmpdir(), "bproxy-svc-integ-"));
+		tempHome = createTestStateDir("bproxy-svc-integ-");
 		childEnv = {
 			...process.env,
 			BPROXY_HOME: tempHome,

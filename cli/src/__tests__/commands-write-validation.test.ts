@@ -7,10 +7,10 @@
  * - Method/world enum validation
  * - fill-form JSON payload validation
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Value source exclusivity logic ────────────────────────────────────
 
@@ -151,7 +151,7 @@ describe("fill-form payload validation", () => {
 
 describe("value-file reading", () => {
 	it("reads file content as fill value", () => {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-fill-test-"));
+		const dir = createTestStateDir("bproxy-fill-test-");
 		const filePath = join(dir, "value.txt");
 		writeFileSync(filePath, "file-content-here");
 

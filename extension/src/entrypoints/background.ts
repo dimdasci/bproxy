@@ -119,7 +119,7 @@ function makeDeps(onMessage: (data: unknown) => void): WsClientDeps {
 		now: () => Date.now(),
 		setTimeout: (cb, ms) => globalThis.setTimeout(cb, ms),
 		clearTimeout: (h) => globalThis.clearTimeout(h as number),
-		random: () => Math.random(),
+		random: () => crypto.getRandomValues(new Uint32Array(1))[0]! / 0x100000000,
 		setBadge,
 		alarms: {
 			create: (name, info) => chrome.alarms.create(name, info),

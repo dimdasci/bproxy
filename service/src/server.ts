@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { DaemonRequestTrace } from "@bproxy/shared";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -106,7 +107,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		sessions,
 		now: () => Date.now(),
 		sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-		random: () => Math.random(),
+		random: () => randomBytes(4).readUInt32BE() / 0x100000000,
 	});
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const pairingRateLimiter =
