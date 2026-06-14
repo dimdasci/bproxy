@@ -154,7 +154,7 @@ Errors use a single RFC 9457-aligned envelope:
 - **Structured links:** `links` is a first-class read action for structured visible-link extraction, traversing open shadow roots by default.
 - **Diagnostic commands:** `inspect` returns computed styles, layout rects, and scroll info for specific selectors; `snapshot` returns an accessible DOM tree serialization.
 - **Capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the shared error contract for the generated-session/logical-tab model.
-- **Screenshot file output:** `screenshot --output-dir <dir>` materializes the captured image to disk and returns `{ format, file, size }` instead of a base64 blob.
+- **Screenshot file output:** `screenshot --output-dir <dir>` is a CLI-local transformation — the protocol still returns `{ base64, format }` from the extension, but the CLI writes the decoded image to disk and emits `{ format, file, size }` on stdout instead of the base64 blob.
 
 ## Actions
 
