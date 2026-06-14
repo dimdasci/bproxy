@@ -86,7 +86,7 @@ The extension has no manual token-entry UI. Pairing is explicit and popup-driven
 2. CLI prints pairing code in machine-readable output (`{pairingCode, expiresAt}`)
 3. User opens extension popup, enters pairing code
 4. Popup calls `POST /pair/claim` with the code, receives bootstrap payload
-5. Popup stores `{extensionToken, wsUrl, protocol}` in `chrome.storage.local`
+5. Popup stores `{extensionToken, wsUrl, protocolVersion, issuedAt, expiresAt, nonce}` in `chrome.storage.local`
 6. Popup notifies background SW; SW reconnects WS using `Sec-WebSocket-Protocol: bproxy.v1, auth.{base64url(extensionToken)}`
 7. The claimed token is active immediately for WS auth; daemon accepts only the latest claimed extension token (single-active-token policy).
 8. Daemon persists active extension token to `~/.bproxy/extension-token` (0600), so restart is transparent for a single-user setup (extension reconnects without re-pairing).
