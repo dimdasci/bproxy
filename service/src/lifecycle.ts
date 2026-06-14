@@ -310,7 +310,7 @@ export function status(config: ServiceConfig): LifecycleStatusResult {
 	}
 	if (isAlive(pidState.pid)) {
 		const port = readPort(config);
-		return { running: true, pid: pidState.pid, ...(port !== undefined ? { port } : {}) };
+		return { running: true, pid: pidState.pid, ...(port === undefined ? {} : { port }) };
 	}
 	cleanupRuntimeState(config);
 	return { running: false };

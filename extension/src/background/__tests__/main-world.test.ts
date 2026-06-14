@@ -1,11 +1,7 @@
 import type { BproxyForwardedRequest, SessionId } from "@bproxy/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { doc, el, type FakeDocument, type FakeElement } from "../../test/fixtures/fake-dom";
-import {
-	createMainWorldExecutor,
-	type MainWorldExecuteDetails,
-	type MainWorldScriptingSeam,
-} from "../main-world";
+import { createMainWorldExecutor, type MainWorldExecuteDetails } from "../main-world";
 
 const TEST_SESSION = "m4q7z2" as SessionId;
 
@@ -43,7 +39,7 @@ describe("createMainWorldExecutor", () => {
 			{ result: details.func(...details.args) },
 		]);
 		const mainWorld = createMainWorldExecutor({
-			scripting: { executeScript } as MainWorldScriptingSeam,
+			scripting: { executeScript },
 		});
 
 		const result = await mainWorld.executeRuntimeApiFill(fillRequest());
@@ -90,7 +86,7 @@ describe("createMainWorldExecutor", () => {
 				executeScript: async (details: MainWorldExecuteDetails) => [
 					{ result: details.func(...details.args) },
 				],
-			} as MainWorldScriptingSeam,
+			},
 		});
 
 		await expect(mainWorld.executeRuntimeApiFill(fillRequest())).rejects.toMatchObject({
@@ -141,6 +137,6 @@ function setPageGlobals(page: FakeDocument | undefined, href: string | undefined
 	Reflect.set(
 		globalThis,
 		"location",
-		href !== undefined ? ({ href } as Location) : originalGlobals.location,
+		href === undefined ? originalGlobals.location : ({ href } as Location),
 	);
 }

@@ -18,7 +18,7 @@ class NativeInputElement extends FakeElement {
 }
 
 class RejectingInputElement extends FakeElement {
-	private readonly _value = "persisted";
+	private _value = "persisted";
 
 	override get value(): string {
 		return this._value;
@@ -26,7 +26,8 @@ class RejectingInputElement extends FakeElement {
 
 	// Simulate a hostile controlled field that rejects the write.
 	override set value(_next: string) {
-		// Intentionally empty: reject all writes to simulate a hostile controlled field.
+		// Reject: revert to controlled state (framework overwrites agent's value)
+		this._value = this._value;
 	}
 }
 

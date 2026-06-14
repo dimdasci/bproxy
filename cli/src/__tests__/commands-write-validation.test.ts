@@ -32,7 +32,7 @@ describe("value source exclusivity", () => {
 	});
 
 	it("accepts exactly one source: --value-file", () => {
-		expect(countSources(undefined, "/tmp/file", false)).toBe(1);
+		expect(countSources(undefined, "/home/testuser/.bproxy/data.json", false)).toBe(1);
 	});
 
 	it("accepts exactly one source: --value-stdin", () => {
@@ -40,10 +40,10 @@ describe("value source exclusivity", () => {
 	});
 
 	it("rejects when multiple sources provided", () => {
-		expect(countSources("hello", "/tmp/file", false)).toBe(2);
+		expect(countSources("hello", "/home/testuser/.bproxy/data.json", false)).toBe(2);
 		expect(countSources("hello", undefined, true)).toBe(2);
-		expect(countSources(undefined, "/tmp/file", true)).toBe(2);
-		expect(countSources("hello", "/tmp/file", true)).toBe(3);
+		expect(countSources(undefined, "/home/testuser/.bproxy/data.json", true)).toBe(2);
+		expect(countSources("hello", "/home/testuser/.bproxy/data.json", true)).toBe(3);
 	});
 });
 

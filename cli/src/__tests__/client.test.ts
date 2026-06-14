@@ -14,7 +14,7 @@ function makeGlobals(overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArg
 	return {
 		session: "m4q7z2",
 		timeout: "5000",
-		home: "/tmp/bproxy-test",
+		home: "/home/testuser/.bproxy",
 		verbose: false,
 		...overrides,
 	};

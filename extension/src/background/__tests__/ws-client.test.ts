@@ -91,7 +91,7 @@ function makeSocketFactory(): SocketFactory {
 		}
 	}
 	return {
-		ctor: Sock as unknown as WsClientDeps["WebSocket"],
+		ctor: Sock,
 		created,
 		last() {
 			const s = created.at(-1);

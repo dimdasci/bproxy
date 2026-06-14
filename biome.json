@@ -10,6 +10,7 @@
 			"!**/.wxt/**",
 			"!**/docs/views/auto/**",
 			"!tmp/**",
+			"!**/.tmp/**",
 			"!.pnpm-store/**",
 			"!.claude/**",
 			"!.superpowers/**",

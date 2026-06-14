@@ -2,7 +2,7 @@
 title: Architecture Decision Records
 ---
 
-**Edition: 2026-06-13 (element target aliases)** — Authoritative current ADR set.
+**Edition: 2026-06-14 (temp file confinement)** — Authoritative current ADR set.
 
 ---
 
@@ -451,5 +451,57 @@ The skill is what agents load and apply; the extension contract is the three met
 **Observability:** Handle resolution is logged with the universal request `id` and outcome (`ok`, `expired`, `stale`, `scope_mismatch`, `not_found`) without exposing sensitive element text at normal log level. Debug output may include bounded hints such as tag/role/text snippets only when explicitly classified as diagnostic.
 
 **Rationale:** Real use after `click`/`hover` showed that the remaining friction is target handoff, not missing primitives. Daemon-owned aliases improve agent ergonomics while preserving the thin extension, honest sensor/actuator boundary, session authority model, and page non-instrumentation guarantees.
+
+---
+
+## ADR-028: Temporary files confined to BPROXY_HOME
+**Date:** 2026-06-14
+**Status:** Accepted
+
+**Decision:** All temporary files created by bproxy — in production and in tests — must reside within the application state directory (`BPROXY_HOME`, defaulting to `~/.bproxy/`). System-level temporary directories such as `/tmp` or the platform value returned by `os.tmpdir()` must not be used, neither as actual I/O targets nor as literal path strings in test assertions.
+
+**State directory layout (additions):**
+
+| Path | Purpose | Lifecycle |
+|------|---------|----------|
+| `BPROXY_HOME/tmp/` | Longer-lived temporary artifacts (e.g., temp scripts for child processes, intermediate file downloads) | Wiped by daemon on startup; individual entries removed after use |
+| `BPROXY_HOME/<file>.{pid}.tmp` | Atomic-write staging (existing pattern in `pairing-file.ts`) | Renamed to target on success; orphans removed by daemon on startup |
+
+**Rules for production code:**
+1. Short-lived atomic writes use the sibling-temp pattern: write to `${targetPath}.${process.pid}.tmp`, then `rename()` to the target. The temp file inherits the parent directory's ownership and permissions — no world-readable intermediates.
+2. Operations requiring a temp directory (spawning helper scripts, buffering large payloads) use `BPROXY_HOME/tmp/`. The daemon creates this directory on startup with mode `0o700` and removes stale contents (any entry older than the current daemon PID file's mtime).
+3. No code path may call `os.tmpdir()`, reference `/tmp` directly, or rely on platform temp directory semantics. The state directory is the only sanctioned location for ephemeral files.
+4. CLI commands that need scratch space (e.g., `screenshot --output-dir`) write to user-specified paths or to `BPROXY_HOME/tmp/` when no explicit path is given.
+
+**Rules for test code:**
+1. Tests that perform actual filesystem I/O must create an isolated per-test state directory via `mkdtempSync(join(projectRoot, '.tmp', 'test-'))` where `projectRoot` is the workspace root of the package under test. The `.tmp/` directory is gitignored and is not publicly writable.
+2. Tests that pass path strings as fixture data to pure functions (argument parsing, config loading, validation) must use paths rooted in a user-private location — for example `join(homedir(), '.bproxy-test', ...)` or a deterministic non-`/tmp` literal such as `/home/testuser/.bproxy`. The literal string `/tmp` must not appear.
+3. Test cleanup (`afterEach`/`afterAll`) removes per-test directories. Even when cleanup is skipped (crash, SIGKILL), leaked artifacts remain within the project tree (`.tmp/`) or the user's home — never in a shared system directory.
+
+**Cleanup guarantees:**
+
+| Scenario | Cleanup mechanism |
+|----------|------------------|
+| Normal daemon stop | `lifecycle.shutdown()` removes `BPROXY_HOME/tmp/` contents |
+| Daemon crash → next startup | Startup wipes `BPROXY_HOME/tmp/` and removes orphaned `.*.tmp` siblings |
+| Test run (normal) | `afterEach` / `afterAll` removes per-test dirs |
+| Test run (crash) | Stale dirs accumulate in `<package>/.tmp/`; removed by `pnpm clean` or next CI run |
+| Installed CLI (no daemon) | CLI scratch writes go to `BPROXY_HOME/tmp/`; no separate cleanup daemon needed — TTL-based removal on next CLI invocation |
+
+**Rejected alternatives:**
+
+| Alternative | Why rejected |
+|-------------|-------------|
+| `os.tmpdir()` / `mkdtemp` in system temp | On Linux resolves to `/tmp` (publicly writable, triggers S5443). No application-level cleanup guarantee — orphans accumulate across reboots on macOS. Not discoverable by the user. |
+| `tmp` library (`setGracefulCleanup`) | Relies on process exit handlers that do not fire on SIGKILL/OOM. Still uses `os.tmpdir()` as base. Adds a runtime dependency for a solved problem. |
+| Project-local `.tmp/` for production | Does not exist after installation — bproxy is distributed as a package, not run from a git checkout. |
+| Suppressing Sonar S5443 via scanner UI | Violates [ADR-025](#adr-025-security-scanner-findings-are-remediated-in-code). |
+
+**Security properties:**
+- `BPROXY_HOME` is created with mode `0o700` (user-only access), inherited by `tmp/` and all contents.
+- Atomic-write staging files are created with mode `0o600` before rename, preventing read races.
+- No temporary file is placed in a world-writable directory, eliminating symlink-attack and information-disclosure vectors flagged by CWE-377 and CWE-379.
+
+**Rationale:** bproxy is a security-sensitive tool that controls a real user's browser session. Temporary files may contain tokens, pairing codes, or session state. Confining all ephemeral I/O to the application's own directory — which the user owns, can inspect, and can wipe — provides defense-in-depth without relying on platform temp semantics, process exit handlers, or external cleanup daemons. The approach also satisfies static analysis (Sonar S5443) by construction rather than by exception.
 
 ---
