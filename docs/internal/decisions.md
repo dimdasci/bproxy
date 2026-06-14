@@ -464,14 +464,48 @@ The skill is what agents load and apply; the extension contract is the three met
 
 | Path | Purpose | Lifecycle |
 |------|---------|----------|
-| `BPROXY_HOME/tmp/` | Longer-lived temporary artifacts (e.g., temp scripts for child processes, intermediate file downloads) | Wiped by daemon on startup; individual entries removed after use |
+| `BPROXY_HOME/tmp/` | Internal daemon scratch (temp scripts, intermediate buffers) | Wiped by daemon on startup; individual entries removed after use |
+| `BPROXY_HOME/tmp/sessions/<id>/` | Per-session agent-facing artifact directory | Created on session bootstrap; wiped on `session close` or daemon stop |
 | `BPROXY_HOME/<file>.{pid}.tmp` | Atomic-write staging (existing pattern in `pairing-file.ts`) | Renamed to target on success; orphans removed by daemon on startup |
 
 **Rules for production code:**
 1. Short-lived atomic writes use the sibling-temp pattern: write to `${targetPath}.${process.pid}.tmp`, then `rename()` to the target. The temp file inherits the parent directory's ownership and permissions — no world-readable intermediates.
 2. Operations requiring a temp directory (spawning helper scripts, buffering large payloads) use `BPROXY_HOME/tmp/`. The daemon creates this directory on startup with mode `0o700` and removes stale contents (any entry older than the current daemon PID file's mtime).
 3. No code path may call `os.tmpdir()`, reference `/tmp` directly, or rely on platform temp directory semantics. The state directory is the only sanctioned location for ephemeral files.
-4. CLI commands that need scratch space (e.g., `screenshot --output-dir`) write to user-specified paths or to `BPROXY_HOME/tmp/` when no explicit path is given.
+4. CLI commands that produce file artifacts (e.g., `screenshot`) write to the session temp directory by default when `--output-dir` is omitted. When `--output-dir` is explicitly provided, the user-specified path takes precedence.
+
+**Session-scoped temp directory:**
+
+Every session receives a dedicated artifact directory at `BPROXY_HOME/tmp/sessions/<session-id>/`. This directory is:
+- **Created** by the daemon when the session is bootstrapped (`tab open --url ...` or `session create`).
+- **Returned** to the agent in the bootstrap response as `tmpDir` — an absolute path the agent may use immediately without any setup.
+- **Cleaned up** on `session close` (recursive removal) or daemon shutdown.
+
+The `tmpDir` field is part of the session bootstrap contract:
+```json
+{
+  "session": "m4q7z2",
+  "tab": "t1",
+  "bound": true,
+  "url": "https://example.com",
+  "tmpDir": "/home/user/.bproxy/tmp/sessions/m4q7z2"
+}
+```
+
+`session.create` also returns `tmpDir`:
+```json
+{
+  "session": "m4q7z2",
+  "label": "research",
+  "tmpDir": "/home/user/.bproxy/tmp/sessions/m4q7z2"
+}
+```
+
+**Agent contract:**
+- Agents may write to `tmpDir` directly (it is pre-created with mode `0o700`).
+- Agents must not assume artifacts survive beyond `session close` — copy/move before closing if persistence is needed.
+- The `screenshot` command defaults to writing into the session `tmpDir` when `--output-dir` is omitted (instead of returning raw base64). This eliminates the need for agents to manage output directories.
+- The daemon never deletes individual files within `tmpDir` during the session lifetime — only the agent or `session close` may remove contents.
 
 **Rules for test code:**
 1. Tests that perform actual filesystem I/O must create an isolated per-test state directory via `mkdtempSync(join(projectRoot, '.tmp', 'test-'))` where `projectRoot` is the workspace root of the package under test. The `.tmp/` directory is gitignored and is not publicly writable.
@@ -482,7 +516,8 @@ The skill is what agents load and apply; the extension contract is the three met
 
 | Scenario | Cleanup mechanism |
 |----------|------------------|
-| Normal daemon stop | `lifecycle.shutdown()` removes `BPROXY_HOME/tmp/` contents |
+| `session close` | `rm -rf BPROXY_HOME/tmp/sessions/<id>/` |
+| Normal daemon stop | `lifecycle.shutdown()` removes all `BPROXY_HOME/tmp/` contents |
 | Daemon crash → next startup | Startup wipes `BPROXY_HOME/tmp/` and removes orphaned `.*.tmp` siblings |
 | Test run (normal) | `afterEach` / `afterAll` removes per-test dirs |
 | Test run (crash) | Stale dirs accumulate in `<package>/.tmp/`; removed by `pnpm clean` or next CI run |

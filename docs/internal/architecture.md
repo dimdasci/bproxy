@@ -148,14 +148,15 @@ Errors use a single RFC 9457-aligned envelope:
 
 - **Generated sessions:** daemon-created only, 6-character base32 lowercase ids (`SessionId` branded type); no implicit shared `default` session for browser-control flows.
 - **Logical tabs:** normal CLI/protocol responses expose session-scoped handles such as `t1` (`TabHandle` branded type); raw Chrome tab ids remain daemon/extension internals.
-- **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url }`.
+- **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url, tmpDir }`.
+- **Session temp directory:** every session receives a pre-created artifact directory at `BPROXY_HOME/tmp/sessions/<id>/`, returned as `tmpDir` in session bootstrap and `session.create` responses. Agents use it for file output (screenshots, exports) without managing directory lifecycle. Cleaned on `session close` or daemon stop.
 - **Scoped privacy:** `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
 - **Bind/close rules:** `session bind --tab tN` accepts logical tab handles only; `session close -s <id>` closes all session-owned Chrome tabs.
 - **Extension-control wire shape:** the daemon reuses the existing `BproxyRequest` envelope and sets `target.tabId` to `null` for actions that do not target an existing tab. The background service worker routes `tab.open` and `tab.close` by action name without forwarding them to a content script. `tab.list` is daemon-local — the daemon resolves it from its own session tab registry without extension involvement, enforcing the session-scoped visibility boundary.
 - **Structured links:** `links` is a first-class read action for structured visible-link extraction, traversing open shadow roots by default.
 - **Diagnostic commands:** `inspect` returns computed styles, layout rects, and scroll info for specific selectors; `snapshot` returns an accessible DOM tree serialization.
 - **Capability errors:** `SESSION_REQUIRED`, `INVALID_SESSION_ID`, `SESSION_NOT_FOUND`, `TAB_HANDLE_NOT_FOUND`, and `TAB_NOT_IN_SESSION` are part of the shared error contract for the generated-session/logical-tab model.
-- **Screenshot file output:** `screenshot --output-dir <dir>` is a CLI-local transformation — the protocol still returns `{ base64, format }` from the extension, but the CLI writes the decoded image to disk and emits `{ format, file, size }` on stdout instead of the base64 blob.
+- **Screenshot file output:** `screenshot --output-dir <dir>` is a CLI-local transformation — the protocol still returns `{ base64, format }` from the extension, but the CLI writes the decoded image to disk and emits `{ format, file, size }` on stdout instead of the base64 blob. When `--output-dir` is omitted, the CLI defaults to the session's `tmpDir`.
 
 ## Actions
 
