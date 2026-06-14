@@ -18,7 +18,7 @@ class NativeInputElement extends FakeElement {
 }
 
 class RejectingInputElement extends FakeElement {
-	private _value = "persisted";
+	private readonly _value = "persisted";
 
 	override get value(): string {
 		return this._value;
