@@ -1,6 +1,5 @@
 import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import WebSocket from "ws";
 import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
@@ -41,10 +40,6 @@ async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Res
 	});
 }
 
-function connectClient(): Promise<WebSocket> {
-	return connectWsClient(port, extensionToken);
-}
-
 beforeEach(async () => {
 	ctx = await setupTestServer({ daemonToken, extensionToken });
 	({ built, port, currentSession } = ctx);
@@ -75,7 +70,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 
 	describe("workflow: fresh tab bootstrap", () => {
 		it("tab.open succeeds on a fresh paired daemon without a pre-bound tab", async () => {
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			let forwardedTarget: number | null = 123;
 
 			ws.on("message", (raw: unknown) => {
@@ -124,7 +119,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 		});
 
 		it("tab.open on an existing session registers t2 and binds it", async () => {
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			const openedUrls: string[] = [];
 			let nextTabId = 42;
 
@@ -191,7 +186,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 	describe("workflow: logical tab binding", () => {
 		it("session.bind moves to a session-owned logical tab and forwarded actions succeed", async () => {
 			built.sessions.registerTab(currentSession, 42);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -239,7 +234,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 	describe("workflow: pause/resume", () => {
 		it("pause blocks forwarded commands, resume allows them", async () => {
 			built.sessions.bind(currentSession, 42);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 
 			let commandCount = 0;
 			ws.on("message", (raw: unknown) => {
@@ -281,7 +276,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 		it("session.close closes all session-owned tabs and removes the session", async () => {
 			built.sessions.bind(currentSession, 42);
 			built.sessions.bind(currentSession, 99);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			const closedTargets: number[] = [];
 
 			ws.on("message", (raw: unknown) => {
@@ -324,7 +319,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 		it("session.close treats TAB_NOT_FOUND during the close loop as best-effort cleanup", async () => {
 			built.sessions.bind(currentSession, 42);
 			built.sessions.bind(currentSession, 99);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			const responses: Array<true | "TAB_NOT_FOUND"> = [true, "TAB_NOT_FOUND"];
 
 			ws.on("message", (raw: unknown) => {

@@ -43,10 +43,6 @@ async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Res
 	});
 }
 
-function connectClient(): Promise<WebSocket> {
-	return connectWsClient(port, extensionToken);
-}
-
 beforeEach(async () => {
 	ctx = await setupTestServer({ daemonToken, extensionToken });
 	({ built, port, captured, currentSession } = ctx);
@@ -81,7 +77,7 @@ describe("round-trip — design-asserted invariants", () => {
 describe("round-trip — happy path", () => {
 	it("forwards a command to a connected WS client and resolves with the response", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -129,7 +125,7 @@ describe("round-trip — happy path", () => {
 
 	it("decorates read results with handles and resolves them before forwarding", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.send(
 			JSON.stringify({
 				type: "navigation",
@@ -201,7 +197,7 @@ describe("round-trip — happy path", () => {
 
 	it("resolves multiple handles in fill-form fields before forwarding", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.send(
 			JSON.stringify({
 				type: "navigation",
@@ -298,7 +294,7 @@ describe("round-trip — happy path", () => {
 	});
 
 	it("responds to app-level heartbeat ping with pong", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const pongPromise = new Promise<unknown>((resolve) => {
 			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw))));
 		});
@@ -313,7 +309,7 @@ describe("round-trip — reconnect and replay", () => {
 		timeout: 15_000,
 	}, async () => {
 		built.sessions.bind(currentSession, 42);
-		let ws = await connectClient();
+		let ws = await connectWsClient(port, extensionToken);
 
 		const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
 			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
@@ -388,7 +384,7 @@ describe("round-trip — observability (ADR-009)", () => {
 
 	it("emits ws_connect and ws_disconnect when a client connects and drops", async () => {
 		captured.clear();
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 		ws.close();
 		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_disconnect"));

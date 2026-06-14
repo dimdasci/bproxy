@@ -6,7 +6,6 @@ import type {
 	TabHandle,
 } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import WebSocket from "ws";
 import type { CapturedLogger } from "../logger";
 import type { BuiltServer } from "../server";
 import {
@@ -58,10 +57,6 @@ function assertError(response: BproxyResponse): asserts response is BproxyErrorR
 	expect(response.ok).toBe(false);
 }
 
-function connectClient(): Promise<WebSocket> {
-	return connectWsClient(port, extensionToken);
-}
-
 beforeEach(async () => {
 	commandSequence = 0;
 	ctx = await setupTestServer({ daemonToken, extensionToken });
@@ -90,7 +85,7 @@ describe("deadline and timeout behaviour", () => {
 
 	it("tab.open with hanging extension returns TIMEOUT", { timeout: 10000 }, async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		// Extension receives but never responds
 		ws.on("message", () => {});
 
@@ -119,7 +114,7 @@ describe("deadline and timeout behaviour", () => {
 
 	it("malformed extension response causes timeout (not crash)", { timeout: 10000 }, async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.on("message", () => {
 			// Send garbage back
 			ws.send("not valid json {{{");
@@ -154,7 +149,7 @@ describe("BproxyError envelope completeness", () => {
 	}
 
 	it("SESSION_REQUIRED — missing session on non-exempt action", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({ id: "env-sr", action: "text", session: "" as SessionId });
 		const response = await postCommand(cmd);
 		assertCompleteEnvelope(response);
@@ -163,7 +158,7 @@ describe("BproxyError envelope completeness", () => {
 	});
 
 	it("INVALID_SESSION_ID — malformed session format", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({ id: "env-inv", action: "text", session: "INVALID!" as SessionId });
 		const response = await postCommand(cmd);
 		assertCompleteEnvelope(response);
@@ -172,7 +167,7 @@ describe("BproxyError envelope completeness", () => {
 	});
 
 	it("SESSION_NOT_FOUND — non-existent session", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({ id: "env-snf", action: "text", session: "zz7zz7" as SessionId });
 		const response = await postCommand(cmd);
 		assertCompleteEnvelope(response);
@@ -181,7 +176,7 @@ describe("BproxyError envelope completeness", () => {
 	});
 
 	it("TAB_NOT_FOUND — no bound tab", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.on("message", () => {}); // hang to avoid timeout race
 		const cmd = makeCmd({ id: "env-tnf", action: "text" });
 		const response = await postCommand(cmd);
@@ -191,7 +186,7 @@ describe("BproxyError envelope completeness", () => {
 	});
 
 	it("TAB_HANDLE_NOT_FOUND — non-existent tab handle in tab.close", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({
 			id: "env-thnf",
 			action: "tab.close",
@@ -206,7 +201,7 @@ describe("BproxyError envelope completeness", () => {
 	it("TAB_NOT_IN_SESSION — tab from another session", async () => {
 		const otherSession = built.sessions.create().id;
 		built.sessions.registerTab(otherSession, 999);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({
 			id: "env-tnis",
 			action: "tab.close",
@@ -221,7 +216,7 @@ describe("BproxyError envelope completeness", () => {
 	it("HUMAN_REQUIRED — paused session", async () => {
 		built.sessions.bind(currentSession, 42);
 		built.sessions.pause(currentSession, "CAPTCHAdetected");
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({ id: "env-hr", action: "text" });
 		const response = await postCommand(cmd);
 		assertCompleteEnvelope(response);
@@ -239,7 +234,7 @@ describe("BproxyError envelope completeness", () => {
 
 	it("TIMEOUT — deadline exceeded", { timeout: 10000 }, async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.on("message", () => {}); // hang
 		const cmd = makeCmd({ id: "env-to", action: "text", deadline: Date.now() + 300 });
 		const response = await postCommand(cmd);
@@ -279,7 +274,7 @@ describe("lifecycle log events for session-local and tab-mediated actions", () =
 
 	it("tab.open emits received + forwarded (tab: null) + response", async () => {
 		captured.clear();
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			const resp = {
@@ -315,7 +310,7 @@ describe("lifecycle log events for session-local and tab-mediated actions", () =
 	it("session.close emits received + response; sub-requests emit forwarded", async () => {
 		built.sessions.registerTab(currentSession, 55, { bind: true });
 		captured.clear();
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			const resp = {

@@ -1,6 +1,5 @@
 import type { Action, BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import WebSocket from "ws";
 import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
@@ -70,10 +69,6 @@ async function postCommand(cmd: BproxyRequest): Promise<Response> {
 		headers: { "Content-Type": "application/json", Authorization: `Bearer ${daemonToken}` },
 		body: JSON.stringify(cmd),
 	});
-}
-
-function connectClient(): Promise<WebSocket> {
-	return connectWsClient(port, extensionToken);
 }
 
 beforeEach(async () => {
@@ -193,7 +188,7 @@ describe("action contract coverage — GAP A", () => {
 
 		for (const action of forwardedActions) {
 			it(`${action}: returns TAB_NOT_FOUND when WS exists but session is unbound`, async () => {
-				const ws = await connectClient();
+				const ws = await connectWsClient(port, extensionToken);
 				const res = await postCommand(makeCmd(action));
 				expect(res.status).toBe(200);
 				const body = (await res.json()) as BproxyResponse;
@@ -240,7 +235,7 @@ describe("action contract coverage — GAP A", () => {
 
 	it("debug.log is forwarded to extension (not daemon-local)", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 
 		let receivedAction: string | null = null;
 		ws.on("message", (raw: unknown) => {

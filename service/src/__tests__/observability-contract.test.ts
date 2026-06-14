@@ -42,10 +42,6 @@ async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Res
 	});
 }
 
-function connectClient(): Promise<WebSocket> {
-	return connectWsClient(port, extensionToken);
-}
-
 beforeEach(async () => {
 	ctx = await setupTestServer({ daemonToken, extensionToken });
 	({ built, port, captured, currentSession } = ctx);
@@ -60,7 +56,7 @@ describe("observability contract — GAP D", () => {
 		it("emits received → forwarded → response for dispatched actions", async () => {
 			captured.clear();
 			built.sessions.bind(currentSession, 42);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -107,7 +103,7 @@ describe("observability contract — GAP D", () => {
 		it("emits pacing_wait when pacing delay occurs", async () => {
 			captured.clear();
 			built.sessions.bind(currentSession, 42, "human");
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -145,7 +141,7 @@ describe("observability contract — GAP D", () => {
 	describe("error scenarios", () => {
 		it("emits response with error_code when forward fails", async () => {
 			captured.clear();
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			const cmd = makeCmd({ id: "obs-err-1", action: "text" });
 			await postCommand(cmd);
 
@@ -162,7 +158,7 @@ describe("observability contract — GAP D", () => {
 		it("emits timeout event when request exceeds deadline", { timeout: 10000 }, async () => {
 			captured.clear();
 			built.sessions.bind(currentSession, 42);
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			ws.on("message", () => {
 				// Intentionally hang.
 			});
@@ -187,7 +183,7 @@ describe("observability contract — GAP D", () => {
 		it("emits replay event when in-flight request is replayed", { timeout: 10000 }, async () => {
 			captured.clear();
 			built.sessions.bind(currentSession, 42);
-			let ws = await connectClient();
+			let ws = await connectWsClient(port, extensionToken);
 
 			const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
 				ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
@@ -261,7 +257,7 @@ describe("observability contract — GAP D", () => {
 	describe("WS connection events", () => {
 		it("emits ws_connect with ws_client on new connection", async () => {
 			captured.clear();
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 
 			await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 
@@ -273,7 +269,7 @@ describe("observability contract — GAP D", () => {
 		});
 
 		it("emits ws_disconnect with ws_client on close", async () => {
-			const ws = await connectClient();
+			const ws = await connectWsClient(port, extensionToken);
 			await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 
 			captured.clear();
