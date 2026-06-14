@@ -106,10 +106,7 @@ function createUpdateResult(target: TargetTab) {
 	return async (tabId: number, updateProperties: Record<string, unknown>) =>
 		tab({
 			id: tabId,
-			url:
-				typeof updateProperties["url"] === "string"
-					? (updateProperties["url"] as string)
-					: target.url,
+			url: typeof updateProperties["url"] === "string" ? updateProperties["url"] : target.url,
 			title: target.title,
 			active: updateProperties["active"] === true ? true : target.active,
 			status: updateProperties["url"] ? "loading" : target.status,

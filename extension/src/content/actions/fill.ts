@@ -126,7 +126,8 @@ function getDocument(deps: FillActionDeps): Document {
 }
 
 function getFieldDelayMs(deps: FillActionDeps): number {
-	const random = deps.random ?? (() => Math.random());
+	const random =
+		deps.random ?? (() => crypto.getRandomValues(new Uint32Array(1))[0]! / 0x100000000);
 	return nextIntervalMs(FIELD_DELAY_MIN_MS, FIELD_DELAY_MAX_MS, random);
 }
 

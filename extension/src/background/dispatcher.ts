@@ -10,8 +10,8 @@ import {
 	type BrowserAction,
 	type DomAction,
 	type ForwardedAction,
-	isBrowserAction,
-	isDomAction,
+	isBrowserActionRequest,
+	isDomActionRequest,
 } from "./forwarded-actions";
 import { parseForwardedRequest } from "./forwarded-request";
 import { errorResponse, successResponse } from "./responses";
@@ -94,17 +94,11 @@ async function executeRequest(
 				return buildSuccess(fillRequest, await deps.handleMainWorldFill(fillRequest));
 			}
 		}
-		if (isBrowserAction(request.action)) {
-			return buildSuccess(
-				request,
-				await deps.handleBrowserAction(request as BproxyForwardedRequest<BrowserAction>),
-			);
+		if (isBrowserActionRequest(request)) {
+			return buildSuccess(request, await deps.handleBrowserAction(request));
 		}
-		if (isDomAction(request.action)) {
-			return buildSuccess(
-				request,
-				await deps.handleDomAction(request as BproxyForwardedRequest<DomAction>),
-			);
+		if (isDomActionRequest(request)) {
+			return buildSuccess(request, await deps.handleDomAction(request));
 		}
 		return errorResponse({
 			request,
@@ -115,13 +109,16 @@ async function executeRequest(
 	}
 }
 
-function buildSuccess<A extends ForwardedAction>(
-	request: BproxyForwardedRequest<A>,
+function buildSuccess(
+	request: BproxyForwardedRequest<ForwardedAction>,
 	result: ExecutedAction,
 ): BproxyResponse {
+	// ExecutedAction.data is untyped (unknown) at the dispatcher boundary;
+	// the handler contract guarantees it matches the action's result shape.
+	const data = result.data as ActionResult[ForwardedAction];
 	return successResponse({
 		request,
-		data: result.data as ActionResult[A],
+		data,
 		page: result.page,
 	});
 }

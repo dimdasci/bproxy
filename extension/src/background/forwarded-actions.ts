@@ -1,4 +1,4 @@
-import type { Action } from "@bproxy/shared";
+import type { Action, BproxyForwardedRequest } from "@bproxy/shared";
 
 export type ForwardedAction = Exclude<
 	Action,
@@ -82,10 +82,14 @@ export function isForwardedAction(action: string): action is ForwardedAction {
 	return forwardedActionSet.has(action);
 }
 
-export function isBrowserAction(action: ForwardedAction): action is BrowserAction {
-	return browserActionSet.has(action);
+export function isBrowserActionRequest(
+	request: BproxyForwardedRequest<ForwardedAction>,
+): request is BproxyForwardedRequest<BrowserAction> {
+	return browserActionSet.has(request.action);
 }
 
-export function isDomAction(action: ForwardedAction): action is DomAction {
-	return domActionSet.has(action);
+export function isDomActionRequest(
+	request: BproxyForwardedRequest<ForwardedAction>,
+): request is BproxyForwardedRequest<DomAction> {
+	return domActionSet.has(request.action);
 }

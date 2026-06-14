@@ -1,15 +1,19 @@
 import type { Action, BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import WebSocket from "ws";
-import { buildCapturedLogger, type CapturedLogger } from "../logger";
-import { type BuiltServer, buildServer } from "../server";
+import type { BuiltServer } from "../server";
+import {
+	connectWsClient,
+	setupTestServer,
+	type TestServerContext,
+	teardownTestServer,
+} from "./helpers/integration";
 
 const daemonToken = "test-daemon-token";
 const extensionToken = "test-extension-token";
 
+let ctx: TestServerContext;
 let built: BuiltServer;
 let port: number;
-let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
 const T1 = "t1" as TabHandle;
 
@@ -67,27 +71,13 @@ async function postCommand(cmd: BproxyRequest): Promise<Response> {
 	});
 }
 
-function connectClient(): Promise<WebSocket> {
-	const auth = Buffer.from(extensionToken).toString("base64url");
-	const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-		headers: { Origin: "chrome-extension://test" },
-	});
-	return new Promise((resolve, reject) => {
-		ws.once("open", () => resolve(ws));
-		ws.once("error", reject);
-	});
-}
-
 beforeEach(async () => {
-	captured = buildCapturedLogger();
-	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
-	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
-	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
-	currentSession = built.sessions.create().id;
+	ctx = await setupTestServer({ daemonToken, extensionToken });
+	({ built, port, currentSession } = ctx);
 });
 
 afterEach(async () => {
-	await built.app.close();
+	await teardownTestServer(ctx);
 });
 
 describe("action contract coverage — GAP A", () => {
@@ -198,7 +188,7 @@ describe("action contract coverage — GAP A", () => {
 
 		for (const action of forwardedActions) {
 			it(`${action}: returns TAB_NOT_FOUND when WS exists but session is unbound`, async () => {
-				const ws = await connectClient();
+				const ws = await connectWsClient(port, extensionToken);
 				const res = await postCommand(makeCmd(action));
 				expect(res.status).toBe(200);
 				const body = (await res.json()) as BproxyResponse;
@@ -245,7 +235,7 @@ describe("action contract coverage — GAP A", () => {
 
 	it("debug.log is forwarded to extension (not daemon-local)", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 
 		let receivedAction: string | null = null;
 		ws.on("message", (raw: unknown) => {

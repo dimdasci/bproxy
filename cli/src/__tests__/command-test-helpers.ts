@@ -4,15 +4,15 @@
  * Extracted to eliminate duplication across commands-write, commands-read,
  * and commands-control test files.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ClientGlobalArgs, SendOptions } from "../client.js";
 import { sendAction } from "../client.js";
 import { extractUrl } from "./fetch-helper.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 export function setupTempHome(prefix = "bproxy-cmd-test-"): string {
-	const dir = mkdtempSync(join(tmpdir(), prefix));
+	const dir = createTestStateDir(prefix);
 	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
 	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
 	return dir;

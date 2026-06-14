@@ -1,15 +1,20 @@
 import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { buildCapturedLogger, type CapturedLogger } from "../logger";
-import { type BuiltServer, buildServer } from "../server";
+import type { BuiltServer } from "../server";
+import {
+	connectWsClient,
+	setupTestServer,
+	type TestServerContext,
+	teardownTestServer,
+} from "./helpers/integration";
 
 const daemonToken = "test-ordering-token";
 const wsToken = "test-ext-token";
 
+let ctx: TestServerContext;
 let built: BuiltServer;
 let port: number;
-let captured: CapturedLogger;
 const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
@@ -38,30 +43,16 @@ async function postCommand(cmd: BproxyRequest, token?: string): Promise<Response
 }
 
 function connectClient(clientToken = wsToken): Promise<WebSocket> {
-	const auth = Buffer.from(clientToken).toString("base64url");
-	const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-		headers: { Origin: "chrome-extension://test" },
-	});
-	return new Promise((resolve, reject) => {
-		ws.once("open", () => resolve(ws));
-		ws.once("error", reject);
-	});
+	return connectWsClient(port, clientToken);
 }
 
 beforeEach(async () => {
-	captured = buildCapturedLogger();
-	built = await buildServer({
-		port: 0,
-		daemonToken,
-		extensionToken: wsToken,
-		logger: captured.logger,
-	});
-	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
-	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
+	ctx = await setupTestServer({ daemonToken, extensionToken: wsToken });
+	({ built, port } = ctx);
 });
 
 afterEach(async () => {
-	await built.app.close();
+	await teardownTestServer(ctx);
 });
 
 describe("auth ordering — GAP C", () => {

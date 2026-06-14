@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { DaemonRequestTrace } from "@bproxy/shared";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -8,6 +9,7 @@ import { createDispatch } from "./dispatch";
 import { ElementHandleCache } from "./element-handles";
 import { createPacing } from "./pacing";
 import { createPairingStore, type PairingStore } from "./pairing";
+import { createPairingRateLimiter, type PairingRateLimiter } from "./pairing-rate-limit";
 import { createPending } from "./pending";
 import { commandRoute } from "./routes/command";
 import { pairRoute } from "./routes/pair";
@@ -16,10 +18,13 @@ import { createSessionRegistry, type SessionRegistry } from "./sessions";
 
 export interface BuildServerOptions {
 	port: number;
+	stateDir: string;
 	daemonToken: string;
 	extensionToken: string;
 	logger: Logger;
 	pairing?: PairingStore;
+	pairingRateLimiter?: PairingRateLimiter;
+	pairingRateLimitNow?: () => number;
 	sessions?: SessionRegistry;
 	traces?: () => readonly DaemonRequestTrace[];
 	onExtensionTokenChanged?: (token: string) => void;
@@ -31,6 +36,7 @@ export interface BuiltServer {
 	pending: ReturnType<typeof createPending>;
 	sessions: SessionRegistry;
 	pairing: PairingStore;
+	pairingRateLimiter: PairingRateLimiter;
 }
 
 interface ObjectGraph {
@@ -38,6 +44,7 @@ interface ObjectGraph {
 	pending: ReturnType<typeof createPending>;
 	sessions: SessionRegistry;
 	pairing: PairingStore;
+	pairingRateLimiter: PairingRateLimiter;
 	dispatch: ReturnType<typeof createDispatch>;
 	elementHandles: ElementHandleCache;
 	pacing: ReturnType<typeof createPacing>;
@@ -100,9 +107,12 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		sessions,
 		now: () => Date.now(),
 		sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-		random: () => Math.random(),
+		random: () => randomBytes(4).readUInt32BE() / 0x100000000,
 	});
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
+	const pairingRateLimiter =
+		opts.pairingRateLimiter ??
+		createPairingRateLimiter({ now: opts.pairingRateLimitNow ?? (() => Date.now()) });
 	let clientCounter = 0;
 	const newClientId = (): string => `client-${++clientCounter}`;
 	const ring = createTraceRing();
@@ -116,6 +126,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		elementHandles,
 		pacing,
 		pairing,
+		pairingRateLimiter,
 		newClientId,
 		startedAt: Date.now(),
 		traces,
@@ -137,6 +148,7 @@ async function registerRoutes(
 			logger: opts.logger,
 			sessions: deps.sessions,
 			elementHandles: deps.elementHandles,
+			stateDir: opts.stateDir,
 			trace: deps.pushTrace,
 			debug: {
 				clients: deps.clients,
@@ -152,6 +164,7 @@ async function registerRoutes(
 	await app.register(
 		pairRoute({
 			pairing: deps.pairing,
+			rateLimiter: deps.pairingRateLimiter,
 			logger: opts.logger,
 			wsUrl: () => `ws://127.0.0.1:${getPort()}/ws`,
 			activateExtensionToken,
@@ -206,5 +219,6 @@ export async function buildServer(opts: BuildServerOptions): Promise<BuiltServer
 		pending: deps.pending,
 		sessions: deps.sessions,
 		pairing: deps.pairing,
+		pairingRateLimiter: deps.pairingRateLimiter,
 	};
 }

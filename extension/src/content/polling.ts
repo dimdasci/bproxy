@@ -79,7 +79,8 @@ export async function pollUntilStable(
 
 		checks += 1;
 		const nextValue = options.read();
-		if (nextValue === value) {
+		const matched = nextValue === value;
+		if (matched) {
 			consecutiveStable += 1;
 		} else {
 			value = nextValue;
@@ -211,7 +212,7 @@ function getSleep(deps: PollingDeps): (ms: number) => Promise<void> {
 }
 
 function getRandom(deps: PollingDeps): () => number {
-	return deps.random ?? (() => Math.random());
+	return deps.random ?? (() => crypto.getRandomValues(new Uint32Array(1))[0]! / 0x100000000);
 }
 
 function normalizeTimeout(timeoutMs: number | undefined): number {

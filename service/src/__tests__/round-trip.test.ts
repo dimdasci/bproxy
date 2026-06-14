@@ -1,12 +1,20 @@
 import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { buildCapturedLogger, type CapturedLogger } from "../logger";
-import { type BuiltServer, buildServer } from "../server";
+import type { CapturedLogger } from "../logger";
+import type { BuiltServer } from "../server";
+import {
+	connectWsClient,
+	setupTestServer,
+	type TestServerContext,
+	teardownTestServer,
+	waitUntil,
+} from "./helpers/integration";
 
 const daemonToken = "test-daemon-token";
 const extensionToken = "test-extension-token";
 
+let ctx: TestServerContext;
 let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
@@ -35,39 +43,13 @@ async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Res
 	});
 }
 
-function connectClient(): Promise<WebSocket> {
-	const auth = Buffer.from(extensionToken).toString("base64url");
-	const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, ["bproxy.v1", `auth.${auth}`], {
-		headers: { Origin: "chrome-extension://test" },
-	});
-	return new Promise((resolve, reject) => {
-		ws.once("open", () => resolve(ws));
-		ws.once("error", reject);
-	});
-}
-
-function waitUntil(fn: () => boolean, timeoutMs = 2000): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const start = Date.now();
-		const tick = () => {
-			if (fn()) return resolve();
-			if (Date.now() - start > timeoutMs) return reject(new Error("waitUntil timeout"));
-			setTimeout(tick, 10);
-		};
-		tick();
-	});
-}
-
 beforeEach(async () => {
-	captured = buildCapturedLogger();
-	built = await buildServer({ port: 0, daemonToken, extensionToken, logger: captured.logger });
-	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
-	port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
-	currentSession = built.sessions.create().id;
+	ctx = await setupTestServer({ daemonToken, extensionToken });
+	({ built, port, captured, currentSession } = ctx);
 });
 
 afterEach(async () => {
-	await built.app.close();
+	await teardownTestServer(ctx);
 });
 
 describe("round-trip — design-asserted invariants", () => {
@@ -95,7 +77,7 @@ describe("round-trip — design-asserted invariants", () => {
 describe("round-trip — happy path", () => {
 	it("forwards a command to a connected WS client and resolves with the response", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
@@ -143,7 +125,7 @@ describe("round-trip — happy path", () => {
 
 	it("decorates read results with handles and resolves them before forwarding", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.send(
 			JSON.stringify({
 				type: "navigation",
@@ -215,7 +197,7 @@ describe("round-trip — happy path", () => {
 
 	it("resolves multiple handles in fill-form fields before forwarding", async () => {
 		built.sessions.bind(currentSession, 42);
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		ws.send(
 			JSON.stringify({
 				type: "navigation",
@@ -312,7 +294,7 @@ describe("round-trip — happy path", () => {
 	});
 
 	it("responds to app-level heartbeat ping with pong", async () => {
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		const pongPromise = new Promise<unknown>((resolve) => {
 			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw))));
 		});
@@ -327,7 +309,7 @@ describe("round-trip — reconnect and replay", () => {
 		timeout: 15_000,
 	}, async () => {
 		built.sessions.bind(currentSession, 42);
-		let ws = await connectClient();
+		let ws = await connectWsClient(port, extensionToken);
 
 		const seenByClient1 = new Promise<BproxyRequest>((resolve) => {
 			ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
@@ -402,7 +384,7 @@ describe("round-trip — observability (ADR-009)", () => {
 
 	it("emits ws_connect and ws_disconnect when a client connects and drops", async () => {
 		captured.clear();
-		const ws = await connectClient();
+		const ws = await connectWsClient(port, extensionToken);
 		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_connect"));
 		ws.close();
 		await waitUntil(() => captured.lines.some((line) => line["event"] === "ws_disconnect"));

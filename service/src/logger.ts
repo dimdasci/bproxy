@@ -1,11 +1,16 @@
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import pino, { type Logger } from "pino";
 import { logDir, type ServiceConfig } from "./config";
 
 export function buildLogger(config: ServiceConfig): Logger {
 	const dir = logDir(config.stateDir);
-	mkdirSync(dir, { recursive: true });
+	mkdirSync(dir, { recursive: true, mode: 0o700 });
+	// Tighten pre-existing dir if needed
+	const st = statSync(dir);
+	if ((st.mode & 0o777) !== 0o700) {
+		chmodSync(dir, 0o700);
+	}
 	const today = new Date().toISOString().slice(0, 10);
 	const target = join(dir, `${today}.log`);
 	// `sync: true` avoids the sonic-boom async-open race: a fast SIGTERM

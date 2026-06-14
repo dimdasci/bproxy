@@ -13,5 +13,6 @@ export interface CommandRouteDeps {
 	debug: DebugDeps;
 	sessions: SessionRegistry;
 	elementHandles: ElementHandleCache;
+	stateDir: string;
 	trace?: (entry: DaemonRequestTrace) => void;
 }

@@ -1,6 +1,14 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import type { ServiceConfig } from "./config";
 import { stateFile } from "./config";
 import { buildLogger } from "./logger";
@@ -13,6 +21,7 @@ import type {
 } from "./pairing-file";
 import { readPairingFile, removePairingFile, writePairingFile } from "./pairing-file";
 import { buildServer } from "./server";
+import { removeOrphanedTmpFiles, wipeTmpDir } from "./session-tmp";
 import { createSessionRegistry } from "./sessions";
 
 export type { LifecycleStartResult, LifecycleStatusResult, LifecycleStopResult, PairingMetadata };
@@ -23,7 +32,12 @@ const STOP_TIMEOUT_MS = 5_000;
 const POLL_MS = 50;
 
 export function ensureStateDir(config: ServiceConfig): void {
-	mkdirSync(config.stateDir, { recursive: true });
+	mkdirSync(config.stateDir, { recursive: true, mode: 0o700 });
+	// Tighten pre-existing dir that may have been created with a permissive umask
+	const st = statSync(config.stateDir);
+	if ((st.mode & 0o777) !== 0o700) {
+		chmodSync(config.stateDir, 0o700);
+	}
 }
 
 interface PidState {
@@ -169,6 +183,8 @@ export function writePidFile(config: ServiceConfig, pid: number): void {
 
 export async function startForeground(config: ServiceConfig): Promise<void> {
 	ensureStateDir(config);
+	wipeTmpDir(config.stateDir);
+	removeOrphanedTmpFiles(config.stateDir);
 	const logger = buildLogger(config);
 	const daemonToken = writeToken(config);
 	const extensionToken = readExtensionToken(config) ?? "";
@@ -185,6 +201,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 
 	const built = await buildServer({
 		port: config.port,
+		stateDir: config.stateDir,
 		daemonToken,
 		extensionToken,
 		logger,
@@ -213,6 +230,7 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 			} finally {
 				clearToken(config);
 				cleanupRuntimeState(config);
+				wipeTmpDir(config.stateDir);
 				resolveShutdown();
 			}
 		})();
@@ -304,13 +322,11 @@ export async function stop(config: ServiceConfig): Promise<LifecycleStopResult> 
 
 export function status(config: ServiceConfig): LifecycleStatusResult {
 	const pidState = readPidState(config);
-	if (!pidState.exists || pidState.pid === null) {
-		cleanupRuntimeState(config);
-		return { running: false };
-	}
-	if (isAlive(pidState.pid)) {
-		const port = readPort(config);
-		return { running: true, pid: pidState.pid, ...(port !== undefined ? { port } : {}) };
+	if (pidState.exists && pidState.pid !== null) {
+		if (isAlive(pidState.pid)) {
+			const port = readPort(config);
+			return { running: true, pid: pidState.pid, ...(port === undefined ? {} : { port }) };
+		}
 	}
 	cleanupRuntimeState(config);
 	return { running: false };

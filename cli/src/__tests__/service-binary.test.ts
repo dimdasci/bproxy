@@ -4,8 +4,7 @@
  * Tests the service-binary module's resolution logic and the exec function.
  * Integration tests (with actual daemon) are in a separate file.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { execServiceBinary, resolveServiceBinary } from "../service-binary.js";
@@ -70,8 +69,11 @@ describe("resolveServiceBinary", () => {
 
 // ─── execServiceBinary ─────────────────────────────────────────────────
 
+const TEST_TMP = join(__dirname, "../../.tmp");
+
 function writeTempScript(content: string): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-svc-test-"));
+	mkdirSync(TEST_TMP, { recursive: true });
+	const dir = mkdtempSync(join(TEST_TMP, "svc-test-"));
 	const scriptPath = join(dir, "service.mjs");
 	writeFileSync(scriptPath, content, { mode: 0o755 });
 	return scriptPath;
@@ -120,7 +122,7 @@ describe("execServiceBinary", () => {
 			"start",
 			{
 				...process.env,
-				BPROXY_HOME: "/tmp/test-home",
+				BPROXY_HOME: "/home/testuser/.bproxy",
 				BPROXY_PORT: "8080",
 			},
 			5000,
@@ -129,7 +131,7 @@ describe("execServiceBinary", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			const parsed = JSON.parse(result.stdout);
-			expect(parsed.home).toBe("/tmp/test-home");
+			expect(parsed.home).toBe("/home/testuser/.bproxy");
 			expect(parsed.port).toBe("8080");
 		}
 	});

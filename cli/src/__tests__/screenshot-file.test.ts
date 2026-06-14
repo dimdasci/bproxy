@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type SendOptions, sendAction } from "../client.js";
 import { writeScreenshotFile } from "../screenshot-file.js";
 import type { BproxyResponse } from "../types.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // A tiny 1x1 red PNG encoded in base64
 const TINY_PNG_BASE64 =
@@ -12,7 +12,7 @@ const TINY_PNG_BASE64 =
 	"AFDgGMksMOHwAAAABJRU5ErkJggg==";
 
 function makeTempDir(): string {
-	return mkdtempSync(join(tmpdir(), "bproxy-screenshot-test-"));
+	return createTestStateDir("bproxy-screenshot-test-");
 }
 
 describe("writeScreenshotFile", () => {
@@ -94,7 +94,7 @@ const INT_TINY_PNG =
 	"AFDgGMksMOHwAAAABJRU5ErkJggg==";
 
 function setupHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-ss-int-"));
+	const dir = createTestStateDir("bproxy-ss-int-");
 	writeFileSync(join(dir, "token"), "test-token\n", { mode: 0o600 });
 	writeFileSync(join(dir, "port"), "9615", { mode: 0o644 });
 	return dir;

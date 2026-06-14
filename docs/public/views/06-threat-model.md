@@ -7,6 +7,7 @@ sources:
   - service/src/auth.ts
   - service/src/lifecycle.ts
   - service/src/pairing.ts
+  - service/src/pairing-rate-limit.ts
   - service/src/config.ts
   - service/src/pending.ts
   - service/src/dispatch.ts
@@ -87,7 +88,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 | Denial of service | Unbounded pending-request map | Hard cap of 100 in-flight requests → `OVERLOADED` | `pending.ts`; `pending.test.ts` |
 | Denial of service | Repeated read commands grow daemon memory without bound | Element-handle cache is bounded (TTL 120s, per-scope cap 200, global cap 1000) | `element-handles.ts`; handle-cache tests |
 | Denial of service | Head-of-line blocking across tabs | Per-tab FIFO queue, parallel across tabs | `dispatch.ts:withTabLock`; `dispatch.test.ts` |
-| Denial of service | Pairing-code brute force | One-time consumption + 5-min TTL + constant-time compare; full per-source limiter is deferred | `pairing.ts` |
+| Denial of service | Pairing-code brute force | One-time consumption + 5-min TTL + constant-time compare + `chrome-extension://` Origin gate + global failed-attempt throttle on `/pair/claim` (5 failures / 60s). The throttle is localhost-scoped best-effort, not per-source attribution or DDoS-grade protection. | `pairing.ts`; `pairing-rate-limit.ts` |
 | Elevation of privilege | Extension token grants command issuance | Two-token model: bearer auth only valid on `POST /`; subprotocol auth only valid on `GET /ws`; tokens never cross routes | `auth.ts:checkCommandAuth/checkWsAuth` |
 | Elevation of privilege | Pairing endpoint accepts CLI bearer | `POST /pair/claim` is body-auth only (pairing code) and requires `chrome-extension://` Origin | [service spec § Auth Gate](../solution/service.md#auth-gate) |
 
@@ -108,7 +109,6 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 ## Still out of scope
 
 - Process-level sandboxing of the daemon (e.g. `seccomp`, App Sandbox profile)
-- Enforced pairing-code rate limiting beyond the current structural plumbing
 - Cross-host operation or TLS; bproxy remains localhost-only
 - Closed shadow-root support
 - A shipped opt-in path for `chrome.debugger` screenshots

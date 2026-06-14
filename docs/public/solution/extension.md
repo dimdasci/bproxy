@@ -176,7 +176,7 @@ Flow:
 4. popup stores the bootstrap payload as **one atomic record** in `chrome.storage.local`;
 5. popup sends `pair.complete` to the background worker so reconnect happens immediately.
 
-Validation failures surface distinct popup-side error codes (`INVALID_PAYLOAD_SHAPE`, `INVALID_WS_URL`, `UNSUPPORTED_PROTOCOL_VERSION`, `BOOTSTRAP_EXPIRED`, `MISSING_NONCE`, `PAIR_TRANSPORT_ERROR`, `PAIR_NOTIFY_FAILED`) in addition to daemon pass-throughs (`PAIRING_CODE_INVALID`, `PAIRING_CODE_EXPIRED`, `PAIRING_CODE_CONSUMED`).
+Validation failures surface distinct popup-side error codes (`INVALID_PAYLOAD_SHAPE`, `INVALID_WS_URL`, `UNSUPPORTED_PROTOCOL_VERSION`, `BOOTSTRAP_EXPIRED`, `MISSING_NONCE`, `PAIR_TRANSPORT_ERROR`, `PAIR_NOTIFY_FAILED`) in addition to daemon pass-throughs (`PAIRING_CODE_INVALID`, `PAIRING_CODE_EXPIRED`, `PAIRING_CODE_CONSUMED`, `PAIRING_RATE_LIMITED`).
 
 ### Runtime content script
 

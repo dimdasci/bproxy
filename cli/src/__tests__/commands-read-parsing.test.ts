@@ -14,13 +14,13 @@ describe("extractGlobals", () => {
 		const result = extractGlobals({
 			session: "m4q7z2",
 			timeout: "5000",
-			home: "/tmp/home",
+			home: "/home/testuser/.bproxy",
 			verbose: true,
 		});
 		expect(result).toEqual({
 			session: "m4q7z2",
 			timeout: "5000",
-			home: "/tmp/home",
+			home: "/home/testuser/.bproxy",
 			verbose: true,
 		});
 	});

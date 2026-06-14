@@ -1,4 +1,5 @@
 import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import { createSessionTmpDir, removeSessionTmpDir } from "../session-tmp";
 import { failure, success } from "./responses";
 import type { CommandRouteDeps } from "./types";
 
@@ -77,7 +78,8 @@ function sessionNotFound(cmd: BproxyRequest): BproxyResponse {
 
 function handleSessionCreate(cmd: BproxyRequest, deps: CommandRouteDeps): BproxyResponse {
 	const created = deps.sessions.create((cmd.params as { label?: string }).label);
-	return success(cmd, { session: created.id, label: created.label });
+	const tmpDir = createSessionTmpDir(deps.stateDir, created.id);
+	return success(cmd, { session: created.id, label: created.label, tmpDir });
 }
 
 function handleSessionBind(cmd: BproxyRequest, deps: CommandRouteDeps): BproxyResponse {
@@ -152,6 +154,7 @@ async function handleSessionClose(
 
 	deps.elementHandles.invalidateForSession(cmd.session);
 	deps.sessions.close(cmd.session);
+	removeSessionTmpDir(deps.stateDir, cmd.session);
 	if (firstFatalError) return failure(cmd, firstFatalError);
 	return success(cmd, { session: cmd.session, closedTabs });
 }

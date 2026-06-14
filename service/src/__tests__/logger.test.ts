@@ -11,9 +11,9 @@ describe("loadConfig", () => {
 	});
 
 	it("honours BPROXY_PORT and BPROXY_HOME", () => {
-		const config = loadConfig({ BPROXY_PORT: "12345", BPROXY_HOME: "/tmp/xyz" });
+		const config = loadConfig({ BPROXY_PORT: "12345", BPROXY_HOME: "/home/testuser/.bproxy-alt" });
 		expect(config.port).toBe(12345);
-		expect(config.stateDir).toBe("/tmp/xyz");
+		expect(config.stateDir).toBe("/home/testuser/.bproxy-alt");
 	});
 
 	it("falls back to default port for invalid BPROXY_PORT", () => {

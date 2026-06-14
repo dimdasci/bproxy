@@ -1,5 +1,6 @@
 import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
 import type { DispatchEngine } from "../dispatch";
+import { createSessionTmpDir } from "../session-tmp";
 import type { SessionRegistry } from "../sessions";
 import { failure, success } from "./responses";
 import type { CommandRouteDeps } from "./types";
@@ -65,7 +66,12 @@ async function handleTabOpen(
 		title: opened.page.title,
 		bind: true,
 	});
-	return success(request, { session, tab: tab.tab, bound: true, url: tab.url }, opened.page);
+	const tmpDir = createSessionTmpDir(deps.stateDir, session);
+	return success(
+		request,
+		{ session, tab: tab.tab, bound: true, url: tab.url, tmpDir },
+		opened.page,
+	);
 }
 
 function tabOpenFailure(

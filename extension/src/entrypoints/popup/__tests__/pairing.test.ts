@@ -34,22 +34,16 @@ function happyBody(overrides: Partial<PairingBootstrap> = {}) {
 	return { ok: true, data };
 }
 
-function makeDeps(overrides: Partial<PairingDeps> = {}): PairingDeps & {
-	storage: ReturnType<typeof createFakeStorageItem<PairingBootstrap | null>>;
-	sendMessage: ReturnType<typeof vi.fn>;
-} {
+function makeDeps(overrides: Partial<PairingDeps> = {}) {
 	const storage = createFakeStorageItem<PairingBootstrap | null>("local:bootstrap", null);
-	const sendMessage = vi.fn(async () => undefined);
+	const sendMessage = vi.fn(async (_msg: { type: "pair.complete" }) => undefined);
 	return {
 		fetch: makeFetch(200, happyBody()),
 		storage,
 		sendMessage,
 		now: () => 5000,
 		...overrides,
-	} as PairingDeps & {
-		storage: ReturnType<typeof createFakeStorageItem<PairingBootstrap | null>>;
-		sendMessage: ReturnType<typeof vi.fn>;
-	};
+	} satisfies PairingDeps;
 }
 
 describe("runPairing", () => {
@@ -89,6 +83,21 @@ describe("runPairing", () => {
 		const res = await runPairing({ code: "BAD" }, deps);
 
 		expect(res).toMatchObject({ ok: false, code: "PAIRING_CODE_INVALID" });
+		expect(await deps.storage.getValue()).toBeNull();
+		expect(deps.sendMessage).not.toHaveBeenCalled();
+	});
+
+	it("daemon returns PAIRING_RATE_LIMITED → forwards code, no storage, no notify", async () => {
+		const deps = makeDeps({
+			fetch: makeFetch(429, {
+				ok: false,
+				error: { code: "PAIRING_RATE_LIMITED" },
+			}),
+		});
+
+		const res = await runPairing({ code: "ABCD-EFGH" }, deps);
+
+		expect(res).toMatchObject({ ok: false, code: "PAIRING_RATE_LIMITED" });
 		expect(await deps.storage.getValue()).toBeNull();
 		expect(deps.sendMessage).not.toHaveBeenCalled();
 	});
@@ -218,7 +227,7 @@ describe("runPairing", () => {
 		const deps = makeDeps({
 			fetch: makeFetch(400, {
 				ok: false,
-				error: { code: "PAIRING_CODE_INVALID", message: "code required" },
+				error: { code: "PAIRING_CODE_INVALID" },
 			}),
 		});
 

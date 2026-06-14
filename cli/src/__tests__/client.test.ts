@@ -1,10 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
 import type { ActionParams, TabHandle } from "../types.js";
 import { extractUrl } from "./fetch-helper.js";
+import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 const T1 = "t1" as TabHandle;
 
@@ -14,7 +14,7 @@ function makeGlobals(overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArg
 	return {
 		session: "m4q7z2",
 		timeout: "5000",
-		home: "/tmp/bproxy-test",
+		home: "/home/testuser/.bproxy",
 		verbose: false,
 		...overrides,
 	};
@@ -79,7 +79,7 @@ function captureStream(): { stream: NodeJS.WritableStream; output: () => string 
 }
 
 function setupTempHome(): string {
-	const dir = mkdtempSync(join(tmpdir(), "bproxy-client-test-"));
+	const dir = createTestStateDir("bproxy-client-test-");
 	// Write token file with correct permissions
 	const tokenPath = join(dir, "token");
 	writeFileSync(tokenPath, "test-bearer-token\n", { mode: 0o600 });
@@ -206,7 +206,7 @@ describe("validateResponse", () => {
 
 describe("sendAction", () => {
 	it("returns exit 2 when token file is missing", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-client-test-"));
+		const dir = createTestStateDir("bproxy-client-test-");
 		// Write port but no token
 		writeFileSync(join(dir, "port"), "9615\n");
 
@@ -219,7 +219,7 @@ describe("sendAction", () => {
 	});
 
 	it("returns exit 2 when port file is missing", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "bproxy-client-test-"));
+		const dir = createTestStateDir("bproxy-client-test-");
 		// Write token but no port
 		const tokenPath = join(dir, "token");
 		writeFileSync(tokenPath, "test-token\n", { mode: 0o600 });
