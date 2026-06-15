@@ -24,7 +24,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 4 | CLI | One-shot agent interface + complete curated views set | ✅ Done | [phases/04-cli.md](./phases/04-cli.md) |
 | 5 | Integration & hardening | End-to-end scenarios + Phase 4 agent-DX hardening | ✅ Done | [phases/05-integration-hardening.md](./phases/05-integration-hardening.md) |
 | 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | ✅ Done | [phases/06-element-handles.md](./phases/06-element-handles.md) |
-| 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 6 closes_ |
+| 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | In progress | [phases/07-distribution.md](./phases/07-distribution.md) |
 
 Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. During active implementation they may include day-or-less work units, dependencies, and deliverables. After a phase closes, keep the phase file as a durable evolution log: intent, inputs, major changes, shipped outcome, deferred/rejected scope, and top-level validation. Tactical checklists, code snippets, branch-review notes, and implementation-order scratchpads should be removed or left to git history, tests, ADRs, solution specs, or journal entries.
 
