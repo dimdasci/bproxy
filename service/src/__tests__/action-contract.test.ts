@@ -51,7 +51,8 @@ function paramsFor(action: Action): BproxyRequest["params"] {
 function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
 		protocol_version: 1,
-		id: overrides.id ?? `01HZX${crypto.randomUUID().replace(/-/g, "").slice(0, 21).toUpperCase()}`,
+		id:
+			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action,
 		params: paramsFor(action),
 		session: overrides.session ?? currentSession,

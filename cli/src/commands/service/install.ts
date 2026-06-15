@@ -92,14 +92,17 @@ function launchdPlistPath(): string {
 	return resolve(homedir(), "Library/LaunchAgents/com.bproxy.daemon.plist");
 }
 
+const LAUNCHCTL = "/bin/launchctl";
+const SYSTEMCTL = "/usr/bin/systemctl";
+
 function launchdLoad(plistPath: string): string | null {
 	try {
-		execFileSync("launchctl", ["load", plistPath], { stdio: "pipe" });
+		execFileSync(LAUNCHCTL, ["load", plistPath], { stdio: "pipe" });
 		return null;
 	} catch {
 		try {
 			const uid = process.getuid?.() ?? 501;
-			execFileSync("launchctl", ["bootstrap", `gui/${uid}`, plistPath], { stdio: "pipe" });
+			execFileSync(LAUNCHCTL, ["bootstrap", `gui/${uid}`, plistPath], { stdio: "pipe" });
 			return null;
 		} catch (err) {
 			return err instanceof Error ? err.message : String(err);
@@ -109,11 +112,11 @@ function launchdLoad(plistPath: string): string | null {
 
 function launchdUnload(plistPath: string): void {
 	try {
-		execFileSync("launchctl", ["unload", plistPath], { stdio: "pipe" });
+		execFileSync(LAUNCHCTL, ["unload", plistPath], { stdio: "pipe" });
 	} catch {
 		try {
 			const uid = process.getuid?.() ?? 501;
-			execFileSync("launchctl", ["bootout", `gui/${uid}`, plistPath], { stdio: "pipe" });
+			execFileSync(LAUNCHCTL, ["bootout", `gui/${uid}`, plistPath], { stdio: "pipe" });
 		} catch {
 			// Already unloaded
 		}
@@ -128,8 +131,8 @@ function systemdUnitPath(): string {
 
 function systemdEnable(): string | null {
 	try {
-		execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "pipe" });
-		execFileSync("systemctl", ["--user", "enable", "bproxy"], { stdio: "pipe" });
+		execFileSync(SYSTEMCTL, ["--user", "daemon-reload"], { stdio: "pipe" });
+		execFileSync(SYSTEMCTL, ["--user", "enable", "bproxy"], { stdio: "pipe" });
 		return null;
 	} catch (err) {
 		return err instanceof Error ? err.message : String(err);
@@ -138,12 +141,12 @@ function systemdEnable(): string | null {
 
 function systemdDisable(): void {
 	try {
-		execFileSync("systemctl", ["--user", "disable", "bproxy"], { stdio: "pipe" });
+		execFileSync(SYSTEMCTL, ["--user", "disable", "bproxy"], { stdio: "pipe" });
 	} catch {
 		// May already be disabled
 	}
 	try {
-		execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "pipe" });
+		execFileSync(SYSTEMCTL, ["--user", "daemon-reload"], { stdio: "pipe" });
 	} catch {
 		// Best effort
 	}

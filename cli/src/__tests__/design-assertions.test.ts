@@ -220,10 +220,10 @@ describe("architecture boundary: import restrictions", () => {
 			const content = readFileSync(file, "utf8");
 			// Check actual import statements, not comments
 			const hasServiceImport =
-				/^\s*import\b[^"']*from\s+["']@bproxy\/service/m.test(content) ||
-				/^\s*import\b[^"']*from\s+["'][^"']*service\/src/m.test(content) ||
+				/^\s*import\b[^"'\n]*from\s+["']@bproxy\/service/m.test(content) ||
+				/^\s*import\b[^"'\n]*from\s+["'][^"'\n]*service\/src/m.test(content) ||
 				/^\s*require\s*\(\s*["']@bproxy\/service/m.test(content) ||
-				/^\s*require\s*\(\s*["'][^"']*service\/src/m.test(content);
+				/^\s*require\s*\(\s*["'][^"'\n]*service\/src/m.test(content);
 			expect(
 				hasServiceImport,
 				`File ${file} imports from service package — CLI must only import from shared`,
@@ -237,10 +237,10 @@ describe("architecture boundary: import restrictions", () => {
 			const content = readFileSync(file, "utf8");
 			// Check actual import statements, not comments
 			const hasExtensionImport =
-				/^\s*import\b[^"']*from\s+["']@bproxy\/extension/m.test(content) ||
-				/^\s*import\b[^"']*from\s+["'][^"']*extension\/src/m.test(content) ||
+				/^\s*import\b[^"'\n]*from\s+["']@bproxy\/extension/m.test(content) ||
+				/^\s*import\b[^"'\n]*from\s+["'][^"'\n]*extension\/src/m.test(content) ||
 				/^\s*require\s*\(\s*["']@bproxy\/extension/m.test(content) ||
-				/^\s*require\s*\(\s*["'][^"']*extension\/src/m.test(content);
+				/^\s*require\s*\(\s*["'][^"'\n]*extension\/src/m.test(content);
 			expect(
 				hasExtensionImport,
 				`File ${file} imports from extension package — CLI must only import from shared`,
