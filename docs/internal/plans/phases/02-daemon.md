@@ -368,9 +368,9 @@ describe("loadConfig", () => {
 	});
 
 	it("honours BPROXY_PORT and BPROXY_HOME", () => {
-		const config = loadConfig({ BPROXY_PORT: "12345", BPROXY_HOME: "/tmp/xyz" });
+		const config = loadConfig({ BPROXY_PORT: "12345", BPROXY_HOME: "/home/testuser/.bproxy-test/xyz" });
 		expect(config.port).toBe(12345);
-		expect(config.stateDir).toBe("/tmp/xyz");
+		expect(config.stateDir).toBe("/home/testuser/.bproxy-test/xyz");
 	});
 
 	it("falls back to default port for invalid BPROXY_PORT", () => {
@@ -2519,8 +2519,7 @@ A short test that:
 
 ```typescript
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { writeToken } from "../lifecycle";
@@ -2558,9 +2557,12 @@ async function runDaemonized(home: string, signal: "SIGTERM" | "SIGINT"): Promis
 	}
 }
 
+const TEST_TMP_ROOT = join(__dirname, "../.tmp");
+
 let home: string;
 beforeEach(() => {
-	home = mkdtempSync(join(tmpdir(), "bproxy-test-"));
+	mkdirSync(TEST_TMP_ROOT, { recursive: true, mode: 0o700 });
+	home = mkdtempSync(join(TEST_TMP_ROOT, "bproxy-test-"));
 });
 
 describe("lifecycle smoke", () => {

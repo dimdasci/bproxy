@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, mkdtempSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -28,8 +27,8 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 	throw new Error(`--port must be an integer between 1 and 65535, got: ${values.port}`);
 }
 
-const home = values.home ?? mkdtempSync(resolve(tmpdir(), "bproxy-smoke-"));
 const here = dirname(fileURLToPath(import.meta.url));
+const home = values.home ?? createSmokeHome(here);
 const serviceEntry = resolve(here, "../../../service/dist/index.mjs");
 const child = spawn(process.execPath, [serviceEntry, "daemonize"], {
 	env: {
@@ -79,6 +78,14 @@ for (const signal of stopSignals) {
 		shuttingDown = true;
 		child.kill(signal);
 	});
+}
+
+function createSmokeHome(scriptDir: string): string {
+	const smokeTmpRoot = resolve(scriptDir, "../../.tmp");
+	mkdirSync(smokeTmpRoot, { recursive: true, mode: 0o700 });
+	const smokeHome = mkdtempSync(resolve(smokeTmpRoot, "bproxy-smoke-"));
+	chmodSync(smokeHome, 0o700);
+	return smokeHome;
 }
 
 function announce(info: PairingCodeAnnouncement): void {
