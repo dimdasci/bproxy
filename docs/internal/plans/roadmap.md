@@ -26,7 +26,7 @@ The team is solo execution by a single mid-level developer; tasks are sized to o
 | 6 | Element target aliases | Short-lived daemon-owned handles for read→act workflows | ✅ Done | [phases/06-element-handles.md](./phases/06-element-handles.md) |
 | 7 | Distribution & installation | Package and document install/upgrade outside the monorepo | Not started | _plan written when Phase 6 closes_ |
 
-Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. Each captures day-or-less work units, dependencies, and deliverables. The roadmap stays the index; phase files own the granular plan.
+Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as each phase begins. During active implementation they may include day-or-less work units, dependencies, and deliverables. After a phase closes, keep the phase file as a durable evolution log: intent, inputs, major changes, shipped outcome, deferred/rejected scope, and top-level validation. Tactical checklists, code snippets, branch-review notes, and implementation-order scratchpads should be removed or left to git history, tests, ADRs, solution specs, or journal entries.
 
 **Just-in-time planning is intentional.** Each phase's plan is written at the start of that phase, informed by what its predecessor actually shipped (PoC verdicts, refactors revealed in earlier layers, surprises in the docs after reconciliation). Writing every later phase plan up front would lock in assumptions before they've been tested.
 

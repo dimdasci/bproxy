@@ -8,6 +8,8 @@ title: Phase 5 - Integration & hardening
 
 **Strategy:** Start with the protocol seams that affect every package (`shared` → daemon → extension → CLI), then exercise them through real workflows. Keep documentation truthful: public solution specs and internal architecture docs are updated in the same task as the code they describe, and the final task is an explicit doc/code reconciliation pass.
 
+**Planning-note cleanup:** This file is the durable Phase 5 evolution log. Tactical subplans and branch-review notes that duplicated shipped code, ADRs, public solution specs, or journal entries have been removed from `docs/internal/plans/phases/`; their durable outcomes remain summarized here.
+
 **Spec inputs:**
 
 - Journal finding: [`2026-05-24-agent-dx-tab-and-link-extraction.md`](../../journal/2026-05-24-agent-dx-tab-and-link-extraction.md)
@@ -252,8 +254,6 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 ---
 
 ## Task 8a: Diagnostic sensor commands (`inspect` + `snapshot`)
-
-**Plan:** [`05a-inspect-snapshot.md`](./05a-inspect-snapshot.md)
 
 **Purpose:** Give agents self-diagnostic capability when existing sensors fail. Discovered during LinkedIn scenario validation (Task 8, Scenario 2) — `text` returned 282 chars due to `display: contents` wrappers; agent had no way to diagnose without dev-browser/CDP.
 
