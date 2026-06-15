@@ -30,12 +30,12 @@ for (const ws of workspaces) {
 	const pkgPath = resolve(ROOT, ws, "package.json");
 	try {
 		const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-		if (pkg.version !== version) {
+		if (pkg.version === version) {
+			console.log(`  · ${ws}/package.json (already ${version})`);
+		} else {
 			pkg.version = version;
 			writeFileSync(pkgPath, JSON.stringify(pkg, null, "\t") + "\n");
 			console.log(`  ✓ ${ws}/package.json → ${version}`);
-		} else {
-			console.log(`  · ${ws}/package.json (already ${version})`);
 		}
 	} catch {
 		console.log(`  · ${ws}/package.json (not found, skipped)`);
@@ -50,11 +50,11 @@ const updatedVersionTs = versionTs.replace(
 	/export const VERSION = "[^"]*"/,
 	`export const VERSION = "${version}"`,
 );
-if (updatedVersionTs !== versionTs) {
+if (updatedVersionTs === versionTs) {
+	console.log(`  · shared/src/version.ts (already ${version})`);
+} else {
 	writeFileSync(versionTsPath, updatedVersionTs);
 	console.log(`  ✓ shared/src/version.ts → ${version}`);
-} else {
-	console.log(`  · shared/src/version.ts (already ${version})`);
 }
 
 // ─── 3. skill/SKILL.md frontmatter ─────────────────────────────────────
@@ -74,11 +74,11 @@ try {
 	}
 	if (updated) {
 		const result = lines.join("\n");
-		if (result !== skill) {
+		if (result === skill) {
+			console.log(`  · skill/SKILL.md (already ${version})`);
+		} else {
 			writeFileSync(skillPath, result);
 			console.log(`  ✓ skill/SKILL.md → ${version}`);
-		} else {
-			console.log(`  · skill/SKILL.md (already ${version})`);
 		}
 	} else {
 		console.log(`  · skill/SKILL.md (no version line found, skipped)`);
