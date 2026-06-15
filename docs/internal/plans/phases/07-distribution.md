@@ -328,11 +328,21 @@ Exit codes: 0 = all checks pass, 1 = one or more checks failed (failures shown i
 **Input:** This plan.
 
 **Output:**
-- This file finalized with shipped outcome after all tasks complete
+- This file finalized with shipped outcome
 - `docs/internal/plans/roadmap.md` Phase 7 status changed to `✅ Done`
-- Root `package.json` version bumped to `0.1.0`
+- Version: `0.7.1` across all workspace packages
 
 **Done when:** Roadmap reflects reality; version is consistent across all references.
+
+---
+
+## Shipped outcome
+
+**Published:** `@dimdasci/bproxy@0.7.1` on npm (2026-06-15) via OIDC trusted publishing.
+**GitHub Release:** `v0.7.1` with extension zip and generated release notes.
+**Tests:** 815 tests across 4 workspaces, `pnpm check` green.
+**SonarCloud:** 0 issues, 0 hotspots on main after merge.
+**CI Actions:** bumped to Node 24 runtime (checkout v6, setup-node v6, pnpm/action-setup v6, action-gh-release v3).
 
 ---
 

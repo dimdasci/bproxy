@@ -32,6 +32,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # ─── Verify tag matches source version ─────────────────────────
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+          echo "✓ Tag $GITHUB_REF_NAME matches package.json ($PKG_VERSION)"
+
       # ─── Quality gates ──────────────────────────────────────────────
       - name: Check (typecheck + format + lint + arch + deadcode)
         run: pnpm check

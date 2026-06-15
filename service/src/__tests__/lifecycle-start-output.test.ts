@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { VERSION } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
 	LifecycleStartResult,
@@ -226,7 +227,7 @@ describe("status output JSON shape", () => {
 		});
 		expect(out.status).toBe(0);
 		const result = JSON.parse(out.stdout.trim()) as LifecycleStatusResult;
-		expect(result).toMatchObject({ running: false, version: "0.7.0", protocolVersion: 1 });
+		expect(result).toMatchObject({ running: false, version: VERSION, protocolVersion: 1 });
 	});
 
 	it("status reports running:true with pid and port while daemon runs", {
@@ -248,7 +249,7 @@ describe("status output JSON shape", () => {
 		expect(result.running).toBe(true);
 		expect(result.pid).toBeGreaterThan(0);
 		expect(result.port).toBeGreaterThan(0);
-		expect(result.version).toBe("0.7.0");
+		expect(result.version).toBe(VERSION);
 		expect(result.protocolVersion).toBe(1);
 	});
 
