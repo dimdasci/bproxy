@@ -220,8 +220,14 @@ export interface ActionResult {
 	"debug.log": { entries: Array<TraceEntry> };
 	"debug.last": { requests: Array<DaemonRequestTrace> };
 	"debug.status": {
-		daemon: { pid: number; port: number; uptimeSec: number };
-		wsClients: Array<{ id: string; connectedAt: number }>;
+		daemon: {
+			pid: number;
+			port: number;
+			uptimeSec: number;
+			version: string;
+			protocolVersion: number;
+		};
+		wsClients: Array<{ id: string; connectedAt: number; protocolVersion: number }>;
 		sessions: Array<SessionInfo>;
 		sessionTabs: Array<{ session: SessionId; tabs: Array<TabInfo> }>;
 		pausedSessions: Array<{ session: SessionId; reason?: string }>;

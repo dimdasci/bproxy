@@ -4,7 +4,8 @@
  * Resolves the service binary path in this order:
  *   1. BPROXY_SERVICE_BIN environment variable
  *   2. Workspace service/dist/index.mjs (relative to project root)
- *   3. `bproxy-service` on PATH
+ *   3. Sibling bproxy-service.mjs in the same directory as this CLI binary
+ *   4. `bproxy-service` on PATH
  *
  * The CLI MUST NOT import service source code. It spawns the service binary
  * as a child process and communicates through stdout/stderr/exit codes.
@@ -40,6 +41,12 @@ export interface ServiceBinaryDeps {
 /**
  * Locate the service binary using the resolution chain.
  * Returns the absolute path to the binary or null if not found.
+ *
+ * Resolution order:
+ *   1. BPROXY_SERVICE_BIN environment variable
+ *   2. Workspace service/dist/index.mjs (relative to project root)
+ *   3. Sibling in the same directory as the running CLI binary
+ *   4. `bproxy-service` on PATH
  */
 export function resolveServiceBinary(deps: ServiceBinaryDeps = {}): string | null {
 	const env = deps.env ?? process.env;
@@ -54,7 +61,11 @@ export function resolveServiceBinary(deps: ServiceBinaryDeps = {}): string | nul
 	const workspaceBin = resolveWorkspaceBin(exists);
 	if (workspaceBin) return workspaceBin;
 
-	// 3. bproxy-service on PATH
+	// 3. Sibling in the same directory as this CLI binary
+	const siblingBin = resolveSiblingBin(exists);
+	if (siblingBin) return siblingBin;
+
+	// 4. bproxy-service on PATH
 	const pathBin = whichFn("bproxy-service");
 	if (pathBin) return pathBin;
 
@@ -76,6 +87,20 @@ function resolveWorkspaceBin(exists: (path: string) => boolean): string | null {
 	for (const candidate of candidates) {
 		if (exists(candidate)) return candidate;
 	}
+	return null;
+}
+
+/**
+ * After global npm install, both bproxy.mjs and bproxy-service.mjs live
+ * in the same directory (the package's bin directory). Check for a sibling
+ * `bproxy-service.mjs` next to the running CLI binary.
+ */
+function resolveSiblingBin(exists: (path: string) => boolean): string | null {
+	const thisFile = fileURLToPath(import.meta.url);
+	const thisDir = dirname(thisFile);
+
+	const candidate = resolve(thisDir, "bproxy-service.mjs");
+	if (exists(candidate)) return candidate;
 	return null;
 }
 

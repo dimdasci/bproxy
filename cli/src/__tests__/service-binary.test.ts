@@ -65,6 +65,41 @@ describe("resolveServiceBinary", () => {
 		});
 		expect(result).toBe("/override/service.mjs");
 	});
+
+	it("finds sibling bproxy-service.mjs next to CLI binary when workspace miss", () => {
+		// When existsSync returns true for all paths, workspace will match first.
+		// To test sibling specifically, we need workspace candidates to miss.
+		// The sibling path ends with "bproxy-service.mjs" in the same dir as the running file.
+		const result = resolveServiceBinary({
+			env: {},
+			existsSync: (p) => p.endsWith("bproxy-service.mjs") && !p.includes("service/dist"),
+			which: () => null,
+		});
+		// Should resolve the sibling before falling through to PATH
+		expect(result).not.toBeNull();
+		expect(result).toMatch(/bproxy-service\.mjs$/);
+	});
+
+	it("prefers workspace resolution over sibling", () => {
+		const result = resolveServiceBinary({
+			env: {},
+			existsSync: (p) => p.includes("service/dist/index.mjs") || p.endsWith("bproxy-service.mjs"),
+			which: () => null,
+		});
+		// Should pick workspace (contains service/dist/index.mjs) over sibling
+		expect(result).toMatch(/service\/dist\/index\.mjs$/);
+	});
+
+	it("prefers sibling over PATH lookup", () => {
+		const result = resolveServiceBinary({
+			env: {},
+			existsSync: (p) => p.endsWith("bproxy-service.mjs") && !p.includes("service/dist"),
+			which: () => "/usr/local/bin/bproxy-service",
+		});
+		// Should pick sibling over PATH
+		expect(result).toMatch(/bproxy-service\.mjs$/);
+		expect(result).not.toBe("/usr/local/bin/bproxy-service");
+	});
 });
 
 // ─── execServiceBinary ─────────────────────────────────────────────────

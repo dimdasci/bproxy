@@ -12,7 +12,6 @@
 			"!tmp/**",
 			"!**/.tmp/**",
 			"!.pnpm-store/**",
-			"!.claude/**",
 			"!.superpowers/**",
 			"!pnpm-lock.yaml"
 		]

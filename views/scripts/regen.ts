@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -98,8 +98,11 @@ function runDependencyCruiser(task: RegenTask): void {
 	const outputPath = resolve(repoRoot, task.output);
 
 	try {
-		execSync("which dot", { stdio: "ignore" });
-		const svg = execSync("dot -Tsvg", {
+		const dotBin = execSync("command -v dot", {
+			encoding: "utf-8",
+			stdio: ["pipe", "pipe", "ignore"],
+		}).trim();
+		const svg = execFileSync(dotBin, ["-Tsvg"], {
 			cwd: repoRoot,
 			encoding: "utf-8",
 			input: dot,

@@ -9,6 +9,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
+import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
 import type { ServiceConfig } from "./config";
 import { stateFile } from "./config";
 import { buildLogger } from "./logger";
@@ -325,9 +326,15 @@ export function status(config: ServiceConfig): LifecycleStatusResult {
 	if (pidState.exists && pidState.pid !== null) {
 		if (isAlive(pidState.pid)) {
 			const port = readPort(config);
-			return { running: true, pid: pidState.pid, ...(port === undefined ? {} : { port }) };
+			return {
+				running: true,
+				pid: pidState.pid,
+				...(port === undefined ? {} : { port }),
+				version: VERSION,
+				protocolVersion: PROTOCOL_VERSION,
+			};
 		}
 	}
 	cleanupRuntimeState(config);
-	return { running: false };
+	return { running: false, version: VERSION, protocolVersion: PROTOCOL_VERSION };
 }

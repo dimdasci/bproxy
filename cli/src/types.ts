@@ -15,6 +15,7 @@ export type {
 	ActionParams,
 	BproxyRequest,
 	BproxyResponse,
+	BproxySuccessResponse,
 	ClientElementTarget,
 	ElementHandle,
 	ElementHandleRef,
@@ -25,3 +26,4 @@ export type {
 	SessionId,
 	TabHandle,
 } from "@bproxy/shared";
+export { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";

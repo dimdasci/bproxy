@@ -71,13 +71,15 @@ function createMockFetch(responseBody: unknown, status = 200) {
 }
 
 /** Collect all .ts files in a directory tree, excluding __tests__ and index.ts grouping files */
+const SKIP_DIRS = new Set(["__tests__", "test", "node_modules"]);
+
 function collectSourceFiles(dir: string, pattern?: RegExp): string[] {
 	const results: string[] = [];
 	const entries = readdirSync(dir, { withFileTypes: true });
 	for (const entry of entries) {
 		const fullPath = join(dir, entry.name);
 		if (entry.isDirectory()) {
-			if (entry.name === "__tests__" || entry.name === "test") continue;
+			if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
 			results.push(...collectSourceFiles(fullPath, pattern));
 		} else if (entry.isFile() && entry.name.endsWith(".ts")) {
 			if (pattern && !pattern.test(entry.name)) continue;
@@ -155,10 +157,14 @@ describe("action coverage", () => {
 
 	it("every command file imports sendAction from client module", () => {
 		// Service commands are exempt (they spawn a binary, not POST)
+		// Doctor is exempt (diagnostic command that directly checks daemon health)
 		const exemptDirs = ["service"];
+		const exemptFiles = ["doctor.ts"];
 		const commandFiles = collectSourceFiles(COMMANDS_DIR);
 		const protocolCommands = commandFiles.filter((f) => {
-			return !exemptDirs.some((d) => f.includes(`/commands/${d}/`));
+			if (exemptDirs.some((d) => f.includes(`/commands/${d}/`))) return false;
+			if (exemptFiles.some((name) => f.endsWith(`/commands/${name}`))) return false;
+			return true;
 		});
 
 		// Filter to leaf commands (not grouping index files)
@@ -182,7 +188,11 @@ describe("action coverage", () => {
 
 describe("architecture boundary: no direct fetch in commands", () => {
 	it("no command file uses globalThis.fetch or node-fetch directly", () => {
-		const commandFiles = collectSourceFiles(COMMANDS_DIR);
+		// Doctor is exempt (diagnostic command that directly probes daemon HTTP)
+		const exemptFiles = ["doctor.ts"];
+		const commandFiles = collectSourceFiles(COMMANDS_DIR).filter(
+			(f) => !exemptFiles.some((name) => f.endsWith(`/commands/${name}`)),
+		);
 		for (const file of commandFiles) {
 			const content = readFileSync(file, "utf8");
 			// Check for direct fetch usage (not the import from client)
@@ -190,7 +200,7 @@ describe("architecture boundary: no direct fetch in commands", () => {
 				content.includes("globalThis.fetch") ||
 				content.includes("node-fetch") ||
 				// Match bare `fetch(` but not `sendAction` or `mockFetch`
-				(/(?<!mock|send|create\w*)fetch\s*\(/.test(content) &&
+				(/(?<!mock|send|create\w{0,20})fetch\s*\(/.test(content) &&
 					!content.includes('from "../client') &&
 					!content.includes('from "../../client'));
 			expect(
@@ -203,19 +213,28 @@ describe("architecture boundary: no direct fetch in commands", () => {
 
 // ─── 3. No cross-workspace imports ─────────────────────────────────────
 
+/** Check whether source content has an import/require referencing a forbidden package. */
+function hasImportFrom(content: string, pkg: string, pathFragment: string): boolean {
+	for (const line of content.split("\n")) {
+		const t = line.trimStart();
+		// Skip comments
+		if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+		// Only inspect import/require statements
+		const isImport = t.startsWith("import ") || t.startsWith("import{");
+		const isRequire = t.includes("require(");
+		if (!isImport && !isRequire) continue;
+		if (t.includes(pkg) || t.includes(pathFragment)) return true;
+	}
+	return false;
+}
+
 describe("architecture boundary: import restrictions", () => {
 	it("no CLI production source imports from service/", () => {
 		const sourceFiles = collectSourceFiles(CLI_SRC);
 		for (const file of sourceFiles) {
 			const content = readFileSync(file, "utf8");
-			// Check actual import statements, not comments
-			const hasServiceImport =
-				/^\s*import\b.*from\s+["']@bproxy\/service/m.test(content) ||
-				/^\s*import\b.*from\s+["'].*service\/src/m.test(content) ||
-				/^\s*require\s*\(\s*["']@bproxy\/service/m.test(content) ||
-				/^\s*require\s*\(\s*["'].*service\/src/m.test(content);
 			expect(
-				hasServiceImport,
+				hasImportFrom(content, "@bproxy/service", "service/src"),
 				`File ${file} imports from service package — CLI must only import from shared`,
 			).toBe(false);
 		}
@@ -225,14 +244,8 @@ describe("architecture boundary: import restrictions", () => {
 		const sourceFiles = collectSourceFiles(CLI_SRC);
 		for (const file of sourceFiles) {
 			const content = readFileSync(file, "utf8");
-			// Check actual import statements, not comments
-			const hasExtensionImport =
-				/^\s*import\b.*from\s+["']@bproxy\/extension/m.test(content) ||
-				/^\s*import\b.*from\s+["'].*extension\/src/m.test(content) ||
-				/^\s*require\s*\(\s*["']@bproxy\/extension/m.test(content) ||
-				/^\s*require\s*\(\s*["'].*extension\/src/m.test(content);
 			expect(
-				hasExtensionImport,
+				hasImportFrom(content, "@bproxy/extension", "extension/src"),
 				`File ${file} imports from extension package — CLI must only import from shared`,
 			).toBe(false);
 		}

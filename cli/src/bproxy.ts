@@ -1,9 +1,16 @@
+import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
 import { defineCommand, runMain } from "citty";
+
+// Handle --version before citty (custom format: "bproxy v0.1.0 (protocol v1)")
+if (process.argv.length === 3 && process.argv[2] === "--version") {
+	process.stdout.write(`bproxy v${VERSION} (protocol v${PROTOCOL_VERSION})\n`);
+	process.exit(0);
+}
 
 const main = defineCommand({
 	meta: {
 		name: "bproxy",
-		version: "0.1.0",
+		version: VERSION,
 		description: "Browser proxy CLI for code agents",
 	},
 	args: {
@@ -47,6 +54,7 @@ const main = defineCommand({
 		wait: () => import("./commands/wait.js").then((m) => m.default),
 		"require-human": () => import("./commands/require-human.js").then((m) => m.default),
 		status: () => import("./commands/status.js").then((m) => m.default),
+		doctor: () => import("./commands/doctor.js").then((m) => m.default),
 		service: () => import("./commands/service/index.js").then((m) => m.default),
 		session: () => import("./commands/session.js").then((m) => m.default),
 		tab: () => import("./commands/tab.js").then((m) => m.default),
