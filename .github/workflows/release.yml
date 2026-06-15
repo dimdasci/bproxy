@@ -58,6 +58,9 @@ jobs:
       - name: Assemble release package
         run: bash scripts/build-release.sh
 
+      - name: Smoke-test release binaries
+        run: bash scripts/smoke-release.sh
+
       # ─── Publish to npm ─────────────────────────────────────────────
       - name: Publish to npm
         run: cd dist && npm publish --access public --provenance
