@@ -62,12 +62,26 @@ if (updatedVersionTs !== versionTs) {
 const skillPath = resolve(ROOT, "skill/SKILL.md");
 try {
 	const skill = readFileSync(skillPath, "utf8");
-	const updatedSkill = skill.replace(/^(\s*version:\s*")([^"]*)(")$/m, `$1${version}$3`);
-	if (updatedSkill !== skill) {
-		writeFileSync(skillPath, updatedSkill);
-		console.log(`  ✓ skill/SKILL.md → ${version}`);
+	const lines = skill.split("\n");
+	let updated = false;
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].trimStart().startsWith("version:")) {
+			const indent = lines[i].slice(0, lines[i].indexOf("version:"));
+			lines[i] = `${indent}version: "${version}"`;
+			updated = true;
+			break;
+		}
+	}
+	if (updated) {
+		const result = lines.join("\n");
+		if (result !== skill) {
+			writeFileSync(skillPath, result);
+			console.log(`  ✓ skill/SKILL.md → ${version}`);
+		} else {
+			console.log(`  · skill/SKILL.md (already ${version})`);
+		}
 	} else {
-		console.log(`  · skill/SKILL.md (already ${version})`);
+		console.log(`  · skill/SKILL.md (no version line found, skipped)`);
 	}
 } catch {
 	console.log(`  · skill/SKILL.md (not found, skipped)`);

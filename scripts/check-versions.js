@@ -47,9 +47,16 @@ if (match && match[1] !== expected) {
 const skillPath = resolve(ROOT, "skill/SKILL.md");
 try {
 	const skill = readFileSync(skillPath, "utf8");
-	const skillMatch = skill.match(/^\s*version:\s*"([^"]*)"/m);
-	if (skillMatch && skillMatch[1] !== expected) {
-		errors.push(`skill/SKILL.md: "${skillMatch[1]}" (expected "${expected}")`);
+	const versionLine = skill.split("\n").find((l) => l.trimStart().startsWith("version:"));
+	if (versionLine) {
+		const start = versionLine.indexOf('"');
+		const end = versionLine.indexOf('"', start + 1);
+		if (start !== -1 && end !== -1) {
+			const found = versionLine.slice(start + 1, end);
+			if (found !== expected) {
+				errors.push(`skill/SKILL.md: "${found}" (expected "${expected}")`);
+			}
+		}
 	}
 } catch {
 	// Optional, skip
