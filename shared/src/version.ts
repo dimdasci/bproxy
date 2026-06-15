@@ -6,7 +6,7 @@
  */
 
 /** Current bproxy package version (semver). */
-export const VERSION = "0.7.3";
+export const VERSION = "0.7.4";
 
 /** Protocol version for the daemon↔CLI↔extension wire format. */
 export const PROTOCOL_VERSION = 1;
