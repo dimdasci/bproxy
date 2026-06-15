@@ -213,19 +213,28 @@ describe("architecture boundary: no direct fetch in commands", () => {
 
 // ─── 3. No cross-workspace imports ─────────────────────────────────────
 
+/** Check whether source content has an import/require referencing a forbidden package. */
+function hasImportFrom(content: string, pkg: string, pathFragment: string): boolean {
+	for (const line of content.split("\n")) {
+		const t = line.trimStart();
+		// Skip comments
+		if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+		// Only inspect import/require statements
+		const isImport = t.startsWith("import ") || t.startsWith("import{");
+		const isRequire = t.includes("require(");
+		if (!isImport && !isRequire) continue;
+		if (t.includes(pkg) || t.includes(pathFragment)) return true;
+	}
+	return false;
+}
+
 describe("architecture boundary: import restrictions", () => {
 	it("no CLI production source imports from service/", () => {
 		const sourceFiles = collectSourceFiles(CLI_SRC);
 		for (const file of sourceFiles) {
 			const content = readFileSync(file, "utf8");
-			// Check actual import statements, not comments
-			const hasServiceImport =
-				/^\s*import\b[^"'\n]*from\s+["']@bproxy\/service/m.test(content) ||
-				/^\s*import\b[^"'\n]*from\s+["'][^"'\n]*service\/src/m.test(content) ||
-				/^\s*require\s*\(\s*["']@bproxy\/service/m.test(content) ||
-				/^\s*require\s*\(\s*["'][^"'\n]*service\/src/m.test(content);
 			expect(
-				hasServiceImport,
+				hasImportFrom(content, "@bproxy/service", "service/src"),
 				`File ${file} imports from service package — CLI must only import from shared`,
 			).toBe(false);
 		}
@@ -235,14 +244,8 @@ describe("architecture boundary: import restrictions", () => {
 		const sourceFiles = collectSourceFiles(CLI_SRC);
 		for (const file of sourceFiles) {
 			const content = readFileSync(file, "utf8");
-			// Check actual import statements, not comments
-			const hasExtensionImport =
-				/^\s*import\b[^"'\n]*from\s+["']@bproxy\/extension/m.test(content) ||
-				/^\s*import\b[^"'\n]*from\s+["'][^"'\n]*extension\/src/m.test(content) ||
-				/^\s*require\s*\(\s*["']@bproxy\/extension/m.test(content) ||
-				/^\s*require\s*\(\s*["'][^"'\n]*extension\/src/m.test(content);
 			expect(
-				hasExtensionImport,
+				hasImportFrom(content, "@bproxy/extension", "extension/src"),
 				`File ${file} imports from extension package — CLI must only import from shared`,
 			).toBe(false);
 		}
