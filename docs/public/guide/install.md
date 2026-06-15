@@ -27,7 +27,7 @@ Verify the install:
 
 ```bash
 bproxy --version
-# bproxy v0.1.0 (protocol v1)
+# bproxy v0.7.0 (protocol v1)
 ```
 
 ## Install the Chrome extension
@@ -111,3 +111,17 @@ bproxy stores all state in `~/.bproxy/` (override with `BPROXY_HOME` or `--home`
 | `tmp/` | Temporary session artifacts |
 
 All files are created with mode `0600`/`0700` — only your user account can read them.
+
+## Install the agent skill (optional)
+
+If you use a coding agent (pi, Claude Code, etc.), install the bproxy skill so the agent knows how to use bproxy commands:
+
+```bash
+# pi
+pi skill install https://github.com/anthropics/bproxy/tree/main/skill
+
+# Manual (any harness)
+cp -r skill/ ~/.agents/skills/bproxy
+```
+
+The skill provides command reference, fill-method selection guidance, and error recovery patterns — everything an agent needs to use bproxy without reading the full docs.
