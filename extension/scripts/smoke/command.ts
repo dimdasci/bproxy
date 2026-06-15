@@ -4,8 +4,8 @@ import { parseJsonObject, printJson, sendCommand, trimPnpmDoubleDash } from "./c
 
 const usageLines = [
 	"usage: smoke:command [--home <dir>] [--session <id>] [--id <request-id>] [--timeout <ms>] [--destructive] [--raw] <action> [params-json]",
-	"example: smoke:command --home /tmp/bproxy-smoke debug.status",
-	'example: smoke:command --home /tmp/bproxy-smoke --session m4q7z2 text \'{"selector":"main"}\'',
+	"example: smoke:command --home ./.tmp/bproxy-smoke-demo debug.status",
+	'example: smoke:command --home ./.tmp/bproxy-smoke-demo --session m4q7z2 text \'{"selector":"main"}\'',
 ] as const;
 
 const { values, positionals } = parseArgs({
