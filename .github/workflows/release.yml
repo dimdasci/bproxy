@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      # ─── Quality gates ──────────────────────────────────────────────
+      - name: Check (typecheck + format + lint + arch + deadcode)
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+      # ─── Build all workspaces ───────────────────────────────────────
+      - name: Build all
+        run: pnpm -r build
+
+      # ─── Assemble npm package ───────────────────────────────────────
+      - name: Assemble release package
+        run: bash scripts/build-release.sh
+
+      # ─── Publish to npm ─────────────────────────────────────────────
+      - name: Publish to npm
+        run: cd dist && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ─── Package extension zip ──────────────────────────────────────
+      - name: Package extension
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd extension/.output/chrome-mv3
+          zip -r "$GITHUB_WORKSPACE/bproxy-extension-v${VERSION}.zip" .
+
+      # ─── Create GitHub Release ──────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: bproxy-extension-v*.zip
+          body: |
+            ## Install
+
+            ```bash
+            npm install -g @anthropics/bproxy
+            ```
+
+            **Extension:** Download the attached zip, extract, then load unpacked in `chrome://extensions` (Developer mode).
+
+            **npm:** https://www.npmjs.com/package/bproxy

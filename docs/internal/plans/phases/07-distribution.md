@@ -1,6 +1,6 @@
 ---
 title: "Phase 7 — Distribution & Installation"
-status: not-started
+status: done
 ---
 
 ## Quality standard
@@ -368,3 +368,4 @@ Phase 7 is done when all of the following hold **at production quality** (no par
 | Homebrew tap | Deferred — convenience layer, not blocking |
 | Node SEA binary | Rejected for now — experimental, 100MB+ output |
 | Auto-update | Rejected — npm/brew handle this; no custom updater |
+| `bproxy` unscoped npm name | Taken by existing package (chinese proxy tool, 108 versions). Using `@anthropics/bproxy` instead. |

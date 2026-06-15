@@ -25,3 +25,4 @@ export type {
 	SessionId,
 	TabHandle,
 } from "@bproxy/shared";
+export { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";

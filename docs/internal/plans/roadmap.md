@@ -130,11 +130,11 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Detail:** [phases/06-element-handles.md](./phases/06-element-handles.md).
 
-### Phase 7 — Distribution & installation
+### Phase 7 — Distribution & installation ✅ Done
 
 **Purpose:** make the hardened system installable and updatable outside the monorepo.
 
-**Output:** a documented distribution shape for CLI + daemon + extension artifacts. The likely direction is one user-facing `bproxy` distribution that bundles or installs the CLI and daemon while preserving separate internal workspaces; the exact package shape is decided at Phase 7 start, after Phase 6 proves the daily-driver read→act workflow.
+**Output:** `@anthropics/bproxy` npm package (scoped, since `bproxy` is taken), GitHub Release workflow with extension zip, user guide (install/usage/upgrade/uninstall), agent skill at `skill/`, `bproxy doctor` command, `bproxy service install|uninstall` for auto-start, `bproxy --version` with protocol info.
 
 **Done when:** a user can install bproxy from published/release artifacts, load or install the extension, start the daemon, pair the extension, run a smoke command, and upgrade without breaking existing `BPROXY_HOME` token/state semantics.
 

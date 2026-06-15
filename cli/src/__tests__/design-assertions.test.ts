@@ -155,10 +155,14 @@ describe("action coverage", () => {
 
 	it("every command file imports sendAction from client module", () => {
 		// Service commands are exempt (they spawn a binary, not POST)
+		// Doctor is exempt (diagnostic command that directly checks daemon health)
 		const exemptDirs = ["service"];
+		const exemptFiles = ["doctor.ts"];
 		const commandFiles = collectSourceFiles(COMMANDS_DIR);
 		const protocolCommands = commandFiles.filter((f) => {
-			return !exemptDirs.some((d) => f.includes(`/commands/${d}/`));
+			if (exemptDirs.some((d) => f.includes(`/commands/${d}/`))) return false;
+			if (exemptFiles.some((name) => f.endsWith(`/commands/${name}`))) return false;
+			return true;
 		});
 
 		// Filter to leaf commands (not grouping index files)
@@ -182,7 +186,11 @@ describe("action coverage", () => {
 
 describe("architecture boundary: no direct fetch in commands", () => {
 	it("no command file uses globalThis.fetch or node-fetch directly", () => {
-		const commandFiles = collectSourceFiles(COMMANDS_DIR);
+		// Doctor is exempt (diagnostic command that directly probes daemon HTTP)
+		const exemptFiles = ["doctor.ts"];
+		const commandFiles = collectSourceFiles(COMMANDS_DIR).filter(
+			(f) => !exemptFiles.some((name) => f.endsWith(`/commands/${name}`)),
+		);
 		for (const file of commandFiles) {
 			const content = readFileSync(file, "utf8");
 			// Check for direct fetch usage (not the import from client)
