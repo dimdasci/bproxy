@@ -71,13 +71,15 @@ function createMockFetch(responseBody: unknown, status = 200) {
 }
 
 /** Collect all .ts files in a directory tree, excluding __tests__ and index.ts grouping files */
+const SKIP_DIRS = new Set(["__tests__", "test", "node_modules"]);
+
 function collectSourceFiles(dir: string, pattern?: RegExp): string[] {
 	const results: string[] = [];
 	const entries = readdirSync(dir, { withFileTypes: true });
 	for (const entry of entries) {
 		const fullPath = join(dir, entry.name);
 		if (entry.isDirectory()) {
-			if (entry.name === "__tests__" || entry.name === "test") continue;
+			if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
 			results.push(...collectSourceFiles(fullPath, pattern));
 		} else if (entry.isFile() && entry.name.endsWith(".ts")) {
 			if (pattern && !pattern.test(entry.name)) continue;
@@ -198,7 +200,7 @@ describe("architecture boundary: no direct fetch in commands", () => {
 				content.includes("globalThis.fetch") ||
 				content.includes("node-fetch") ||
 				// Match bare `fetch(` but not `sendAction` or `mockFetch`
-				(/(?<!mock|send|create\w*)fetch\s*\(/.test(content) &&
+				(/(?<!mock|send|create\w{0,20})fetch\s*\(/.test(content) &&
 					!content.includes('from "../client') &&
 					!content.includes('from "../../client'));
 			expect(
@@ -218,10 +220,10 @@ describe("architecture boundary: import restrictions", () => {
 			const content = readFileSync(file, "utf8");
 			// Check actual import statements, not comments
 			const hasServiceImport =
-				/^\s*import\b.*from\s+["']@bproxy\/service/m.test(content) ||
-				/^\s*import\b.*from\s+["'].*service\/src/m.test(content) ||
+				/^\s*import\b[^"']*from\s+["']@bproxy\/service/m.test(content) ||
+				/^\s*import\b[^"']*from\s+["'][^"']*service\/src/m.test(content) ||
 				/^\s*require\s*\(\s*["']@bproxy\/service/m.test(content) ||
-				/^\s*require\s*\(\s*["'].*service\/src/m.test(content);
+				/^\s*require\s*\(\s*["'][^"']*service\/src/m.test(content);
 			expect(
 				hasServiceImport,
 				`File ${file} imports from service package — CLI must only import from shared`,
@@ -235,10 +237,10 @@ describe("architecture boundary: import restrictions", () => {
 			const content = readFileSync(file, "utf8");
 			// Check actual import statements, not comments
 			const hasExtensionImport =
-				/^\s*import\b.*from\s+["']@bproxy\/extension/m.test(content) ||
-				/^\s*import\b.*from\s+["'].*extension\/src/m.test(content) ||
+				/^\s*import\b[^"']*from\s+["']@bproxy\/extension/m.test(content) ||
+				/^\s*import\b[^"']*from\s+["'][^"']*extension\/src/m.test(content) ||
 				/^\s*require\s*\(\s*["']@bproxy\/extension/m.test(content) ||
-				/^\s*require\s*\(\s*["'].*extension\/src/m.test(content);
+				/^\s*require\s*\(\s*["'][^"']*extension\/src/m.test(content);
 			expect(
 				hasExtensionImport,
 				`File ${file} imports from extension package — CLI must only import from shared`,

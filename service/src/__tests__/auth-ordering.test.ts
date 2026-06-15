@@ -20,7 +20,7 @@ const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
 		protocol_version: 1,
-		id: overrides.id ?? `auth-test-${Math.random().toString(36).slice(2, 8)}`,
+		id: overrides.id ?? `auth-test-${crypto.randomUUID().slice(0, 8)}`,
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
 		session: overrides.session ?? DEFAULT_SESSION,

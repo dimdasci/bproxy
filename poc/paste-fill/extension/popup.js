@@ -157,7 +157,7 @@ function pageTaskFillAndRead(value) {
 
 		found.quill.focus();
 		found.quill.setText(value, "api");
-		const current = String(found.quill.getText ? found.quill.getText() : "").replace(/\n+$/g, "");
+		const current = String(found.quill.getText ? found.quill.getText() : "").trimEnd();
 
 		return {
 			ok: true,
@@ -195,10 +195,7 @@ function pageTaskRead() {
 			".editor-content.ql-container, .ql-container, .editor-content",
 		);
 		if (direct && direct.__quill) {
-			const value = String(direct.__quill.getText ? direct.__quill.getText() : "").replace(
-				/\n+$/g,
-				"",
-			);
+			const value = String(direct.__quill.getText ? direct.__quill.getText() : "").trimEnd();
 			return {
 				ok: true,
 				href: location.href,
@@ -212,7 +209,7 @@ function pageTaskRead() {
 		for (let k = 0; k < all.length; k += 1) {
 			const el = all[k];
 			if (el.__quill) {
-				const value = String(el.__quill.getText ? el.__quill.getText() : "").replace(/\n+$/g, "");
+				const value = String(el.__quill.getText ? el.__quill.getText() : "").trimEnd();
 				return {
 					ok: true,
 					href: location.href,

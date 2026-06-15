@@ -6,7 +6,7 @@ let reconnectTimer = null;
 let attempt = 0;
 
 function base64url(input) {
-	return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	return btoa(input).replaceAll("+", "-").replaceAll("/", "_").split("=")[0];
 }
 
 function connect() {

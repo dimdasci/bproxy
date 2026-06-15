@@ -43,12 +43,14 @@ beforeAll(() => {
 // ─── Helpers ───────────────────────────────────────────────────────────
 
 function cleanEnv(): NodeJS.ProcessEnv {
-	const env = { ...process.env };
-	delete env["TEST"];
-	delete env["VITEST"];
-	delete env["NODE_ENV"];
-	env["BPROXY_PORT"] = "0";
-	return env;
+	return {
+		PATH: process.env["PATH"],
+		HOME: process.env["HOME"],
+		USER: process.env["USER"],
+		SHELL: process.env["SHELL"],
+		LANG: process.env["LANG"],
+		BPROXY_PORT: "0",
+	};
 }
 
 function runCli(

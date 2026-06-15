@@ -24,7 +24,7 @@ const T1 = "t1" as TabHandle;
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
 		protocol_version: 1,
-		id: overrides.id ?? `obs-${Math.random().toString(36).slice(2, 8)}`,
+		id: overrides.id ?? `obs-${crypto.randomUUID().slice(0, 8)}`,
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
 		session: overrides.session ?? currentSession,
