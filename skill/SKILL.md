@@ -9,7 +9,7 @@ description: >-
 compatibility: Node >=24, bproxy installed (npm install -g @dimdasci/bproxy), daemon running (bproxy service start), extension paired
 license: MIT
 metadata:
-  version: "0.7.1"
+  version: "0.7.2"
 ---
 
 # bproxy — Browser Proxy for Code Agents
