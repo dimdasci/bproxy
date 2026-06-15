@@ -114,14 +114,16 @@ All files are created with mode `0600`/`0700` — only your user account can rea
 
 ## Install the agent skill (optional)
 
-If you use a coding agent that supports local skills, install the bproxy skill so the agent knows how to use bproxy commands:
+If you use a coding agent that supports [Agent Skills](https://agentskills.io), install the bproxy skill:
 
 ```bash
-# pi
-pi skill install https://github.com/dimdasci/bproxy/tree/main/skill
-
-# Manual (any harness)
-cp -r skill/ ~/.agents/skills/bproxy
+npx skills add dimdasci/bproxy
 ```
 
-The skill provides command reference, fill-method selection guidance, and error recovery patterns — everything an agent needs to use bproxy without reading the full docs.
+For pi:
+
+```bash
+pi skill install https://github.com/dimdasci/bproxy/tree/main/skills/bproxy
+```
+
+The skill provides command reference, fill-method selection, consent handling, and error recovery — everything an agent needs to use bproxy without reading the full docs.

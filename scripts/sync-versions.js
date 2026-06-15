@@ -3,7 +3,7 @@
  * scripts/sync-versions.js — Propagate root package.json version everywhere.
  *
  * Single source of truth: root package.json "version" field.
- * Targets: workspace package.jsons, shared/src/version.ts, skill/SKILL.md frontmatter.
+ * Targets: workspace package.jsons, shared/src/version.ts, skills/bproxy/SKILL.md frontmatter.
  *
  * Usage: node scripts/sync-versions.js
  */
@@ -57,9 +57,9 @@ if (updatedVersionTs === versionTs) {
 	console.log(`  ✓ shared/src/version.ts → ${version}`);
 }
 
-// ─── 3. skill/SKILL.md frontmatter ─────────────────────────────────────
+// ─── 3. skills/bproxy/SKILL.md frontmatter ─────────────────────────────
 
-const skillPath = resolve(ROOT, "skill/SKILL.md");
+const skillPath = resolve(ROOT, "skills/bproxy/SKILL.md");
 try {
 	const skill = readFileSync(skillPath, "utf8");
 	const lines = skill.split("\n");
@@ -75,16 +75,16 @@ try {
 	if (updated) {
 		const result = lines.join("\n");
 		if (result === skill) {
-			console.log(`  · skill/SKILL.md (already ${version})`);
+			console.log(`  · skills/bproxy/SKILL.md (already ${version})`);
 		} else {
 			writeFileSync(skillPath, result);
-			console.log(`  ✓ skill/SKILL.md → ${version}`);
+			console.log(`  ✓ skills/bproxy/SKILL.md → ${version}`);
 		}
 	} else {
-		console.log(`  · skill/SKILL.md (no version line found, skipped)`);
+		console.log(`  · skills/bproxy/SKILL.md (no version line found, skipped)`);
 	}
 } catch {
-	console.log(`  · skill/SKILL.md (not found, skipped)`);
+	console.log(`  · skills/bproxy/SKILL.md (not found, skipped)`);
 }
 
 console.log(`\n✓ All versions synced to ${version}`);
