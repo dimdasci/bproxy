@@ -42,9 +42,9 @@ if (match && match[1] !== expected) {
 	errors.push(`shared/src/version.ts: "${match[1]}" (expected "${expected}")`);
 }
 
-// ─── 3. skill/SKILL.md frontmatter ─────────────────────────────────────
+// ─── 3. skills/bproxy/SKILL.md frontmatter ─────────────────────────────
 
-const skillPath = resolve(ROOT, "skill/SKILL.md");
+const skillPath = resolve(ROOT, "skills/bproxy/SKILL.md");
 try {
 	const skill = readFileSync(skillPath, "utf8");
 	const versionLine = skill.split("\n").find((l) => l.trimStart().startsWith("version:"));
@@ -54,7 +54,7 @@ try {
 		if (start !== -1 && end !== -1) {
 			const found = versionLine.slice(start + 1, end);
 			if (found !== expected) {
-				errors.push(`skill/SKILL.md: "${found}" (expected "${expected}")`);
+				errors.push(`skills/bproxy/SKILL.md: "${found}" (expected "${expected}")`);
 			}
 		}
 	}
