@@ -20,7 +20,7 @@ function xmlEscape(value: string): string {
 }
 
 function systemdEscape(value: string): string {
-	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+	return value.replaceAll("\\", String.raw`\\`).replaceAll('"', String.raw`\"`);
 }
 
 function systemdQuote(value: string): string {

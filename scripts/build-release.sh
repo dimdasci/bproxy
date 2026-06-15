@@ -26,7 +26,7 @@ mkdir -p "$DIST_DIR"
 
 # ─── Step 3: Copy CLI binary ────────────────────────────────────────────
 
-if [ ! -f "$REPO_ROOT/cli/dist/bproxy.mjs" ]; then
+if [[ ! -f "$REPO_ROOT/cli/dist/bproxy.mjs" ]]; then
   echo "ERROR: cli/dist/bproxy.mjs not found. Build failed?" >&2
   exit 1
 fi
@@ -34,7 +34,7 @@ cp "$REPO_ROOT/cli/dist/bproxy.mjs" "$DIST_DIR/bproxy.mjs"
 
 # ─── Step 4: Copy service binary ────────────────────────────────────────
 
-if [ ! -f "$REPO_ROOT/service/dist/index.mjs" ]; then
+if [[ ! -f "$REPO_ROOT/service/dist/index.mjs" ]]; then
   echo "ERROR: service/dist/index.mjs not found. Build failed?" >&2
   exit 1
 fi
@@ -44,7 +44,7 @@ cp "$REPO_ROOT/service/dist/index.mjs" "$DIST_DIR/bproxy-service.mjs"
 
 ROOT_VERSION=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$REPO_ROOT/package.json','utf8')).version)")
 
-if [ -z "$ROOT_VERSION" ] || [ "$ROOT_VERSION" = "undefined" ]; then
+if [[ -z "$ROOT_VERSION" ]] || [[ "$ROOT_VERSION" = "undefined" ]]; then
   echo "ERROR: Could not read version from root package.json" >&2
   exit 1
 fi
