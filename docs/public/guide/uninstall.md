@@ -21,7 +21,7 @@ bproxy service uninstall
 ## Step 2: Remove the npm package
 
 ```bash
-npm uninstall -g @anthropics/bproxy
+npm uninstall -g @dimdasci/bproxy
 ```
 
 This removes both the `bproxy` CLI and `bproxy-service` daemon binaries from your PATH.

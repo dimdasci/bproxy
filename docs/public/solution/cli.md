@@ -161,7 +161,7 @@ These do **not** use `sendAction`. They spawn the service binary as a child proc
 
 ### Binary Resolution
 
-Order: `BPROXY_SERVICE_BIN` env → workspace `service/dist/index.mjs` → `bproxy-service` on PATH.
+Order: `BPROXY_SERVICE_BIN` env → workspace `service/dist/index.mjs` → sibling `bproxy-service.mjs` next to the running CLI binary → `bproxy-service` on PATH.
 
 The CLI never imports service source code. Dependency-cruiser enforces `cli -> shared` only.
 
@@ -183,9 +183,9 @@ Spawns the service binary's `stop` command. Prints:
 
 Token-free, process-liveness based. Prints:
 ```json
-{"running":true,"pid":123,"port":9615}
+{"running":true,"pid":123,"port":9615,"version":"0.7.0","protocolVersion":1}
 ```
-or `{"running":false}`.
+or `{"running":false,"version":"0.7.0","protocolVersion":1}`.
 
 ### `bproxy service restart [--port N] [--home DIR]`
 

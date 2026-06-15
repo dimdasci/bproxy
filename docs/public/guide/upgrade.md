@@ -9,7 +9,7 @@ How to upgrade bproxy to a new version without losing state.
 ## Upgrade the CLI and daemon
 
 ```bash
-npm update -g @anthropics/bproxy
+npm update -g @dimdasci/bproxy
 ```
 
 Verify:
@@ -20,7 +20,7 @@ bproxy --version
 
 ## Upgrade the extension
 
-1. Download the new `bproxy-extension-v{version}.zip` from [GitHub Releases](https://github.com/anthropics/bproxy/releases/latest)
+1. Download the new `bproxy-extension-v{version}.zip` from [GitHub Releases](https://github.com/dimdasci/bproxy/releases/latest)
 2. Extract to the same directory you used for the original install (overwrite existing files)
 3. Open `chrome://extensions`
 4. Find the bproxy extension and click the reload icon (↻)
@@ -29,7 +29,7 @@ bproxy --version
 
 - **Tokens persist** — your daemon token (`~/.bproxy/token`) and extension token (`~/.bproxy/extension-token`) remain valid. No re-pairing is needed unless the protocol version changes.
 - **State directory** — `~/.bproxy/` is preserved as-is. Session artifacts in `tmp/` are ephemeral and may be cleaned by the daemon on restart.
-- **Auto-start registration** — if you ran `bproxy service install`, the launchd/systemd entry continues to work (it references the binary by PATH, which npm updates in place).
+- **Auto-start registration** — if you ran `bproxy service install`, the launchd/systemd entry continues to work after normal npm updates.
 
 ## Protocol version mismatch
 
@@ -52,7 +52,7 @@ If the daemon is registered as a system service:
 
 ```bash
 bproxy service stop
-npm update -g bproxy
+npm update -g @dimdasci/bproxy
 bproxy service start
 ```
 

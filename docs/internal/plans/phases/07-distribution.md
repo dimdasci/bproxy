@@ -34,10 +34,10 @@ Make the hardened system installable and updatable outside the monorepo. A user 
 
 | Artifact | Channel | Rationale |
 |----------|---------|-----------|
-| CLI + daemon | npm (single `bproxy` package, two `bin` entries) | Node ≥ 24 already required; standard install/upgrade/uninstall; `npx bproxy` works zero-install |
+| CLI + daemon | npm (single `@dimdasci/bproxy` package, two `bin` entries) | Node ≥ 24 already required; standard install/upgrade/uninstall; `npx @dimdasci/bproxy` works zero-install |
 | Extension | GitHub Release `.zip` (load unpacked) | Developer-mode audience; no CWS review latency; auto-update deferred |
 | User manual | Astro Starlight site (`docs/public/guide/`) | Already symlinked into views; zero new tooling |
-| Agent skill | `skill/SKILL.md` at repo root (Agent Skills standard) | Installable by pi, hermes, Claude Code, or manual copy |
+| Agent skill | `skill/SKILL.md` at repo root (Agent Skills standard) | Installable by pi, hermes, or manual copy |
 
 ### npm package layout
 
@@ -210,15 +210,13 @@ metadata:
 - Core workflow pattern: open → read → act → close
 - Command reference (one-liner per action with typical flags)
 - Session management: `-s <id>` threading, `--tab t1`
-- Error handling patterns: `HUMAN_REQUIRED`, `TARGET_NOT_FOUND`, `SESSION_NOT_FOUND`
+- Error handling patterns: `HUMAN_REQUIRED`, `ELEMENT_NOT_FOUND`, `SESSION_NOT_FOUND`
 - Install instructions for various harnesses:
   ```bash
   # pi
   pi skill install https://github.com/<user>/bproxy/tree/main/skill
   # Manual (any harness)
   cp -r skill/ ~/.agents/skills/bproxy
-  # Vercel skills.sh
-  npx @anthropic/skills install https://github.com/<user>/bproxy/tree/main/skill
   ```
 
 **`references/actions.md`:** Full action catalog with params/response shapes (condensed from architecture + CLI spec).
@@ -368,4 +366,4 @@ Phase 7 is done when all of the following hold **at production quality** (no par
 | Homebrew tap | Deferred — convenience layer, not blocking |
 | Node SEA binary | Rejected for now — experimental, 100MB+ output |
 | Auto-update | Rejected — npm/brew handle this; no custom updater |
-| `bproxy` unscoped npm name | Taken by existing package (chinese proxy tool, 108 versions). Using `@anthropics/bproxy` instead. |
+| `bproxy` unscoped npm name | Taken by existing package (chinese proxy tool, 108 versions). Using `@dimdasci/bproxy` instead. |

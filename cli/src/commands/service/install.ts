@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -10,7 +10,29 @@ import { resolveServiceBinary } from "../../service-binary.js";
 
 // ─── Platform service generation ───────────────────────────────────────
 
+function xmlEscape(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&apos;");
+}
+
+function systemdEscape(value: string): string {
+	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+function systemdQuote(value: string): string {
+	return `"${systemdEscape(value)}"`;
+}
+
 function generateLaunchdPlist(serviceBin: string, stateDir: string, logsDir: string): string {
+	const nodePath = xmlEscape(process.execPath);
+	const servicePath = xmlEscape(serviceBin);
+	const homePath = xmlEscape(stateDir);
+	const outLog = xmlEscape(`${logsDir}/launchd-out.log`);
+	const errLog = xmlEscape(`${logsDir}/launchd-err.log`);
 	return [
 		'<?xml version="1.0" encoding="UTF-8"?>',
 		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -20,23 +42,23 @@ function generateLaunchdPlist(serviceBin: string, stateDir: string, logsDir: str
 		"\t<string>com.bproxy.daemon</string>",
 		"\t<key>ProgramArguments</key>",
 		"\t<array>",
-		`\t\t<string>${process.execPath}</string>`,
-		`\t\t<string>${serviceBin}</string>`,
+		`\t\t<string>${nodePath}</string>`,
+		`\t\t<string>${servicePath}</string>`,
 		"\t\t<string>start</string>",
 		"\t</array>",
 		"\t<key>EnvironmentVariables</key>",
 		"\t<dict>",
 		"\t\t<key>BPROXY_HOME</key>",
-		`\t\t<string>${stateDir}</string>`,
+		`\t\t<string>${homePath}</string>`,
 		"\t</dict>",
 		"\t<key>RunAtLoad</key>",
 		"\t<true/>",
 		"\t<key>KeepAlive</key>",
 		"\t<false/>",
 		"\t<key>StandardOutPath</key>",
-		`\t<string>${logsDir}/launchd-out.log</string>`,
+		`\t<string>${outLog}</string>`,
 		"\t<key>StandardErrorPath</key>",
-		`\t<string>${logsDir}/launchd-err.log</string>`,
+		`\t<string>${errLog}</string>`,
 		"</dict>",
 		"</plist>",
 		"",
@@ -44,6 +66,9 @@ function generateLaunchdPlist(serviceBin: string, stateDir: string, logsDir: str
 }
 
 function generateSystemdUnit(serviceBin: string, stateDir: string): string {
+	const nodePath = systemdQuote(process.execPath);
+	const servicePath = systemdQuote(serviceBin);
+	const homeValue = systemdEscape(stateDir);
 	return [
 		"[Unit]",
 		"Description=bproxy daemon",
@@ -51,8 +76,8 @@ function generateSystemdUnit(serviceBin: string, stateDir: string): string {
 		"",
 		"[Service]",
 		"Type=simple",
-		`ExecStart=${process.execPath} ${serviceBin} start`,
-		`Environment=BPROXY_HOME=${stateDir}`,
+		`ExecStart=${nodePath} ${servicePath} start`,
+		`Environment="BPROXY_HOME=${homeValue}"`,
 		"Restart=no",
 		"",
 		"[Install]",
@@ -69,12 +94,12 @@ function launchdPlistPath(): string {
 
 function launchdLoad(plistPath: string): string | null {
 	try {
-		execSync(`launchctl load "${plistPath}"`, { stdio: "pipe" });
+		execFileSync("launchctl", ["load", plistPath], { stdio: "pipe" });
 		return null;
 	} catch {
 		try {
 			const uid = process.getuid?.() ?? 501;
-			execSync(`launchctl bootstrap gui/${uid} "${plistPath}"`, { stdio: "pipe" });
+			execFileSync("launchctl", ["bootstrap", `gui/${uid}`, plistPath], { stdio: "pipe" });
 			return null;
 		} catch (err) {
 			return err instanceof Error ? err.message : String(err);
@@ -84,11 +109,11 @@ function launchdLoad(plistPath: string): string | null {
 
 function launchdUnload(plistPath: string): void {
 	try {
-		execSync(`launchctl unload "${plistPath}"`, { stdio: "pipe" });
+		execFileSync("launchctl", ["unload", plistPath], { stdio: "pipe" });
 	} catch {
 		try {
 			const uid = process.getuid?.() ?? 501;
-			execSync(`launchctl bootout gui/${uid} "${plistPath}"`, { stdio: "pipe" });
+			execFileSync("launchctl", ["bootout", `gui/${uid}`, plistPath], { stdio: "pipe" });
 		} catch {
 			// Already unloaded
 		}
@@ -103,8 +128,8 @@ function systemdUnitPath(): string {
 
 function systemdEnable(): string | null {
 	try {
-		execSync("systemctl --user daemon-reload", { stdio: "pipe" });
-		execSync("systemctl --user enable bproxy", { stdio: "pipe" });
+		execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "pipe" });
+		execFileSync("systemctl", ["--user", "enable", "bproxy"], { stdio: "pipe" });
 		return null;
 	} catch (err) {
 		return err instanceof Error ? err.message : String(err);
@@ -113,12 +138,12 @@ function systemdEnable(): string | null {
 
 function systemdDisable(): void {
 	try {
-		execSync("systemctl --user disable bproxy", { stdio: "pipe" });
+		execFileSync("systemctl", ["--user", "disable", "bproxy"], { stdio: "pipe" });
 	} catch {
 		// May already be disabled
 	}
 	try {
-		execSync("systemctl --user daemon-reload", { stdio: "pipe" });
+		execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "pipe" });
 	} catch {
 		// Best effort
 	}

@@ -15,6 +15,7 @@ export type {
 	ActionParams,
 	BproxyRequest,
 	BproxyResponse,
+	BproxySuccessResponse,
 	ClientElementTarget,
 	ElementHandle,
 	ElementHandleRef,

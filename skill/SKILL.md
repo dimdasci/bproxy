@@ -6,7 +6,7 @@ description: >-
   fill forms, click elements, or scroll — all through a running bproxy daemon
   that proxies commands to a Chrome extension. Requires bproxy installed and
   daemon running.
-compatibility: Node >=24, bproxy installed (npm install -g @anthropics/bproxy), daemon running (bproxy service start), extension paired
+compatibility: Node >=24, bproxy installed (npm install -g @dimdasci/bproxy), daemon running (bproxy service start), extension paired
 license: MIT
 metadata:
   version: "0.7.0"
@@ -42,12 +42,12 @@ bproxy tab open --url "https://example.com"
 # Returns: { "data": { "session": "m4q7z2", "tab": "t1", ... } }
 
 # 2. Read the page
-bproxy text -s m4q7z2 --tab t1
-bproxy links -s m4q7z2 --tab t1
+bproxy text -s m4q7z2
+bproxy links -s m4q7z2
 
 # 3. Act on what you found
-bproxy click -s m4q7z2 --tab t1 --element ln3
-bproxy fill -s m4q7z2 --tab t1 --element el2 --value "hello" --method paste --world isolated
+bproxy click -s m4q7z2 --element ln3
+bproxy fill -s m4q7z2 --element el2 --value "hello" --method paste --world isolated
 
 # 4. Close when done
 bproxy session close -s m4q7z2
@@ -69,25 +69,25 @@ bproxy session close -s m4q7z2
 
 | Command | Description |
 |---------|-------------|
-| `bproxy text -s <id> --tab t1 [--selector <css>]` | Extract page text (default: `body`). |
-| `bproxy links -s <id> --tab t1 [--selector <css>] [--limit N]` | Structured visible links with handles. |
-| `bproxy elements -s <id> --tab t1 [--form]` | Interactive elements with handles + metadata. |
-| `bproxy outline -s <id> --tab t1` | Landmarks + heading hierarchy. |
-| `bproxy dom -s <id> --tab t1 [--selector <css>] [--depth N]` | Simplified DOM subtree. |
-| `bproxy inspect -s <id> --tab t1 --selector <css>` | Layout rects, scroll info, computed styles. |
-| `bproxy snapshot -s <id> --tab t1` | Accessible DOM tree (text-based). |
+| `bproxy text -s <id> [--selector <css>]` | Extract page text (default: `body`). |
+| `bproxy links -s <id> [--selector <css>] [--limit N]` | Structured visible links with handles. |
+| `bproxy elements -s <id> [--form]` | Interactive elements with handles + metadata. |
+| `bproxy outline -s <id>` | Landmarks + heading hierarchy. |
+| `bproxy dom -s <id> [--selector <css>] [--depth N]` | Simplified DOM subtree. |
+| `bproxy inspect -s <id> --selector <css>` | Layout rects, scroll info, computed styles. |
+| `bproxy snapshot -s <id>` | Accessible DOM tree (text-based). |
 
 ### Acting on elements
 
 | Command | Description |
 |---------|-------------|
-| `bproxy click -s <id> --tab t1 --element <handle>` | Click an element. |
-| `bproxy hover -s <id> --tab t1 --element <handle>` | Hover an element. |
-| `bproxy scroll -s <id> --tab t1 [--element <handle>] --direction <up\|down>` | Scroll viewport or element. |
-| `bproxy fill -s <id> --tab t1 --element <handle> --value <v> --method <m> --world <w>` | Fill a field. |
-| `bproxy fill-form -s <id> --tab t1 --json '<fields>'` | Bulk fill multiple fields. |
-| `bproxy select -s <id> --tab t1 --element <handle> --option-text <text>` | Select dropdown option. |
-| `bproxy screenshot -s <id> --tab t1 [--output-dir <dir>]` | Capture visible tab to file. |
+| `bproxy click -s <id> --element <handle>` | Click an element. |
+| `bproxy hover -s <id> --element <handle>` | Hover an element. |
+| `bproxy scroll -s <id> [--element <handle>] --direction <up\|down>` | Scroll viewport or element. |
+| `bproxy fill -s <id> --element <handle> --value <v> --method <m> --world <w>` | Fill a field. |
+| `bproxy fill-form -s <id> --json '<fields>'` | Bulk fill multiple fields. |
+| `bproxy select -s <id> --element <handle> --option-text <text>` | Select dropdown option. |
+| `bproxy screenshot -s <id> [--output-dir <dir>]` | Capture visible tab to file. |
 
 ### Targeting
 
@@ -102,7 +102,7 @@ Prefer `--element` with handles returned by read commands — they're short-live
 
 - Every browser command requires `-s <id>` (the 6-character session handle)
 - Exception: `tab open --url` auto-creates a session if `-s` is omitted
-- Use `--tab t1` (the logical tab handle) for multi-tab sessions
+- To switch tabs in a multi-tab session, run `bproxy session bind -s <id> --tab tN`; subsequent commands target the bound tab
 - Sessions are independent — one agent can run multiple sessions concurrently
 
 ## Fill method selection
@@ -136,7 +136,7 @@ Please resolve it in the browser, then I'll run: bproxy session resume -s <id>
 
 Wait for the operator to confirm, then resume.
 
-### `TARGET_NOT_FOUND` / `ELEMENT_NOT_FOUND`
+### `ELEMENT_NOT_FOUND`
 
 The selector or handle didn't match. The page may have changed. Re-read with `elements` or `links` to get fresh handles.
 

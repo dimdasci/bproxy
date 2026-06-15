@@ -9,7 +9,7 @@ Complete action catalog for bproxy. Each action is a single CLI command that map
 Extract page text content.
 
 ```bash
-bproxy text -s <id> --tab t1 [--selector <css>]
+bproxy text -s <id> [--selector <css>]
 ```
 
 **Params:** `selector` (default: `body`)
@@ -20,10 +20,10 @@ bproxy text -s <id> --tab t1 [--selector <css>]
 Extract structured visible links.
 
 ```bash
-bproxy links -s <id> --tab t1 [--selector <css>] [--visible-only] [--limit N]
+bproxy links -s <id> [--selector <css>] [--visible-only] [--limit N]
 ```
 
-**Params:** `selector?`, `visibleOnly?` (default: true), `limit?`
+**Params:** `selector?`, `visibleOnly?` (set by `--visible-only`), `limit?`
 **Response:** `{ links: LinkInfo[] }`
 
 Each link: `{ text, href, handle?, title?, rel?, targetAttr?, visible? }`
@@ -33,7 +33,7 @@ Each link: `{ text, href, handle?, title?, rel?, targetAttr?, visible? }`
 Extract visible images.
 
 ```bash
-bproxy images -s <id> --tab t1 [--selector <css>]
+bproxy images -s <id> [--selector <css>]
 ```
 
 **Params:** `selector?`
@@ -44,7 +44,7 @@ bproxy images -s <id> --tab t1 [--selector <css>]
 List interactive elements with metadata.
 
 ```bash
-bproxy elements -s <id> --tab t1 [--form]
+bproxy elements -s <id> [--form]
 ```
 
 **Params:** `form?` (filter to form fields only)
@@ -57,7 +57,7 @@ Each element: `{ tag, type?, label?, value?, placeholder?, required?, role?, han
 Page landmarks and heading hierarchy.
 
 ```bash
-bproxy outline -s <id> --tab t1
+bproxy outline -s <id>
 ```
 
 **Response:** `{ landmarks: Landmark[], headings: Heading[] }`
@@ -67,7 +67,7 @@ bproxy outline -s <id> --tab t1
 Simplified DOM subtree.
 
 ```bash
-bproxy dom -s <id> --tab t1 [--selector <css>] [--depth N]
+bproxy dom -s <id> [--selector <css>] [--depth N]
 ```
 
 **Params:** `selector?`, `depth?` (default: 3)
@@ -78,7 +78,7 @@ bproxy dom -s <id> --tab t1 [--selector <css>] [--depth N]
 Computed styles, layout, and scroll info.
 
 ```bash
-bproxy inspect -s <id> --tab t1 --selector <css> [--properties <list>] [--limit N]
+bproxy inspect -s <id> --selector <css> [--properties <list>] [--limit N]
 ```
 
 **Params:** `selector`, `properties?`, `limit?`
@@ -89,7 +89,7 @@ bproxy inspect -s <id> --tab t1 --selector <css> [--properties <list>] [--limit 
 Accessible DOM tree serialization.
 
 ```bash
-bproxy snapshot -s <id> --tab t1 [--selector <css>] [--max-depth N] [--interactive-only]
+bproxy snapshot -s <id> [--selector <css>] [--max-depth N] [--interactive-only]
 ```
 
 **Params:** `selector?`, `maxDepth?`, `interactiveOnly?`
@@ -100,7 +100,7 @@ bproxy snapshot -s <id> --tab t1 [--selector <css>] [--max-depth N] [--interacti
 Capture the visible tab area.
 
 ```bash
-bproxy screenshot -s <id> --tab t1 [--output-dir <dir>] [--activate] [--debugger]
+bproxy screenshot -s <id> [--output-dir <dir>] [--activate] [--debugger]
 ```
 
 **Response (with --output-dir or default tmpDir):** `{ format: "png", file: "/path/to/file.png", size: 12345 }`
@@ -123,30 +123,30 @@ bproxy navigate -s <id> --url <url>
 Click a resolved element target.
 
 ```bash
-bproxy click -s <id> --tab t1 --element <handle>
-bproxy click -s <id> --tab t1 --selector <css>
+bproxy click -s <id> --element <handle>
+bproxy click -s <id> --selector <css>
 ```
 
 **Params:** `target` (ElementTarget or handle)
-**Response:** `{ clicked: true, targetDisappeared?: boolean, stable?: boolean }`
+**Response:** `{ clicked: true, disappeared: boolean, stable: boolean }`
 
 ### `hover`
 
 Hover a resolved element target.
 
 ```bash
-bproxy hover -s <id> --tab t1 --element <handle>
+bproxy hover -s <id> --element <handle>
 ```
 
 **Params:** `target`
-**Response:** `{ hovered: true, stable?: boolean }`
+**Response:** `{ hovered: true, stable: boolean, elapsed: number }`
 
 ### `scroll`
 
 Scroll viewport or specific element.
 
 ```bash
-bproxy scroll -s <id> --tab t1 [--element <handle>] [--direction up|down] [--by N]
+bproxy scroll -s <id> [--element <handle>] [--direction up|down] [--by N]
 ```
 
 **Params:** `target?`, `direction?`, `by?`
@@ -157,44 +157,44 @@ bproxy scroll -s <id> --tab t1 [--element <handle>] [--direction up|down] [--by 
 Fill a single field.
 
 ```bash
-bproxy fill -s <id> --tab t1 --element <handle> --value <v> --method <direct|paste|runtime-api> --world <isolated|main>
+bproxy fill -s <id> --element <handle> --value <v> --method <direct|paste|runtime-api> --world <isolated|main>
 ```
 
 **Params:** `target`, `value`, `method`, `world`
-**Response:** `{ filled: true }`
+**Response:** `{ filled: boolean, verifiedValue: string }`
 
 ### `fill-form`
 
 Bulk fill multiple fields in one round-trip.
 
 ```bash
-bproxy fill-form -s <id> --tab t1 --json '{"fields":[...]}'
+bproxy fill-form -s <id> --json '{"fields":[...]}'
 ```
 
 **Params:** `fields: { target, value, method, world }[]`
-**Response:** `{ results: { filled: boolean, error? }[] }`
+**Response:** `{ results: { target, filled: boolean, verifiedValue: string }[] }`
 
 ### `select`
 
 Select a dropdown option.
 
 ```bash
-bproxy select -s <id> --tab t1 --element <handle> --option-text <text>
+bproxy select -s <id> --element <handle> --option-text <text>
 ```
 
-**Params:** `target`, `optionText`
-**Response:** `{ selected: true }`
+**Params:** `trigger`, `optionText`
+**Response:** `{ selected: boolean, optionText: string }`
 
 ### `wait`
 
 Wait for a condition before proceeding.
 
 ```bash
-bproxy wait -s <id> --tab t1 --strategy <selector|url|navigation> --target <value> [--timeout N]
+bproxy wait -s <id> --strategy <selector|url|navigation> --target <value> [--timeout N]
 ```
 
 **Params:** `strategy`, `target`, `timeout?`
-**Response:** `{ met: true, elapsed: number }`
+**Response:** `{ matched: boolean, elapsed: number }`
 
 ### `require-human`
 

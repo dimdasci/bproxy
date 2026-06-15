@@ -1,4 +1,10 @@
-import type { BproxyRequest, BproxyResponse, DaemonRequestTrace } from "@bproxy/shared";
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	type DaemonRequestTrace,
+	PROTOCOL_VERSION,
+	VERSION,
+} from "@bproxy/shared";
 import type { ClientsRegistry } from "./clients";
 import type { SessionRegistry } from "./sessions";
 
@@ -45,8 +51,12 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 				pid: process.pid,
 				port: deps.port,
 				uptimeSec: Math.floor((Date.now() - deps.startedAt) / 1000),
+				version: VERSION,
+				protocolVersion: PROTOCOL_VERSION,
 			},
-			wsClients: deps.clients.all().map((c) => ({ id: c.id, connectedAt: 0 })),
+			wsClients: deps.clients
+				.all()
+				.map((c) => ({ id: c.id, connectedAt: 0, protocolVersion: PROTOCOL_VERSION })),
 			sessions,
 			sessionTabs,
 			pausedSessions: sessions

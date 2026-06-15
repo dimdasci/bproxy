@@ -19,7 +19,7 @@ Every fill target falls into one of three buckets by where the page's authoritat
 Call `elements --form` to gather markers:
 
 ```bash
-bproxy elements -s <id> --tab t1 --form
+bproxy elements -s <id> --form
 ```
 
 Look for these fields in the response:
@@ -45,13 +45,13 @@ Look for these fields in the response:
 
 ```bash
 # Example: runtime-api for Quill editor
-bproxy fill -s <id> --tab t1 --element el3 --value "Content here" --method runtime-api --world main
+bproxy fill -s <id> --element el3 --value "Content here" --method runtime-api --world main
 
 # Example: paste for React input
-bproxy fill -s <id> --tab t1 --element el1 --value "user@example.com" --method paste --world isolated
+bproxy fill -s <id> --element el1 --value "user@example.com" --method paste --world isolated
 
 # Example: direct for bare contenteditable
-bproxy fill -s <id> --tab t1 --element el5 --value "Plain text" --method direct --world isolated
+bproxy fill -s <id> --element el5 --value "Plain text" --method direct --world isolated
 ```
 
 ## Method/World Matrix
@@ -76,7 +76,7 @@ bproxy fill -s <id> --tab t1 --element el5 --value "Plain text" --method direct 
 For elements inside open shadow roots, use `--route-json`:
 
 ```bash
-bproxy fill -s <id> --tab t1 --route-json '{"hosts":[{"selector":"#shadow-host"}],"target":"input.inner"}' \
+bproxy fill -s <id> --route-json '{"hosts":[{"selector":"#shadow-host"}],"target":"input.inner"}' \
   --value "text" --method paste --world isolated
 ```
 
@@ -87,7 +87,7 @@ Closed shadow roots are out of scope — use `require-human` if the target is in
 ### `runtime-api` fails with script error
 
 - Editor may not be mounted yet (modal animation, lazy load)
-- Wait briefly: `bproxy wait -s <id> --tab t1 --strategy selector --target ".ql-editor"`
+- Wait briefly: `bproxy wait -s <id> --strategy selector --target ".ql-editor"`
 - Retry the fill
 
 ### `paste` fails (value not accepted)
@@ -110,7 +110,7 @@ Closed shadow roots are out of scope — use `require-human` if the target is in
 After filling, verify the value was accepted:
 
 ```bash
-bproxy elements -s <id> --tab t1 --form
+bproxy elements -s <id> --form
 # Check that the element's "value" field matches what you wrote
 ```
 

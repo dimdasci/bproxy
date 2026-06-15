@@ -93,25 +93,25 @@ Runtime failures during action execution in the extension.
 
 ```bash
 # Handle is stale after navigation
-bproxy click -s <id> --tab t1 --element el3
+bproxy click -s <id> --element el3
 # -> ELEMENT_HANDLE_STALE
 
 # Fix: re-read to get fresh handles
-bproxy elements -s <id> --tab t1
+bproxy elements -s <id>
 # -> new handles: el1, el2, el3...
-bproxy click -s <id> --tab t1 --element el1
+bproxy click -s <id> --element el1
 ```
 
 ### Pattern: Wait then retry on timeout
 
 ```bash
 # Timeout on slow page
-bproxy text -s <id> --tab t1
+bproxy text -s <id>
 # -> TIMEOUT
 
 # Fix: wait for page to settle, then retry
-bproxy wait -s <id> --tab t1 --strategy selector --target "main"
-bproxy text -s <id> --tab t1
+bproxy wait -s <id> --strategy selector --target "main"
+bproxy text -s <id>
 ```
 
 ### Pattern: Human intervention flow
@@ -126,18 +126,18 @@ bproxy navigate -s <id> --url "https://protected-site.com"
 
 bproxy session resume -s <id>
 # Session unpaused, continue automation
-bproxy text -s <id> --tab t1
+bproxy text -s <id>
 ```
 
 ### Pattern: Session recovery
 
 ```bash
 # Session lost (daemon restarted)
-bproxy text -s abc123 --tab t1
+bproxy text -s m4q7z2
 # -> SESSION_NOT_FOUND
 
 # Fix: create new session
 bproxy tab open --url "https://example.com"
-# -> { session: "xyz789", tab: "t1", ... }
+# -> { session: "n5k7qa", tab: "t1", ... }
 # Continue with new session id
 ```

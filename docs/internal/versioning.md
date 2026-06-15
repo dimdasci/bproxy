@@ -4,7 +4,7 @@ title: Versioning Policy
 
 ## Package version
 
-bproxy uses [Semantic Versioning 2.0.0](https://semver.org/) for the published `@anthropics/bproxy` npm package.
+bproxy uses [Semantic Versioning 2.0.0](https://semver.org/) for the published `@dimdasci/bproxy` npm package.
 
 | Bump | Trigger |
 |------|---------|

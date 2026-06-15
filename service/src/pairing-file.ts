@@ -24,6 +24,8 @@ export interface LifecycleStatusResult {
 	running: boolean;
 	pid?: number;
 	port?: number;
+	version: string;
+	protocolVersion: number;
 }
 
 export function writePairingFile(config: ServiceConfig, meta: PairingMetadata): void {

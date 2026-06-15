@@ -134,7 +134,7 @@ Per-phase detail files live under [`docs/internal/plans/phases/`](./phases/) as 
 
 **Purpose:** make the hardened system installable and updatable outside the monorepo.
 
-**Output:** `@anthropics/bproxy` npm package (scoped, since `bproxy` is taken), GitHub Release workflow with extension zip, user guide (install/usage/upgrade/uninstall), agent skill at `skill/`, `bproxy doctor` command, `bproxy service install|uninstall` for auto-start, `bproxy --version` with protocol info.
+**Output:** `@dimdasci/bproxy` npm package (scoped, since `bproxy` is taken), GitHub Release workflow with extension zip, user guide (install/usage/upgrade/uninstall), agent skill at `skill/`, `bproxy doctor` command, `bproxy service install|uninstall` for auto-start, `bproxy --version` with protocol info.
 
 **Done when:** a user can install bproxy from published/release artifacts, load or install the extension, start the daemon, pair the extension, run a smoke command, and upgrade without breaking existing `BPROXY_HOME` token/state semantics.
 

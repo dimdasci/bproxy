@@ -68,9 +68,9 @@ jobs:
             ## Install
 
             ```bash
-            npm install -g @anthropics/bproxy
+            npm install -g @dimdasci/bproxy
             ```
 
             **Extension:** Download the attached zip, extract, then load unpacked in `chrome://extensions` (Developer mode).
 
-            **npm:** https://www.npmjs.com/package/bproxy
+            **npm:** https://www.npmjs.com/package/@dimdasci/bproxy

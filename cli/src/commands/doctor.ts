@@ -1,10 +1,13 @@
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { resolve } from "node:path";
 import { defineCommand } from "citty";
 import { executeExitPlan, exitSuccess } from "../exit.js";
 import { globalArgs } from "../globals.js";
 import { resolveStateDir, stateFile } from "../paths.js";
 import { resolveServiceBinary } from "../service-binary.js";
+import type { BproxyResponse, BproxySuccessResponse } from "../types.js";
 import { PROTOCOL_VERSION } from "../types.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -21,6 +24,7 @@ interface DoctorReport {
 	protocol: CheckResult;
 	extension: CheckResult;
 	state: CheckResult;
+	autostart: CheckResult;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────
@@ -63,7 +67,7 @@ function isProcessAlive(pid: number): boolean {
 async function probeDaemonHttp(
 	port: number,
 	stateDir: string,
-): Promise<Record<string, unknown> | null> {
+): Promise<BproxySuccessResponse<"debug.status"> | null> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), 3000);
 	const tokenPath = stateFile(stateDir, "token");
@@ -88,8 +92,9 @@ async function probeDaemonHttp(
 			signal: controller.signal,
 		});
 		clearTimeout(timer);
-		if (resp.ok) return (await resp.json()) as Record<string, unknown>;
-		return null;
+		if (!resp.ok) return null;
+		const body = (await resp.json()) as BproxyResponse<"debug.status">;
+		return body.ok ? body : null;
 	} catch {
 		clearTimeout(timer);
 		return null;
@@ -118,22 +123,76 @@ async function checkDaemon(stateDir: string): Promise<CheckResult> {
 	}
 
 	const data = await probeDaemonHttp(port, stateDir);
-	if (data) return { ok: true, pid, port, version: data["version"] ?? null };
-	return { ok: true, pid, port, reachable: false };
+	if (!data) {
+		return {
+			ok: false,
+			running: true,
+			pid,
+			port,
+			reachable: false,
+			reason: "Process is alive but daemon HTTP status check failed",
+		};
+	}
+
+	const daemon = data.data.daemon;
+	const firstClient = data.data.wsClients[0];
+	return {
+		ok: true,
+		running: true,
+		pid,
+		port,
+		version: daemon.version,
+		protocolVersion: daemon.protocolVersion,
+		extensionClients: data.data.wsClients.length,
+		extensionProtocolVersion: firstClient?.protocolVersion ?? null,
+	};
 }
 
 function checkProtocol(daemonResult: CheckResult): CheckResult {
-	if (!daemonResult.ok) {
+	const daemonProtocol = daemonResult["protocolVersion"];
+	if (!daemonResult.ok || typeof daemonProtocol !== "number") {
 		return { ok: false, cli: CLI_PROTOCOL_VERSION, daemon: null, reason: "Daemon not running" };
 	}
-	return { ok: true, cli: CLI_PROTOCOL_VERSION, daemon: CLI_PROTOCOL_VERSION };
+	return {
+		ok: daemonProtocol === CLI_PROTOCOL_VERSION,
+		cli: CLI_PROTOCOL_VERSION,
+		daemon: daemonProtocol,
+		...(daemonProtocol === CLI_PROTOCOL_VERSION
+			? {}
+			: { reason: "CLI and daemon protocol versions differ; upgrade both to the same release" }),
+	};
 }
 
 function checkExtension(daemonResult: CheckResult): CheckResult {
 	if (!daemonResult.ok) {
 		return { ok: false, connected: false, reason: "Daemon not running — cannot check extension" };
 	}
-	return { ok: true, connected: true };
+	const connected = Number(daemonResult["extensionClients"] ?? 0) > 0;
+	return {
+		ok: connected,
+		connected,
+		protocolVersion: daemonResult["extensionProtocolVersion"] ?? null,
+		...(connected
+			? {}
+			: { reason: "No paired extension WebSocket is connected; load/pair the Chrome extension" }),
+	};
+}
+
+function checkAutostart(): CheckResult {
+	if (process.platform === "darwin") {
+		const plist = resolve(homedir(), "Library/LaunchAgents/com.bproxy.daemon.plist");
+		return { ok: true, platform: "darwin", installed: existsSync(plist), plist };
+	}
+	if (process.platform === "linux") {
+		const unit = resolve(homedir(), ".config/systemd/user/bproxy.service");
+		return { ok: true, platform: "linux", installed: existsSync(unit), unit };
+	}
+	return {
+		ok: false,
+		platform: process.platform,
+		installed: false,
+		reason: "Auto-start install is supported only on macOS and Linux",
+	};
 }
 
 function checkState(stateDir: string): CheckResult {
@@ -163,7 +222,15 @@ function checkState(stateDir: string): CheckResult {
 		};
 	}
 
-	return { ok: true, home: stateDir, token: tokenExists, extensionToken: extensionTokenExists };
+	return {
+		ok: tokenExists && extensionTokenExists,
+		home: stateDir,
+		token: tokenExists,
+		extensionToken: extensionTokenExists,
+		...(tokenExists && extensionTokenExists
+			? {}
+			: { reason: "Expected token and extension-token files; start and pair the daemon" }),
+	};
 }
 
 // ─── Command ───────────────────────────────────────────────────────────
@@ -186,6 +253,7 @@ export default defineCommand({
 		const protocolResult = checkProtocol(daemonResult);
 		const extensionResult = checkExtension(daemonResult);
 		const stateResult = checkState(stateDir);
+		const autostartResult = checkAutostart();
 
 		const report: DoctorReport = {
 			node: nodeResult,
@@ -194,6 +262,7 @@ export default defineCommand({
 			protocol: protocolResult,
 			extension: extensionResult,
 			state: stateResult,
+			autostart: autostartResult,
 		};
 
 		const allOk = Object.values(report).every((r) => r.ok);

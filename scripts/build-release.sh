@@ -56,9 +56,9 @@ tmpl.version = '$ROOT_VERSION';
 fs.writeFileSync('$DIST_DIR/package.json', JSON.stringify(tmpl, null, 2) + '\n');
 "
 
-# ─── Step 6: Copy README ────────────────────────────────────────────────
+# ─── Step 6: Copy user-facing README ────────────────────────────────────
 
-cp "$REPO_ROOT/README.md" "$DIST_DIR/README.md"
+cp "$REPO_ROOT/scripts/release-README.md" "$DIST_DIR/README.md"
 
 # ─── Done ────────────────────────────────────────────────────────────────
 
@@ -70,5 +70,5 @@ ls -la "$DIST_DIR"
 echo ""
 echo "  Next steps:"
 echo "    cd dist && npm pack           # create tarball"
-echo "    npm install -g ./bproxy-*.tgz # test global install"
+echo "    npm install -g ./*.tgz        # test global install"
 echo "    npm publish                   # publish to registry"

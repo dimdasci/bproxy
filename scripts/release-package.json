@@ -1,5 +1,5 @@
 {
-	"name": "@anthropics/bproxy",
+	"name": "@dimdasci/bproxy",
 	"version": "VERSION_PLACEHOLDER",
 	"description": "Browser proxy for code agents — control your real Chrome from CLI.",
 	"license": "MIT",
@@ -8,12 +8,12 @@
 		"node": ">=24"
 	},
 	"bin": {
-		"bproxy": "./bproxy.mjs",
-		"bproxy-service": "./bproxy-service.mjs"
+		"bproxy": "bproxy.mjs",
+		"bproxy-service": "bproxy-service.mjs"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/anthropics/bproxy"
+		"url": "git+https://github.com/dimdasci/bproxy.git"
 	},
 	"keywords": ["browser", "proxy", "chrome", "extension", "agent", "automation", "cli"],
 	"files": ["bproxy.mjs", "bproxy-service.mjs", "README.md"]

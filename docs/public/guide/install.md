@@ -15,7 +15,7 @@ Complete installation guide for bproxy — CLI, daemon, and Chrome extension.
 ## Install the CLI and daemon
 
 ```bash
-npm install -g @anthropics/bproxy
+npm install -g @dimdasci/bproxy
 ```
 
 This puts two binaries on your PATH:
@@ -32,7 +32,7 @@ bproxy --version
 
 ## Install the Chrome extension
 
-1. Download `bproxy-extension-v{version}.zip` from the [latest GitHub Release](https://github.com/anthropics/bproxy/releases/latest)
+1. Download `bproxy-extension-v{version}.zip` from the [latest GitHub Release](https://github.com/dimdasci/bproxy/releases/latest)
 2. Extract the zip to a permanent location (e.g., `~/bproxy-extension/`)
 3. Open Chrome and navigate to `chrome://extensions`
 4. Enable **Developer mode** (toggle in the top-right corner)
@@ -72,7 +72,7 @@ bproxy service status
 Expected output when everything is connected:
 
 ```json
-{"running":true,"pid":12345,"port":9615}
+{"running":true,"pid":12345,"port":9615,"version":"0.7.0","protocolVersion":1}
 ```
 
 For a comprehensive check of all components:
@@ -114,11 +114,11 @@ All files are created with mode `0600`/`0700` — only your user account can rea
 
 ## Install the agent skill (optional)
 
-If you use a coding agent (pi, Claude Code, etc.), install the bproxy skill so the agent knows how to use bproxy commands:
+If you use a coding agent that supports local skills, install the bproxy skill so the agent knows how to use bproxy commands:
 
 ```bash
 # pi
-pi skill install https://github.com/anthropics/bproxy/tree/main/skill
+pi skill install https://github.com/dimdasci/bproxy/tree/main/skill
 
 # Manual (any harness)
 cp -r skill/ ~/.agents/skills/bproxy
