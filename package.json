@@ -2,7 +2,7 @@
 	"name": "bproxy",
 	"private": true,
 	"type": "module",
-	"version": "0.7.4",
+	"version": "0.7.5",
 	"description": "Browser proxy for code agents.",
 	"license": "MIT",
 	"packageManager": "pnpm@9.15.0",
