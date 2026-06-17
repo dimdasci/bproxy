@@ -540,3 +540,32 @@ The `tmpDir` field is part of the session bootstrap contract:
 **Rationale:** bproxy is a security-sensitive tool that controls a real user's browser session. Temporary files may contain tokens, pairing codes, or session state. Confining all ephemeral I/O to the application's own directory — which the user owns, can inspect, and can wipe — provides defense-in-depth without relying on platform temp semantics, process exit handlers, or external cleanup daemons. The approach also satisfies static analysis (Sonar S5443) by construction rather than by exception.
 
 ---
+
+## ADR-029: Public docs hosting — GitHub Pages with project-site subpath URL
+**Date:** 2026-06-17
+**Status:** Accepted
+
+**Decision:** The public documentation tier (the Astro Starlight artifact built by `pnpm docs:build` from `docs/public/` plus `views/`) is published to [GitHub Pages](https://pages.github.com) from `main` as a project site at `https://dimdasci.github.io/bproxy/`. No custom domain. The Pages deploy is wired into the existing `Docs` workflow ([`.github/workflows/docs.yml`](../../.github/workflows/docs.yml)): PR runs remain build-only; pushes to `main` upload the built site as a Pages artifact and deploy it via [`actions/deploy-pages`](https://github.com/actions/deploy-pages).
+
+**Rationale:**
+- The repository is already on GitHub and the maintainer is admin — zero new accounts, no new vendor, no recurring bill.
+- The output is fully static (`views/dist/`), so no host-specific platform features are in play; the artifact is portable across Pages, Cloudflare Pages, Netlify, Vercel, or plain object storage.
+- Astro Starlight has no deploy-time coupling to the host once `site` and `base` are set in `views/astro.config.mjs` ([ADR-019](#adr-019-architecture-views-toolchain--astro-starlight--mermaid--advisory-sync-helpers)); switching to a different host or to a custom domain later is a workflow change, not a docs change.
+- The project is small, single-maintainer, OSS — Cloudflare Pages' unmetered-bandwidth advantage is currently theoretical; deferring it removes a vendor relationship without closing the option.
+
+**Alternatives considered and rejected (for now):**
+- *Cloudflare Pages.* Better CDN, unmetered bandwidth, native PR previews. Rejected as premature given current traffic and the cost of a second vendor account.
+- *Netlify / Vercel.* Comparable DX to Cloudflare. Vercel's free tier is non-commercial only, awkward for an OSS project that may accept sponsorship; Netlify's bandwidth meter has tightened in 2025. No clear advantage over Pages today.
+- *Custom domain (e.g. `bproxy.dev`, ~$13/yr at Porkbun).* Available and the cleanest TLD fit, but commits to a recurring cost and a public name before the project warrants it. Deferred, not rejected — see below.
+- *User-site repo (`dimdasci.github.io`).* Would avoid the subpath, but conflates project docs with the maintainer's personal namespace. Rejected.
+- *No hosting; rely on rendered Markdown in the repo.* Rejected because non-trivial cross-page navigation, full-text search (Pagefind), Mermaid rendering, and the Diátaxis layering ([ADR-020](#adr-020-architecture-views-layering--c4-spine-with-diátaxis-ia)) only function in the built site.
+
+**Consequences:**
+- **Subpath URL is part of the contract.** All production URLs live under `/bproxy/`. Any code that emits absolute internal links (Markdown remark plugins, Astro components, sitemap, future redirects) must respect Astro's `base`. Today this affects `remarkRewriteMdLinks` in `views/astro.config.mjs`; new link generators must be audited the same way. The `assert-no-md-links.sh` check protects against `.md` link leakage but does not validate base-path correctness — verify with a `grep` over `views/dist` after non-trivial routing changes.
+- **Deploy is gated on docs build.** The `Docs` workflow now publishes on every push to `main`. A failing docs build blocks publication but does not block CI, release, or other workflows; they remain independent.
+- **HTTPS is enforced** by Pages; no plaintext fallback.
+- **Rollback** is `gh api -X DELETE repos/dimdasci/bproxy/pages` plus a revert of the publishing change; the site goes 404 within ~1 minute and the repository is otherwise unaffected.
+
+**Deferred:**
+- *Custom domain.* Revisit when the project has a public name or launch event. Migration is a DNS record plus a Pages setting (or `CNAME` file); no code change beyond updating `site` in `views/astro.config.mjs`.
+- *PR preview deployments.* GitHub Pages does not natively support per-PR previews on the same repository without significant workflow gymnastics. If previews become valuable, that becomes the trigger to migrate hosting to Cloudflare Pages or Netlify.
