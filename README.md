@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/cable.svg" width="48" height="48" alt="bproxy logo">
+  <img src="assets/bproxy-hero.png" alt="bproxy hero illustration: three robot agents on the left connect through a terminal and a shield to a stack of browser tabs on the right, all framed inside a computer monitor. Caption reads 'bproxy: paired browsing for humans and agents.'" width="900">
 </p>
 
 # bproxy
