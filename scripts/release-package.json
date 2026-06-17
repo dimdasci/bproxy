@@ -3,6 +3,10 @@
 	"version": "VERSION_PLACEHOLDER",
 	"description": "Browser proxy for code agents — control your real Chrome from CLI.",
 	"license": "MIT",
+	"homepage": "https://dimdasci.github.io/bproxy/",
+	"bugs": {
+		"url": "https://github.com/dimdasci/bproxy/issues"
+	},
 	"type": "module",
 	"engines": {
 		"node": ">=24"

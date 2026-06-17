@@ -36,4 +36,4 @@ bproxy session close -s <session-id>
 bproxy service stop
 ```
 
-See the full guide at https://github.com/dimdasci/bproxy/tree/main/docs/public/guide.
+See the full documentation at https://dimdasci.github.io/bproxy/ — start with [Install](https://dimdasci.github.io/bproxy/guide/install/) and [Usage](https://dimdasci.github.io/bproxy/guide/usage/).
