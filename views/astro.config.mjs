@@ -4,6 +4,12 @@ import { defineConfig } from "astro/config";
 import { slug as githubSlug } from "github-slugger";
 import rehypeExternalLinks from "rehype-external-links";
 
+// Public docs deploy under https://dimdasci.github.io/bproxy/. The trailing
+// slash is stripped here so concatenation with absolute routes ("/foo/")
+// produces "/bproxy/foo/" without doubling slashes.
+const SITE = "https://dimdasci.github.io";
+const BASE = "/bproxy";
+
 /**
  * Rewrites relative .md links to absolute route URLs.
  *
@@ -33,7 +39,7 @@ function isExternalOrSpecialUrl(url) {
 	);
 }
 
-function rewriteMdUrl(url, fileDir, contentRoot) {
+function rewriteMdUrl(url, fileDir, contentRoot, basePath) {
 	const hashIdx = url.indexOf("#");
 	const rawPath = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
 	const fragment = hashIdx >= 0 ? url.slice(hashIdx) : "";
@@ -51,10 +57,12 @@ function rewriteMdUrl(url, fileDir, contentRoot) {
 	if (routePath === "index" || routePath.endsWith("/index")) {
 		routePath = routePath.replace(/\/?index$/, "");
 	}
-	return "/" + routePath + "/" + fragment;
+	// basePath is "" or "/bproxy". Astro does not auto-prepend `base` to
+	// markdown-authored hrefs, so we prepend it here at build time.
+	return basePath + "/" + routePath + "/" + fragment;
 }
 
-function remarkRewriteMdLinks() {
+function remarkRewriteMdLinks(basePath) {
 	// Content root: views/src/content/docs/ (the symlink target of ../docs)
 	const contentRoot = resolve(dirname(new URL(import.meta.url).pathname), "src/content/docs");
 
@@ -66,7 +74,7 @@ function remarkRewriteMdLinks() {
 		function walk(node) {
 			if (node.type === "link" && typeof node.url === "string") {
 				if (!isExternalOrSpecialUrl(node.url)) {
-					node.url = rewriteMdUrl(node.url, fileDir, contentRoot);
+					node.url = rewriteMdUrl(node.url, fileDir, contentRoot, basePath);
 				}
 			}
 			if (node.children) {
@@ -98,8 +106,13 @@ function remarkMermaid() {
 }
 
 export default defineConfig({
+	// Public docs are deployed to GitHub Pages as a project site at
+	// https://dimdasci.github.io/bproxy/. `site` + `base` ensure absolute
+	// links and asset paths resolve under the `/bproxy/` subpath.
+	site: SITE,
+	base: BASE,
 	markdown: {
-		remarkPlugins: [remarkRewriteMdLinks, remarkMermaid],
+		remarkPlugins: [[remarkRewriteMdLinks, BASE], remarkMermaid],
 		rehypePlugins: [[rehypeExternalLinks, { target: "_blank", rel: ["noopener", "noreferrer"] }]],
 		syntaxHighlight: { excludeLangs: ["mermaid"] },
 	},
