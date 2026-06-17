@@ -16,8 +16,6 @@ The motivation, design principles, scenarios, and architecture live in the docum
 Code Agent ──CLI──▶ Proxy Daemon ◀──WebSocket──▶ Browser Extension ◀──▶ Page
 ```
 
-<!-- TODO(illustration): a clearer figure replacing the prose-only flow above is being designed; it will be inserted here. -->
-
 ## For users
 
 Install the CLI and daemon from npm:
