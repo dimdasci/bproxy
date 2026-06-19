@@ -28,7 +28,7 @@ elements --form → inspect target:
 Use `--route-json` for elements inside open shadow roots:
 
 ```bash
-bproxy fill -s <id> --route-json '{"hosts":[{"selector":"#shadow-host"}],"target":"input.inner"}' \
+bproxy fill -n <nick> -s <id> --route-json '{"hosts":[{"selector":"#shadow-host"}],"target":"input.inner"}' \
   --value "text" --method paste --world isolated
 ```
 

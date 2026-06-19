@@ -16,7 +16,7 @@
  * - Stop through CLI, verify status becomes running:false
  */
 import { execSync, spawn } from "node:child_process";
-import { existsSync, rmSync, statSync } from "node:fs";
+import { existsSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
@@ -120,6 +120,32 @@ describe("CLI integration smoke", () => {
 
 	beforeEach(() => {
 		tempHome = createTestStateDir("bproxy-smoke-");
+		// Relax safety guards so sequential CLI calls don't hit minInterval rejection
+		writeFileSync(
+			join(tempHome, "config.json"),
+			JSON.stringify({
+				pacing: {
+					human: {
+						navigate: { min: 1, max: 2 },
+						scroll: { min: 1, max: 2 },
+						interaction: { min: 1, max: 2 },
+						fill: { min: 1, max: 2 },
+					},
+					fast: {
+						navigate: { min: 1, max: 2 },
+						scroll: { min: 1, max: 2 },
+						interaction: { min: 1, max: 2 },
+						fill: { min: 1, max: 2 },
+					},
+				},
+				safety: {
+					minInterval: { ms: 1 },
+					rateCap: { requestsPerMinute: 600 },
+					errorDelay: { minMs: 1, maxMs: 1 },
+					metronome: { tolerance: 0.1, consecutiveEqual: 100, maxIntervalMs: 60000 },
+				},
+			}),
+		);
 	});
 
 	afterEach(async () => {
