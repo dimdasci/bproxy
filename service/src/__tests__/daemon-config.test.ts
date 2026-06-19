@@ -80,6 +80,6 @@ describe("daemon config", () => {
 		const path = join(home, "config.json");
 		writeFileSync(path, "{not json");
 
-		expect(() => loadDaemonConfig(home)).toThrow(new RegExp(path.replaceAll(".", "\\.")));
+		expect(() => loadDaemonConfig(home)).toThrow(new RegExp(path.replaceAll(".", String.raw`\.`)));
 	});
 });

@@ -9,22 +9,10 @@ interface HarnessOptions {
 
 function buildSafetyConfig(config?: Partial<SafetyConfig>): SafetyConfig {
 	return {
-		minInterval: {
-			...DEFAULT_DAEMON_CONFIG.safety.minInterval,
-			...(config?.minInterval ?? {}),
-		},
-		rateCap: {
-			...DEFAULT_DAEMON_CONFIG.safety.rateCap,
-			...(config?.rateCap ?? {}),
-		},
-		errorDelay: {
-			...DEFAULT_DAEMON_CONFIG.safety.errorDelay,
-			...(config?.errorDelay ?? {}),
-		},
-		metronome: {
-			...DEFAULT_DAEMON_CONFIG.safety.metronome,
-			...(config?.metronome ?? {}),
-		},
+		minInterval: { ...DEFAULT_DAEMON_CONFIG.safety.minInterval, ...config?.minInterval },
+		rateCap: { ...DEFAULT_DAEMON_CONFIG.safety.rateCap, ...config?.rateCap },
+		errorDelay: { ...DEFAULT_DAEMON_CONFIG.safety.errorDelay, ...config?.errorDelay },
+		metronome: { ...DEFAULT_DAEMON_CONFIG.safety.metronome, ...config?.metronome },
 	};
 }
 

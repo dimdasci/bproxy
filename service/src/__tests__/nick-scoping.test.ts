@@ -70,8 +70,9 @@ describe("nick scoping", () => {
 		)) as BproxyResponse<"session.list">;
 		expect(listed.ok).toBe(true);
 		if (!listed.ok) return;
-		expect(listed.data.sessions.map((session) => session.id).sort()).toEqual(
-			[currentSession, halbotSession2].sort(),
+		const cmp = (a: string, b: string) => a.localeCompare(b);
+		expect(listed.data.sessions.map((session) => session.id).sort(cmp)).toEqual(
+			[currentSession, halbotSession2].sort(cmp),
 		);
 
 		const status = (await postCommand(
@@ -79,11 +80,11 @@ describe("nick scoping", () => {
 		)) as BproxyResponse<"debug.status">;
 		expect(status.ok).toBe(true);
 		if (!status.ok) return;
-		expect(status.data.sessions.map((session) => session.id).sort()).toEqual(
-			[currentSession, halbotSession2].sort(),
+		expect(status.data.sessions.map((session) => session.id).sort(cmp)).toEqual(
+			[currentSession, halbotSession2].sort(cmp),
 		);
-		expect(status.data.sessionTabs.map((entry) => entry.session).sort()).toEqual(
-			[currentSession, halbotSession2].sort(),
+		expect(status.data.sessionTabs.map((entry) => entry.session).sort(cmp)).toEqual(
+			[currentSession, halbotSession2].sort(cmp),
 		);
 		expect(status.data.pausedSessions).toEqual([
 			{ session: currentSession, reason: "captcha-own" },
