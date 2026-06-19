@@ -337,21 +337,21 @@ bproxy text -s m4q7z2
 
 ### 3. Daemon — nick scoping (`service/`)
 
-- [ ] Generate `instanceSalt` (32 random bytes) at daemon startup, hold in memory
-- [ ] Add `computeOwnerHash(salt, nick)` utility: `sha256(salt + nick).hex().slice(0, 8)`
-- [ ] Add `owner: string` field to internal session state
-- [ ] Stamp `owner` on `session.create` and `tab.open` auto-create
-- [ ] Add nick validation at request ingress (400 on malformed)
-- [ ] Add scope check in `validateSession`: session exists but `owner !== nick` → `SESSION_SCOPE_MISMATCH`
-- [ ] Filter `session list` by `request.nick`
-- [ ] Filter `debug.status` by `request.nick`
-- [ ] Filter `debug.last` by live session owner match; exclude entries for closed/non-resolvable sessions
-- [ ] Filter `debug.log` response from extension by `entry.session` → owner match; exclude entries for closed sessions
-- [ ] Enrich `SESSION_NOT_FOUND` error: `retry: "never"`, add `suggestedAction`
-- [ ] Include `ownerHash` in `session.create` / `tab.open` responses
-- [ ] Emit `ownerHash` (not raw nick) in structured log entries
-- [ ] Update request schema validation to require `nick` field
-- [ ] Update all tests
+- [x] Generate `instanceSalt` (32 random bytes) at daemon startup, hold in memory
+- [x] Add `computeOwnerHash(salt, nick)` utility: `sha256(salt + nick).hex().slice(0, 8)`
+- [x] Add `owner: string` field to internal session state
+- [x] Stamp `owner` on `session.create` and `tab.open` auto-create
+- [x] Add nick validation at request ingress (400 on malformed)
+- [x] Add scope check in `validateSession`: session exists but `owner !== nick` → `SESSION_SCOPE_MISMATCH`
+- [x] Filter `session list` by `request.nick`
+- [x] Filter `debug.status` by `request.nick`
+- [x] Filter `debug.last` by live session owner match; exclude entries for closed/non-resolvable sessions
+- [x] Filter `debug.log` response from extension by `entry.session` → owner match; exclude entries for closed sessions
+- [x] Enrich `SESSION_NOT_FOUND` error: `retry: "never"`, add `suggestedAction`
+- [x] Include `ownerHash` in `session.create` / `tab.open` responses
+- [x] Emit `ownerHash` (not raw nick) in structured log entries
+- [x] Update request schema validation to require `nick` field
+- [x] Update all tests
 
 ### 4. Daemon — configuration (`service/`)
 
