@@ -29,8 +29,8 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + explicit scroll/click/hover actuators when the agent chooses them.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
-- **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
-- **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, and pacing / pause state remains daemon-owned in-memory state.
+- **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay, with an absolute per-agent ingress safety floor (`minInterval`) that pacing mode cannot bypass.
+- **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, session ownership is nick-scoped, and pacing / pause state remains daemon-owned in-memory state.
 - **Auth is transport-boundary first-fail (header-auth routes)** — `POST /` and `GET /ws` are rejected at request ingress (before body parsing/validation and before any route logic). `POST /pair/claim` keeps Host/Origin checks at ingress and validates pairing code after body parse.
 - **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.

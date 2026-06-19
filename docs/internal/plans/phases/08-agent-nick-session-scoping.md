@@ -51,6 +51,8 @@ New required field `nick` in `BproxyRequest` envelope:
 - `session list` returns only sessions where `owner === request.nick`.
 - `debug.status`, `debug.last` are nick-scoped — return only the requesting nick's data.
 - `debug.log` is nick-scoped — daemon filters entries by `entry.session` → session owner match (see "debug.log scoping" below).
+- `debug.last` and `debug.log` are **bounded live diagnostic surfaces**, not durable history APIs. Once a session is closed and removed from daemon memory, entries for that session are excluded from these API responses.
+- Historical visibility lives in daemon structured log files under `BPROXY_HOME/logs/`, correlated via `ownerHash`.
 - No unscoped operator surface via API. Operator uses daemon log files for full visibility.
 
 ### Nick privacy — ownerHash
@@ -72,8 +74,18 @@ The extension's `TraceEntry` currently lacks a `session` field. The extension al
 
 **Daemon filtering:** When `debug.log` response returns from the extension, daemon filters entries:
 - Entry has `session` → check `sessions.get(entry.session)?.owner === request.nick` → include if match
-- Entry has `session` but session is closed → exclude (or check recently-closed cache)
+- Entry has `session` but session is closed → exclude
 - Entry lacks `session` (old format) → exclude
+
+This is intentional. `debug.log` is a bounded live trace surface. Closing a session closes API visibility into that session's extension trace as well. Historical investigation happens through daemon structured log files using `ownerHash`, not through `debug.log`.
+
+### debug.last scoping
+
+`debug.last` is also a bounded live surface, not a durable history API. The daemon filters trace entries by live session ownership:
+- Entry session resolves to a live session whose `owner === request.nick` → include
+- Entry session is closed / no longer resolvable → exclude
+
+This keeps the API surface strictly scoped to currently-owned live sessions. Historical cross-session diagnostics remain available only through daemon structured log files.
 
 ### Error contract
 
@@ -92,7 +104,7 @@ The extension's `TraceEntry` currently lacks a `session` field. The extension al
 | Field | Current | New |
 |-------|---------|-----|
 | `retry` | `"conditional"` | `"never"` |
-| `suggestedAction` | *(absent)* | `"Session '{id}' is permanently closed or never existed. Do not retry. Create a new session with 'bproxy tab open --url ... -n {nick}'."` |
+| `suggestedAction` | *(absent)* | `"Session '{id}' is permanently closed or never existed. Do not retry. Create a new session with 'bproxy tab open --url ... -n {nick}'. If you need historical diagnostics, inspect BPROXY_HOME/logs/ and correlate entries with your ownerHash."` |
 
 **New error: `RATE_LIMITED`**
 
@@ -125,7 +137,7 @@ No grant/transfer verb. Delegation = spawn sub-agent with the same nick.
 
 ## Daemon-side safety guards
 
-Three mechanisms address the runaway-agent failure mode that nick scoping alone does not cover (an agent hammering its own session):
+Four mechanisms address the runaway-agent failure mode that nick scoping alone does not cover (an agent hammering its own session):
 
 ### Minimum interval (burst guard)
 
@@ -167,14 +179,37 @@ All guards execute in this order at request ingress:
 
 Error-path delay is applied at response time (step 7 failure or steps 2–5 rejection), not at ingress.
 
+### Safety guard precedence over pacing mode
+
+`minInterval` is an **absolute ingress floor**. Session pacing mode (`human` / `fast`) may add delay above that floor, but it may not reduce the interval below it.
+
+Concretely:
+- `fast` means lower daemon-added pacing than `human`
+- `fast` does **not** mean sub-`minInterval`
+- no command may execute faster than `safety.minInterval.ms`, regardless of pacing mode
+
 ---
 
 ## Configuration
 
-All safety guard parameters are configurable via `BPROXY_HOME/config.json`. The file is optional — daemon uses hardcoded defaults if absent. Loaded once at startup; restart to apply changes.
+All daemon policy parameters are configurable via `BPROXY_HOME/config.json`. The file is optional — daemon uses hardcoded defaults if absent. Loaded once at startup; restart to apply changes.
 
 ```json
 {
+  "pacing": {
+    "human": {
+      "navigate": { "min": 1500, "max": 4000 },
+      "scroll": { "min": 4000, "max": 8000 },
+      "interaction": { "min": 1200, "max": 2500 },
+      "fill": { "min": 1200, "max": 2500 }
+    },
+    "fast": {
+      "navigate": { "min": 900, "max": 1400 },
+      "scroll": { "min": 900, "max": 1600 },
+      "interaction": { "min": 900, "max": 1200 },
+      "fill": { "min": 900, "max": 1200 }
+    }
+  },
   "safety": {
     "minInterval": {
       "ms": 900
@@ -195,15 +230,38 @@ All safety guard parameters are configurable via `BPROXY_HOME/config.json`. The 
 }
 ```
 
+### Config semantics
+
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
-| `safety.minInterval.ms` | `900` | Minimum ms between consecutive requests from same nick |
+| `pacing.human.navigate` | `1500–4000` | Delay range for `navigate` in human mode |
+| `pacing.human.scroll` | `4000–8000` | Delay range for `scroll` in human mode |
+| `pacing.human.interaction` | `1200–2500` | Delay range for `click` / `hover` in human mode |
+| `pacing.human.fill` | `1200–2500` | Delay range for `fill` / `fill-form` in human mode |
+| `pacing.fast.navigate` | `900–1400` | Delay range for `navigate` in fast mode |
+| `pacing.fast.scroll` | `900–1600` | Delay range for `scroll` in fast mode |
+| `pacing.fast.interaction` | `900–1200` | Delay range for `click` / `hover` in fast mode |
+| `pacing.fast.fill` | `900–1200` | Delay range for `fill` / `fill-form` in fast mode |
+| `safety.minInterval.ms` | `900` | Absolute minimum ms between consecutive requests from same nick |
 | `safety.rateCap.requestsPerMinute` | `60` | Max requests per nick per sliding minute |
 | `safety.errorDelay.minMs` | `500` | Minimum jittered delay before error response |
 | `safety.errorDelay.maxMs` | `2000` | Maximum jittered delay before error response |
 | `safety.metronome.tolerance` | `0.10` | Interval equality threshold (±10%) |
 | `safety.metronome.consecutiveEqual` | `3` | How many equal intervals before rejection |
 | `safety.metronome.maxIntervalMs` | `60000` | Skip metronome check for intervals above this |
+
+### Startup validation
+
+Daemon startup fails with a meaningful configuration error if:
+- config shape contains unknown keys
+- any value has the wrong type
+- any `{ min, max }` pacing pair has `min > max`
+- any pacing minimum is below `safety.minInterval.ms`
+- any pacing maximum is below `safety.minInterval.ms`
+- `safety.errorDelay.minMs > safety.errorDelay.maxMs`
+- safety numeric values are non-positive or otherwise nonsensical
+
+This fail-closed rule is intentional: misconfigured pacing must not silently undercut the ingress safety floor.
 
 The daemon logs the active configuration at startup (`info` level) so the operator can verify what's in effect.
 
@@ -226,6 +284,9 @@ bproxy scroll -n halbot -s m4q7z2 --direction down
 bproxy click -n halbot -s m4q7z2 --element el3
 bproxy session list -n halbot
 # → only sessions owned by "halbot"
+
+# Lower-added-delay mode; still cannot bypass safety.minInterval.ms
+bproxy session bind -n halbot -s m4q7z2 --tab t1 --pacing fast
 
 # Wrong nick → immediate terminal error
 bproxy text -n bobcat -s m4q7z2
@@ -283,8 +344,9 @@ bproxy text -s m4q7z2
 - [ ] Add nick validation at request ingress (400 on malformed)
 - [ ] Add scope check in `validateSession`: session exists but `owner !== nick` → `SESSION_SCOPE_MISMATCH`
 - [ ] Filter `session list` by `request.nick`
-- [ ] Filter `debug.status`, `debug.last` by `request.nick` (match session owner)
-- [ ] Filter `debug.log` response from extension by `entry.session` → owner match
+- [ ] Filter `debug.status` by `request.nick`
+- [ ] Filter `debug.last` by live session owner match; exclude entries for closed/non-resolvable sessions
+- [ ] Filter `debug.log` response from extension by `entry.session` → owner match; exclude entries for closed sessions
 - [ ] Enrich `SESSION_NOT_FOUND` error: `retry: "never"`, add `suggestedAction`
 - [ ] Include `ownerHash` in `session.create` / `tab.open` responses
 - [ ] Emit `ownerHash` (not raw nick) in structured log entries
@@ -293,11 +355,13 @@ bproxy text -s m4q7z2
 
 ### 4. Daemon — configuration (`service/`)
 
-- [ ] Define `SafetyConfig` type with defaults for all parameters
+- [ ] Define daemon config types for both `pacing` and `safety`
+- [ ] Move hard-coded pacing preset defaults out of `shared/` and into daemon config/defaults
 - [ ] Load `BPROXY_HOME/config.json` at startup (optional file, missing = all defaults)
 - [ ] Validate config shape (reject unknown keys, wrong types) → fail startup on invalid
+- [ ] Validate pacing ranges (`min <= max`) and enforce `pacing.*.*.min/max >= safety.minInterval.ms` → fail startup on invalid
 - [ ] Log active configuration at startup (`info` level)
-- [ ] Wire config values into safety guard modules
+- [ ] Wire config values into pacing and safety modules
 
 ### 5. Daemon — safety guards (`service/`)
 
@@ -312,6 +376,7 @@ bproxy text -s m4q7z2
 - [ ] Per-nick rate cap: sliding window counter (config requests/min)
 - [ ] Per-nick rate cap: return `RATE_LIMITED` with `retryAfter` in details
 - [ ] Ingress ordering: nick validation → min interval → rate cap → metronome → session validation → pacing → dispatch
+- [ ] Enforce `minInterval` as absolute precedence over `human` / `fast` pacing mode
 
 ### 6. Extension (`extension/`)
 
@@ -345,7 +410,8 @@ bproxy text -s m4q7z2
 - `pnpm test` passes (all packages — tests updated for required `nick` field)
 - Unit tests: nick validation, scope mismatch, ownership stamp, listing filter, hash computation
 - Unit tests: minimum interval rejection, metronome detection + reset, rate cap, error delay
-- Unit tests: config loading (valid, invalid, missing file), debug.log session filtering
+- Unit tests: config loading (valid, invalid, missing file), pacing config validation, debug.log/debug.last closed-session filtering
+- Integration: daemon startup fails with meaningful error when pacing config undercuts `safety.minInterval.ms`
 - Integration: two agents with different nicks cannot see or touch each other's sessions
 - Integration: agent with correct nick can operate its sessions normally
 - Integration: `SESSION_NOT_FOUND` returns `retry: "never"` with guidance
