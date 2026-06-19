@@ -10,7 +10,7 @@ import type {
 import type { ErrorCode } from "./errors";
 import type { ClientElementTarget } from "./handles";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";
-import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
+import type { Nick, PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
 import type { ElementTarget } from "./targets";
 
 type Equals<A, B> = ((<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
@@ -52,9 +52,11 @@ type _TabCloseResultUsesLogicalHandle = Expect<
 type _SessionInfoUsesLogicalBinding = Expect<
 	Equals<SessionInfo["tab"], TabHandle | null> & Equals<SessionInfo["id"], SessionId>
 >;
+type _RequestUsesNick = Expect<Equals<BproxyRequest["nick"], Nick>>;
 type _RequestUsesSessionId = Expect<Equals<BproxyRequest["session"], SessionId>>;
 type _TraceUsesNarrowActionAndErrorCode = Expect<
 	Equals<TraceEntry["action"], Action> &
+		Equals<TraceEntry["session"], string | undefined> &
 		Equals<TraceEntry["errorCode"], ErrorCode | undefined> &
 		Equals<DaemonRequestTrace["action"], Action> &
 		Equals<DaemonRequestTrace["errorCode"], ErrorCode | undefined>

@@ -10,6 +10,8 @@ export type ErrorCode =
 	| "ELEMENT_NOT_ACTIONABLE"
 	| "SELECTOR_AMBIGUOUS"
 	| "INVALID_SESSION_ID"
+	// Well-formed session ids that do not resolve are terminal: callers must
+	// create a new session rather than retrying the old id.
 	| "SESSION_NOT_FOUND"
 	| "TAB_HANDLE_NOT_FOUND"
 	| "TAB_NOT_IN_SESSION"
@@ -20,6 +22,9 @@ export type ErrorCode =
 	| "HUMAN_REQUIRED"
 	| "DEBUGGER_DISABLED"
 	| "SESSION_REQUIRED"
+	| "SESSION_SCOPE_MISMATCH"
+	| "METRONOME_DETECTED"
+	| "RATE_LIMITED"
 	// Execution
 	| "SCRIPT_ERROR"
 	| "NAVIGATION_FAILED"

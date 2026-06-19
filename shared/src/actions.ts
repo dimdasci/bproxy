@@ -103,6 +103,7 @@ export interface InspectElement {
 export interface TraceEntry {
 	id: string;
 	action: Action;
+	session?: string;
 	tab: number;
 	timestamp: number;
 	elapsed: number;
