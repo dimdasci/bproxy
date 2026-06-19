@@ -99,6 +99,20 @@ function logResponse(
 	} satisfies DaemonRequestTrace);
 }
 
+async function finalizeResponse(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	response: BproxyResponse,
+	receivedAt: number,
+): Promise<BproxyResponse> {
+	if (!response.ok) {
+		const delayMs = await deps.safety.delayForError();
+		if (delayMs > 0) deps.logger.info({ id: cmd.id, event: "error_delay", delay_ms: delayMs });
+	}
+	logResponse(cmd, deps, response, receivedAt);
+	return response;
+}
+
 export function commandRoute(deps: CommandRouteDeps) {
 	return async function (app: FastifyInstance): Promise<void> {
 		app.post("/", async (request, reply) => {
@@ -126,18 +140,24 @@ export function commandRoute(deps: CommandRouteDeps) {
 				ownerHash: deps.computeOwnerHash(cmd.nick),
 			});
 
-			const sessionError = validateSession(cmd, deps);
-			if (sessionError) {
-				logResponse(cmd, deps, sessionError, receivedAt);
-				return sessionError;
+			const safetyError = deps.safety.checkIngress(cmd.nick);
+			if (safetyError) {
+				return await finalizeResponse(
+					cmd,
+					deps,
+					{ protocol_version: 1, id: cmd.id, ok: false, error: safetyError },
+					receivedAt,
+				);
 			}
+
+			const sessionError = validateSession(cmd, deps);
+			if (sessionError) return await finalizeResponse(cmd, deps, sessionError, receivedAt);
 
 			const waited = await deps.pacing.waitForSlot(cmd.session, cmd.action);
 			if (waited > 0) deps.logger.info({ id: cmd.id, event: "pacing_wait", delay_ms: waited });
 
 			const response = await executeCommand(cmd, deps);
-			logResponse(cmd, deps, response, receivedAt);
-			return response;
+			return await finalizeResponse(cmd, deps, response, receivedAt);
 		});
 	};
 }

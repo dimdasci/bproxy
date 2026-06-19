@@ -365,18 +365,18 @@ bproxy text -s m4q7z2
 
 ### 5. Daemon — safety guards (`service/`)
 
-- [ ] Minimum interval tracker: per-nick last-request timestamp
-- [ ] Minimum interval check: reject with `RATE_LIMITED` + `retryAfter` if below threshold
-- [ ] Metronome detector: track last N+1 arrival timestamps per nick
-- [ ] Metronome detector: compute interval equality within configurable tolerance
-- [ ] Metronome detector: skip intervals above `maxIntervalMs`
-- [ ] Metronome detector: reject on Nth consecutive equal interval with `METRONOME_DETECTED`
-- [ ] Metronome detector: reset streak on rejection or pattern break
-- [ ] Error-path delay: inject jittered sleep (config min/max) before returning any error response
-- [ ] Per-nick rate cap: sliding window counter (config requests/min)
-- [ ] Per-nick rate cap: return `RATE_LIMITED` with `retryAfter` in details
-- [ ] Ingress ordering: nick validation → min interval → rate cap → metronome → session validation → pacing → dispatch
-- [ ] Enforce `minInterval` as absolute precedence over `human` / `fast` pacing mode
+- [x] Minimum interval tracker: per-nick last-request timestamp
+- [x] Minimum interval check: reject with `RATE_LIMITED` + `retryAfter` if below threshold
+- [x] Metronome detector: track last N+1 arrival timestamps per nick
+- [x] Metronome detector: compute interval equality within configurable tolerance
+- [x] Metronome detector: skip intervals above `maxIntervalMs`
+- [x] Metronome detector: reject on Nth consecutive equal interval with `METRONOME_DETECTED`
+- [x] Metronome detector: reset streak on rejection or pattern break
+- [x] Error-path delay: inject jittered sleep (config min/max) before returning any error response
+- [x] Per-nick rate cap: sliding window counter (config requests/min)
+- [x] Per-nick rate cap: return `RATE_LIMITED` with `retryAfter` in details
+- [x] Ingress ordering: nick validation → min interval → rate cap → metronome → session validation → pacing → dispatch
+- [x] Enforce `minInterval` as absolute precedence over `human` / `fast` pacing mode
 
 ### 6. Extension (`extension/`)
 

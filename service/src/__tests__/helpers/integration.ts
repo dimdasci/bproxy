@@ -49,12 +49,21 @@ export async function setupTestServer(
 	const stateDir = createTestStateDir();
 	const captured = buildCapturedLogger();
 	const { daemonToken, extensionToken, ...serverOpts } = opts;
+	let safetyTick = 0;
+	let safetyCalls = 0;
 	const built = await buildServer({
 		port: 0,
 		stateDir,
 		daemonToken,
 		extensionToken,
 		logger: captured.logger,
+		safetyNow: () => {
+			safetyCalls += 1;
+			safetyTick += 1000 + (safetyCalls % 3) * 137;
+			return safetyTick;
+		},
+		safetySleep: async () => {},
+		safetyRandom: () => 0,
 		...serverOpts,
 	});
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });

@@ -16,6 +16,7 @@ import { createPending } from "./pending";
 import { commandRoute } from "./routes/command";
 import { pairRoute } from "./routes/pair";
 import { wsRoute } from "./routes/ws";
+import { createSafetyGuards } from "./safety";
 import { createSessionRegistry, type SessionRegistry } from "./sessions";
 
 export interface BuildServerOptions {
@@ -29,6 +30,9 @@ export interface BuildServerOptions {
 	pairing?: PairingStore;
 	pairingRateLimiter?: PairingRateLimiter;
 	pairingRateLimitNow?: () => number;
+	safetyNow?: () => number;
+	safetySleep?: (ms: number) => Promise<void>;
+	safetyRandom?: () => number;
 	sessions?: SessionRegistry;
 	traces?: () => readonly DaemonRequestTrace[];
 	onExtensionTokenChanged?: (token: string) => void;
@@ -52,6 +56,7 @@ interface ObjectGraph {
 	dispatch: ReturnType<typeof createDispatch>;
 	elementHandles: ElementHandleCache;
 	pacing: ReturnType<typeof createPacing>;
+	safety: ReturnType<typeof createSafetyGuards>;
 	newClientId: () => string;
 	startedAt: number;
 	traces: () => readonly DaemonRequestTrace[];
@@ -85,6 +90,33 @@ function createTraceRing(capacity = 200): TraceRing {
 	};
 }
 
+function randomUnit(): number {
+	return randomBytes(4).readUInt32BE() / 0x100000000;
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createPacingEngine(opts: BuildServerOptions, sessions: SessionRegistry) {
+	return createPacing({
+		sessions,
+		config: opts.daemonConfig?.pacing ?? DEFAULT_DAEMON_CONFIG.pacing,
+		now: () => Date.now(),
+		sleep,
+		random: randomUnit,
+	});
+}
+
+function createSafetyEngine(opts: BuildServerOptions) {
+	return createSafetyGuards({
+		config: opts.daemonConfig?.safety ?? DEFAULT_DAEMON_CONFIG.safety,
+		now: opts.safetyNow ?? (() => Date.now()),
+		sleep: opts.safetySleep ?? sleep,
+		random: opts.safetyRandom ?? randomUnit,
+	});
+}
+
 function createDeps(opts: BuildServerOptions): ObjectGraph {
 	const sessions = opts.sessions ?? createSessionRegistry();
 	const clients = createClients();
@@ -108,19 +140,11 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 			opts.logger.info({ id, event: "forwarded", ws_client: wsClient, tab });
 		},
 	});
-	const pacing = createPacing({
-		sessions,
-		config: opts.daemonConfig?.pacing ?? DEFAULT_DAEMON_CONFIG.pacing,
-		now: () => Date.now(),
-		sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-		random: () => randomBytes(4).readUInt32BE() / 0x100000000,
-	});
 	const pairing = opts.pairing ?? createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const pairingRateLimiter =
 		opts.pairingRateLimiter ??
 		createPairingRateLimiter({ now: opts.pairingRateLimitNow ?? (() => Date.now()) });
 	let clientCounter = 0;
-	const newClientId = (): string => `client-${++clientCounter}`;
 	const ring = createTraceRing();
 	const traces = opts.traces ?? (() => ring.read());
 
@@ -130,10 +154,11 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		sessions,
 		dispatch,
 		elementHandles,
-		pacing,
+		pacing: createPacingEngine(opts, sessions),
+		safety: createSafetyEngine(opts),
 		pairing,
 		pairingRateLimiter,
-		newClientId,
+		newClientId: () => `client-${++clientCounter}`,
 		startedAt: Date.now(),
 		traces,
 		pushTrace: ring.push,
@@ -152,6 +177,7 @@ async function registerRoutes(
 		commandRoute({
 			dispatch: deps.dispatch,
 			pacing: deps.pacing,
+			safety: deps.safety,
 			logger: opts.logger,
 			sessions: deps.sessions,
 			elementHandles: deps.elementHandles,
