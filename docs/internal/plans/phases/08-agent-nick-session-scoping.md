@@ -330,10 +330,10 @@ bproxy text -s m4q7z2
 
 ### 2. CLI (`cli/`)
 
-- [ ] Add `--nick` / `-n` to `globalArgs` (required, string)
-- [ ] Validate nick format at `extractGlobals()` → exit 2 on invalid/missing
-- [ ] Wire `nick` into `sendAction` → `BproxyRequest` envelope
-- [ ] Update all tests that construct requests to include `nick`
+- [x] Add `--nick` / `-n` to `globalArgs` (required, string)
+- [x] Validate nick format at `extractGlobals()` → exit 2 on invalid/missing
+- [x] Wire `nick` into `sendAction` → `BproxyRequest` envelope
+- [x] Update all tests that construct requests to include `nick`
 
 ### 3. Daemon — nick scoping (`service/`)
 

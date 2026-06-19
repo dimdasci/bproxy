@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type SendOptions, sendAction } from "../client.js";
+import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
 import { writeScreenshotFile } from "../screenshot-file.js";
 import type { BproxyResponse } from "../types.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
@@ -133,7 +133,12 @@ describe("screenshot --output-dir integration", () => {
 			requestId,
 		};
 
-		const plan = await sendAction("screenshot", {}, { home, session: "abc234" }, opts);
+		const plan = await sendAction(
+			"screenshot",
+			{},
+			{ home, nick: "halbot" as ClientGlobalArgs["nick"], session: "abc234" },
+			opts,
+		);
 
 		// Simulate what screenshot command does with --output-dir
 		expect(plan.code).toBe(0);
@@ -167,7 +172,12 @@ describe("screenshot --output-dir integration", () => {
 			requestId,
 		};
 
-		const plan = await sendAction("screenshot", {}, { home, session: "abc234" }, opts);
+		const plan = await sendAction(
+			"screenshot",
+			{},
+			{ home, nick: "halbot" as ClientGlobalArgs["nick"], session: "abc234" },
+			opts,
+		);
 
 		expect(plan.code).toBe(0);
 		const response = plan.stdout as BproxyResponse<"screenshot">;

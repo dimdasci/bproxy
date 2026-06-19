@@ -7,7 +7,8 @@
  * - `extractGlobals`: extract ClientGlobalArgs from parsed citty args
  */
 
-import type { ClientGlobalArgs, SessionId, TabHandle } from "./types.js";
+import { executeExitPlan, exitUsageError } from "./exit.js";
+import { type ClientGlobalArgs, isValidNick, type SessionId, type TabHandle } from "./types.js";
 
 /**
  * Global arg definitions for leaf commands.
@@ -25,6 +26,11 @@ export function parseTabHandle(value: string): TabHandle | null {
 }
 
 export const globalArgs = {
+	nick: {
+		type: "string" as const,
+		alias: "n",
+		description: "Agent nickname for request scoping",
+	},
 	session: {
 		type: "string" as const,
 		alias: "s",
@@ -49,8 +55,31 @@ export const globalArgs = {
 /**
  * Extract ClientGlobalArgs from a citty parsed-args object.
  */
-export function extractGlobals(args: Record<string, unknown>): ClientGlobalArgs {
+export interface ExtractGlobalsDeps {
+	onUsageError?: (message: string) => never;
+}
+
+export function extractGlobals(
+	args: Record<string, unknown>,
+	deps: ExtractGlobalsDeps = {},
+): ClientGlobalArgs {
+	const fail =
+		deps.onUsageError ??
+		((message: string): never => {
+			executeExitPlan(exitUsageError(message));
+			throw new Error("unreachable");
+		});
+
+	const nick = typeof args["nick"] === "string" ? args["nick"] : undefined;
+	if (!nick) {
+		return fail("Missing required --nick (-n). Every command requires an agent nickname.");
+	}
+	if (!isValidNick(nick)) {
+		return fail(`Invalid --nick value: ${nick}. Must match /^[a-z][a-z0-9]{5}$/.`);
+	}
+
 	return {
+		nick,
 		session: typeof args["session"] === "string" ? args["session"] : undefined,
 		timeout: typeof args["timeout"] === "string" ? args["timeout"] : undefined,
 		home: typeof args["home"] === "string" ? args["home"] : undefined,

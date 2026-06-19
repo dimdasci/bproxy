@@ -176,7 +176,7 @@ describe("CLI integration smoke", () => {
 	it("session list returns valid JSON without extension", () => {
 		runCli(["service", "start"], tempHome);
 
-		const result = runCli(["session", "list"], tempHome);
+		const result = runCli(["session", "list", "-n", "halbot"], tempHome);
 		expect(result.exitCode).toBe(0);
 
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
@@ -189,7 +189,10 @@ describe("CLI integration smoke", () => {
 	it("session create and close work against running daemon", () => {
 		runCli(["service", "start"], tempHome);
 
-		const createResult = runCli(["session", "create", "--label", "research"], tempHome);
+		const createResult = runCli(
+			["session", "create", "-n", "halbot", "--label", "research"],
+			tempHome,
+		);
 		expect(createResult.exitCode).toBe(0);
 		const createParsed = parseJson(createResult.stdout) as Record<string, unknown>;
 		expect(createParsed["ok"]).toBe(true);
@@ -198,7 +201,7 @@ describe("CLI integration smoke", () => {
 		expect(createData["label"]).toBe("research");
 
 		const sessionId = createData["session"] as string;
-		const closeResult = runCli(["session", "close", "-s", sessionId], tempHome);
+		const closeResult = runCli(["session", "close", "-n", "halbot", "-s", sessionId], tempHome);
 		expect(closeResult.exitCode).toBe(0);
 		const closeParsed = parseJson(closeResult.stdout) as Record<string, unknown>;
 		expect(closeParsed["ok"]).toBe(true);
@@ -209,7 +212,7 @@ describe("CLI integration smoke", () => {
 	it("debug status returns daemon info without extension", () => {
 		runCli(["service", "start"], tempHome);
 
-		const result = runCli(["status"], tempHome);
+		const result = runCli(["status", "-n", "halbot"], tempHome);
 		expect(result.exitCode).toBe(0);
 
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
@@ -224,7 +227,7 @@ describe("CLI integration smoke", () => {
 	it("debug last returns valid response structure", () => {
 		runCli(["service", "start"], tempHome);
 
-		const result = runCli(["debug", "last", "--count", "5"], tempHome);
+		const result = runCli(["debug", "last", "-n", "halbot", "--count", "5"], tempHome);
 		expect(result.exitCode).toBe(0);
 
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
@@ -315,20 +318,24 @@ describe("CLI integration smoke", () => {
 			);
 		});
 
-		const createResult = runCli(["session", "create"], tempHome);
+		const createResult = runCli(["session", "create", "-n", "halbot"], tempHome);
 		expect(createResult.exitCode).toBe(0);
 		const createParsed = parseJson(createResult.stdout) as Record<string, unknown>;
 		const sessionId = (createParsed["data"] as Record<string, unknown>)["session"] as string;
 
 		const openResult = await runCliAsync(
-			["tab", "open", "-s", sessionId, "--url", "https://example.com"],
+			["tab", "open", "-n", "halbot", "-s", sessionId, "--url", "https://example.com"],
 			tempHome,
 			10_000,
 		);
 		expect(openResult.exitCode).toBe(0);
 
 		// Send a forwarded read command (text) using async spawn
-		const textResult = await runCliAsync(["text", "-s", sessionId], tempHome, 10_000);
+		const textResult = await runCliAsync(
+			["text", "-n", "halbot", "-s", sessionId],
+			tempHome,
+			10_000,
+		);
 		expect(textResult.exitCode).toBe(0);
 
 		const textParsed = parseJson(textResult.stdout) as Record<string, unknown>;
