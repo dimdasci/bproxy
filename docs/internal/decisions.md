@@ -2,7 +2,7 @@
 title: Architecture Decision Records
 ---
 
-**Edition: 2026-06-14 (temp file confinement)** — Authoritative current ADR set.
+**Edition: 2026-06-19 (agent nick session scoping)** — Authoritative current ADR set.
 
 ---
 
@@ -569,3 +569,59 @@ The `tmpDir` field is part of the session bootstrap contract:
 **Deferred:**
 - *Custom domain.* Revisit when the project has a public name or launch event. Migration is a DNS record plus a Pages setting (or `CNAME` file); no code change beyond updating `site` in `views/astro.config.mjs`.
 - *PR preview deployments.* GitHub Pages does not natively support per-PR previews on the same repository without significant workflow gymnastics. If previews become valuable, that becomes the trigger to migrate hosting to Cloudflare Pages or Netlify.
+
+---
+
+## ADR-030: Agent nickname session scoping
+**Date:** 2026-06-19
+**Status:** Accepted
+
+**Decision:** Add a required agent namespace — the **nick** — that scopes session visibility and command authority within a single-user `BPROXY_HOME`. The nick is a short identifier declared explicitly on every CLI invocation via `--nick` / `-n`. Sessions are stamped with their creator's nick and only accessible to commands bearing the same nick.
+
+**Motivation:** Issue #22 revealed that any CLI caller sharing `BPROXY_HOME` can enumerate (`session list`) and command any active session. In multi-agent orchestration (supervisor + sub-agents), a buggy agent can accidentally interfere with another agent's session — sending commands to a closed or foreign session indefinitely. The current auth model (single daemon token per OS user) provides authentication but no inter-agent isolation.
+
+**Rules:**
+
+1. **Flag:** `--nick` / `-n`, required on every protocol command (browser-control and session/tab lifecycle). Service lifecycle commands (`service start/stop/status/restart`) do not require it.
+2. **Format:** `/^[a-z][a-z0-9]{5}$/` — starts with a letter, exactly 6 lowercase alphanumeric characters. Validated at CLI arg parse (exit 2) and at daemon ingress (400).
+3. **No environment variable.** The nick must be explicit on every invocation. No implicit default, no shared pool. Prevents ambient inheritance in process trees from creating silent shared scopes.
+4. **Wire field:** `nick` added to `BproxyRequest` envelope (required for all protocol actions).
+5. **Session ownership:** Daemon stamps `owner: nick` on session creation (`session.create`, `tab.open` auto-create). Ownership is immutable for the session lifetime.
+6. **Enforcement:** Every command referencing a session validates `session.owner === request.nick`. Mismatch → `SESSION_SCOPE_MISMATCH` error (`retry: "never"`).
+7. **Listing:** `session list` returns only sessions where `owner === request.nick`.
+8. **`debug.*` commands are nick-scoped.** `debug.status`, `debug.last`, `debug.log` filter output to the requesting nick's sessions only. No unscoped operator surface via API — the operator uses daemon log files for full visibility.
+9. **No raw nick in persisted output.** Daemon logs emit `ownerHash` (8 hex chars, `sha256(instanceSalt + nick)`). Instance salt is random bytes generated at daemon startup, held in memory only, never persisted. Agents reading logs can correlate entries but cannot reverse other agents' nicks.
+10. **Responses include `ownerHash`, not raw nick.** `session.create` and `tab.open` responses return `ownerHash` so the agent knows its own hash for log correlation. Raw nick never appears in any API response or log file.
+11. **Metronome detection.** Daemon tracks inter-request arrival times per nick. If three consecutive intervals are equal (±10% tolerance), the third command is rejected with `METRONOME_DETECTED` (`retry: "never"`). Two equal intervals are allowed; three are a script. The error instructs the agent to control bproxy directly without writing programmatic loops.
+12. **Error-path delay.** Error responses include a jittered delay (500ms–2s) before the daemon responds, making runaway loops self-throttling.
+13. **Per-nick rate cap.** Sliding window (60 requests/minute per nick). Exceeded → `RATE_LIMITED` (`retry: "safe"`, includes `retryAfter`).
+14. **No transfer.** No grant/transfer verb. Delegation = spawn sub-agent with the same nick.
+15. **Extension unaware.** Nick is consumed and enforced at the daemon only. Stripped before WS dispatch.
+16. **Configuration file.** Safety guard parameters live in `BPROXY_HOME/config.json` (optional; defaults applied when absent). Loaded once at daemon startup; restart to apply. No hot-reload. Daemon logs active configuration at startup.
+
+**Error contract additions:**
+
+| Code | Category | Retry | When |
+|------|----------|-------|------|
+| `SESSION_SCOPE_MISMATCH` | `policy` | `never` | Session exists but `owner !== nick` |
+| `METRONOME_DETECTED` | `policy` | `never` | Three consecutive equal-interval requests from same nick |
+| `RATE_LIMITED` | `policy` | `safe` | Nick exceeds 60 requests/minute |
+
+`SESSION_NOT_FOUND` is updated: `retry` changes from `"conditional"` to `"never"`, and gains `suggestedAction: "Session is permanently closed or never existed. Do not retry. Create a new session with 'bproxy tab open --url ... -n {nick}'."` — well-formed session IDs that don't resolve will never come back (IDs are not recycled).
+
+**Scope boundary:**
+- Nick is **authorization** (namespace), not authentication. The daemon token remains the auth boundary.
+- Single-user model preserved. Nick adds namespace within one OS user's trust domain.
+- Not cryptographic. Prevents cooperative-but-buggy agents from accidental interference; not designed to stop a malicious agent that already holds the daemon token.
+
+**Rejected alternatives:**
+
+| Alternative | Why rejected |
+|-------------|-------------|
+| Environment variable (`BPROXY_NICK`) | Silently inherited by child processes; creates ambient shared scopes that reproduce #22. |
+| Per-agent tokens | Heavy ceremony, token lifecycle/revocation overkill for cooperative threat model. |
+| Per-session secrets | Better security but worse DX; doesn't prevent enumeration without also scoping list. |
+| Optional nick with shared default pool | Defeats the purpose — agents that skip it share a pool and #22 recurs. |
+| Longer nick (UUID) | Unnecessary; adversarial agents already hold the daemon token. 6 chars balances uniqueness with CLI ergonomics. |
+
+**Implementation:** Phase plan at [`docs/internal/plans/phases/08-agent-nick-session-scoping.md`](./plans/phases/08-agent-nick-session-scoping.md).
