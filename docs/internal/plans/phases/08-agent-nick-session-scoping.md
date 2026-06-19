@@ -322,11 +322,11 @@ bproxy text -s m4q7z2
 
 ### 1. Shared types (`shared/`)
 
-- [ ] Add `Nick` branded type + `isValidNick()` validation (`/^[a-z][a-z0-9]{5}$/`)
-- [ ] Add `nick` field to `BproxyRequest` type (required)
-- [ ] Add `session?: string` field to `TraceEntry` type
-- [ ] Add `SESSION_SCOPE_MISMATCH`, `METRONOME_DETECTED`, `RATE_LIMITED` to `ErrorCode`
-- [ ] Update `SESSION_NOT_FOUND` documentation/comments: retry is now `"never"`
+- [x] Add `Nick` branded type + `isValidNick()` validation (`/^[a-z][a-z0-9]{5}$/`)
+- [x] Add `nick` field to `BproxyRequest` type (required)
+- [x] Add `session?: string` field to `TraceEntry` type
+- [x] Add `SESSION_SCOPE_MISMATCH`, `METRONOME_DETECTED`, `RATE_LIMITED` to `ErrorCode`
+- [x] Update `SESSION_NOT_FOUND` documentation/comments: retry is now `"never"`
 
 ### 2. CLI (`cli/`)
 
