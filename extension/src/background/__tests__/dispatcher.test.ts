@@ -139,6 +139,20 @@ describe("parseForwardedRequest", () => {
 		);
 		expect(parsed).toMatchObject({ success: false, id: "req-1" });
 	});
+
+	it("rejects forwarded requests that still include nick", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify({
+				...makeRequest({ action: "text", params: { selector: "main" } }),
+				nick: "halbot",
+			}),
+		);
+		expect(parsed).toMatchObject({
+			success: false,
+			id: "req-1",
+			error: "unexpected top-level keys",
+		});
+	});
 });
 
 describe("dispatcher", () => {
@@ -181,8 +195,18 @@ describe("dispatcher", () => {
 		expect(h.responses[1]).toMatchObject({ ok: true, replay: true, id: request.id });
 		const entries = await h.trace.query({ id: request.id });
 		expect(entries).toHaveLength(2);
-		expect(entries[0]).toMatchObject({ action: "navigate", replay: false, result: "ok" });
-		expect(entries[1]).toMatchObject({ action: "navigate", replay: true, result: "ok" });
+		expect(entries[0]).toMatchObject({
+			action: "navigate",
+			session: request.session,
+			replay: false,
+			result: "ok",
+		});
+		expect(entries[1]).toMatchObject({
+			action: "navigate",
+			session: request.session,
+			replay: true,
+			result: "ok",
+		});
 	});
 
 	it("routes DOM actions through the content handler and dedupes non-destructive reads", async () => {

@@ -135,6 +135,7 @@ async function appendTrace(
 		await deps.trace.append({
 			id: request.id,
 			action: request.action,
+			session: request.session,
 			tab: request.target.tabId ?? 0,
 			timestamp: startedAt,
 			elapsed: Math.max(0, endedAt - startedAt),

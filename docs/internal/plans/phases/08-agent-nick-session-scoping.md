@@ -380,8 +380,8 @@ bproxy text -s m4q7z2
 
 ### 6. Extension (`extension/`)
 
-- [ ] Store `session` from forwarded request in trace entry (one field addition in dispatcher trace append)
-- [ ] Verify `nick` is NOT included in forwarded WS messages (stripped at daemon before dispatch)
+- [x] Store `session` from forwarded request in trace entry (one field addition in dispatcher trace append)
+- [x] Verify `nick` is NOT included in forwarded WS messages (stripped at daemon before dispatch)
 
 ### 7. Documentation
 

@@ -23,11 +23,12 @@ describe("trace ring buffer", () => {
 		const store = createFakeStorageItem<TraceEntry[]>("session:trace", []);
 		const trace = createTrace({ store, maxSize: 10, extensionVersion: () => "0.1.0" });
 
-		await trace.append(entry("a"));
+		await trace.append(entry("a", { session: "m4q8z2" }));
 		const all = await trace.query();
 
 		expect(all).toHaveLength(1);
 		expect(all[0]?.extensionVersion).toBe("0.1.0");
+		expect(all[0]?.session).toBe("m4q8z2");
 	});
 
 	it("evicts the oldest entry when appending beyond capacity", async () => {
