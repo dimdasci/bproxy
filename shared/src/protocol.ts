@@ -26,7 +26,10 @@ export interface BproxyRequest<A extends Action = Action> {
  * `debug.last`, and `debug.status` remain daemon-local and never carry a
  * `target`.
  */
-export type BproxyForwardedRequest<A extends Action = Action> = Omit<BproxyRequest<A>, "params"> & {
+export type BproxyForwardedRequest<A extends Action = Action> = Omit<
+	BproxyRequest<A>,
+	"nick" | "params"
+> & {
 	params: ForwardedActionParams[A];
 	target: { tabId: number | null };
 };

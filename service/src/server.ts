@@ -5,8 +5,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 import { makeHeaderAuthHook } from "./auth";
 import { createClients } from "./clients";
+import { type DaemonConfig, DEFAULT_DAEMON_CONFIG } from "./daemon-config";
 import { createDispatch } from "./dispatch";
 import { ElementHandleCache } from "./element-handles";
+import { computeOwnerHash } from "./owner-hash";
 import { createPacing } from "./pacing";
 import { createPairingStore, type PairingStore } from "./pairing";
 import { createPairingRateLimiter, type PairingRateLimiter } from "./pairing-rate-limit";
@@ -22,6 +24,8 @@ export interface BuildServerOptions {
 	daemonToken: string;
 	extensionToken: string;
 	logger: Logger;
+	daemonConfig?: DaemonConfig;
+	instanceSalt?: Uint8Array;
 	pairing?: PairingStore;
 	pairingRateLimiter?: PairingRateLimiter;
 	pairingRateLimitNow?: () => number;
@@ -52,6 +56,7 @@ interface ObjectGraph {
 	startedAt: number;
 	traces: () => readonly DaemonRequestTrace[];
 	pushTrace: (entry: DaemonRequestTrace) => void;
+	instanceSalt: Uint8Array;
 }
 
 interface TraceRing {
@@ -105,6 +110,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 	});
 	const pacing = createPacing({
 		sessions,
+		config: opts.daemonConfig?.pacing ?? DEFAULT_DAEMON_CONFIG.pacing,
 		now: () => Date.now(),
 		sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
 		random: () => randomBytes(4).readUInt32BE() / 0x100000000,
@@ -131,6 +137,7 @@ function createDeps(opts: BuildServerOptions): ObjectGraph {
 		startedAt: Date.now(),
 		traces,
 		pushTrace: ring.push,
+		instanceSalt: opts.instanceSalt ?? randomBytes(32),
 	};
 }
 
@@ -149,6 +156,7 @@ async function registerRoutes(
 			sessions: deps.sessions,
 			elementHandles: deps.elementHandles,
 			stateDir: opts.stateDir,
+			computeOwnerHash: (nick) => computeOwnerHash(deps.instanceSalt, nick),
 			trace: deps.pushTrace,
 			debug: {
 				clients: deps.clients,

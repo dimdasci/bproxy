@@ -11,6 +11,7 @@ const { values } = parseArgs({
 		navigateUrl: { type: "string" },
 		searchSelector: { type: "string", default: "#search" },
 		linkLimit: { type: "string", default: "10" },
+		nick: { type: "string", default: "smoke1" },
 		waitForWs: { type: "string", default: "30000" },
 	},
 });
@@ -24,9 +25,10 @@ if (!openUrl || !navigateUrl) {
 	throw new Error("Provide --baseUrl or both --openUrl and --navigateUrl.");
 }
 
-const wsStatus = await waitForWsClient({ home: values.home, timeoutMs: waitForWsMs });
+const baseSmokeOptions = { home: values.home, nick: values.nick };
+const wsStatus = await waitForWsClient({ ...baseSmokeOptions, timeoutMs: waitForWsMs });
 
-const open = await sendCommand("tab.open", { url: openUrl }, { home: values.home });
+const open = await sendCommand("tab.open", { url: openUrl }, baseSmokeOptions);
 const openBody = expectOk(open, "tab.open");
 if (!/^[a-z2-7]{6}$/.test(openBody.data.session)) {
 	throw new Error(`tab.open returned invalid session id: ${openBody.data.session}`);
@@ -40,7 +42,7 @@ if (!openBody.data.bound) {
 }
 
 const session = openBody.data.session;
-const baseOptions = { home: values.home, session };
+const baseOptions = { ...baseSmokeOptions, session };
 
 const text = await sendCommand("text", { selector: "main" }, baseOptions);
 const textBody = expectOk(text, "text(main)");

@@ -26,6 +26,7 @@ const DESTRUCTIVE_ACTIONS = new Set<Action>([
 
 export interface SendCommandOptions {
 	home?: string;
+	nick?: string;
 	session?: string;
 	id?: string;
 	timeoutMs?: number;
@@ -88,6 +89,7 @@ export function buildRequest<A extends Action>(
 		protocol_version: 1,
 		id: options.id ?? randomUUID(),
 		action,
+		nick: (options.nick ?? "smoke1") as BproxyRequest<A>["nick"],
 		params,
 		session: (options.session ?? "") as BproxyRequest<A>["session"],
 		deadline: Date.now() + (options.timeoutMs ?? 30_000),

@@ -14,5 +14,6 @@ export interface CommandRouteDeps {
 	sessions: SessionRegistry;
 	elementHandles: ElementHandleCache;
 	stateDir: string;
+	computeOwnerHash: (nick: string) => string;
 	trace?: (entry: DaemonRequestTrace) => void;
 }

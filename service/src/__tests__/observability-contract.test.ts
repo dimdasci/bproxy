@@ -6,6 +6,7 @@ import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
 	setupTestServer,
+	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 	waitUntil,
@@ -26,6 +27,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		protocol_version: 1,
 		id: overrides.id ?? `obs-${crypto.randomUUID().slice(0, 8)}`,
 		action: overrides.action ?? "text",
+		nick: overrides.nick ?? TEST_NICK,
 		params: overrides.params ?? {},
 		session: overrides.session ?? currentSession,
 		deadline: overrides.deadline ?? Date.now() + 5000,

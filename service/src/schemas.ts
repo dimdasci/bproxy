@@ -163,6 +163,7 @@ const ENVELOPE_BASE = z.object({
 	protocol_version: z.literal(1),
 	id: z.string().min(1),
 	action: z.string(),
+	nick: z.string(),
 	params: z.unknown(),
 	session: z.string(),
 	deadline: z.number().int(),

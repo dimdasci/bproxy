@@ -37,7 +37,14 @@ type _BindUsesLogicalTab = Expect<
 type _TabOpenUsesLogicalHandles = Expect<
 	Equals<
 		ActionResult["tab.open"],
-		{ session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string }
+		{
+			session: SessionId;
+			tab: TabHandle;
+			bound: boolean;
+			url: string;
+			tmpDir: string;
+			ownerHash: string;
+		}
 	>
 >;
 type _TabListIsScoped = Expect<
@@ -64,6 +71,9 @@ type _TraceUsesNarrowActionAndErrorCode = Expect<
 type _TabInfoUsesLogicalHandle = Expect<Equals<TabInfo["tab"], TabHandle>>;
 type _ForwardedTargetAllowsNull = Expect<
 	Equals<BproxyForwardedRequest["target"]["tabId"], number | null>
+>;
+type _ForwardedStripsNick = Expect<
+	Equals<"nick" extends keyof BproxyForwardedRequest ? true : false, false>
 >;
 type _DebugStatusExposesSessionTabs = Expect<
 	Equals<

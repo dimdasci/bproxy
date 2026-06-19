@@ -31,6 +31,7 @@ export function validateSession(cmd: BproxyRequest, deps: CommandRouteDeps): Bpr
 	}
 	if (!deps.sessions.isValidSessionId(cmd.session)) return invalidSession(cmd);
 	if (!deps.sessions.has(cmd.session)) return sessionNotFound(cmd);
+	if (deps.sessions.getOwner(cmd.session) !== cmd.nick) return sessionScopeMismatch(cmd);
 	return null;
 }
 
@@ -39,7 +40,8 @@ export async function handleSessionLocal(
 	deps: CommandRouteDeps,
 ): Promise<BproxyResponse> {
 	if (cmd.action === "session.create") return handleSessionCreate(cmd, deps);
-	if (cmd.action === "session.list") return success(cmd, { sessions: deps.sessions.list() });
+	if (cmd.action === "session.list")
+		return success(cmd, { sessions: deps.sessions.listByOwner(cmd.nick) });
 	if (cmd.action === "session.bind") return handleSessionBind(cmd, deps);
 	if (cmd.action === "session.unbind") return handleSessionUnbind(cmd, deps);
 	if (cmd.action === "session.resume") return handleSessionResume(cmd, deps);
@@ -70,16 +72,33 @@ function sessionNotFound(cmd: BproxyRequest): BproxyResponse {
 	return failure(cmd, {
 		code: "SESSION_NOT_FOUND",
 		category: "target",
-		retry: "conditional",
+		retry: "never",
 		message: `Session '${cmd.session}' was not found`,
+		suggestedAction: `Session '${cmd.session}' is permanently closed or never existed. Do not retry. Create a new session with 'bproxy tab open --url ... -n ${cmd.nick}'. If you need historical diagnostics, inspect BPROXY_HOME/logs/ and correlate entries with your ownerHash.`,
+		details: { session: cmd.session },
+	});
+}
+
+function sessionScopeMismatch(cmd: BproxyRequest): BproxyResponse {
+	return failure(cmd, {
+		code: "SESSION_SCOPE_MISMATCH",
+		category: "policy",
+		retry: "never",
+		message: `Session '${cmd.session}' does not belong to this agent`,
+		suggestedAction: `This session belongs to another agent. Create your own session with 'bproxy tab open --url ... -n ${cmd.nick}' or check that you are using the correct --nick value.`,
 		details: { session: cmd.session },
 	});
 }
 
 function handleSessionCreate(cmd: BproxyRequest, deps: CommandRouteDeps): BproxyResponse {
-	const created = deps.sessions.create((cmd.params as { label?: string }).label);
+	const created = deps.sessions.create(cmd.nick, (cmd.params as { label?: string }).label);
 	const tmpDir = createSessionTmpDir(deps.stateDir, created.id);
-	return success(cmd, { session: created.id, label: created.label, tmpDir });
+	return success(cmd, {
+		session: created.id,
+		label: created.label,
+		tmpDir,
+		ownerHash: deps.computeOwnerHash(cmd.nick),
+	});
 }
 
 function handleSessionBind(cmd: BproxyRequest, deps: CommandRouteDeps): BproxyResponse {
@@ -88,7 +107,12 @@ function handleSessionBind(cmd: BproxyRequest, deps: CommandRouteDeps): BproxyRe
 		return sessionBindTargetError(cmd, deps, params.tab);
 	deps.sessions.bind(cmd.session, params.tab, params.pacing);
 	if (params.pacing) {
-		deps.logger.info({ event: "pacing_config", session: cmd.session, mode: params.pacing });
+		deps.logger.info({
+			event: "pacing_config",
+			session: cmd.session,
+			mode: params.pacing,
+			ownerHash: deps.computeOwnerHash(cmd.nick),
+		});
 	}
 	return success(cmd, { session: cmd.session, tab: params.tab });
 }
@@ -140,6 +164,7 @@ async function handleSessionClose(
 			protocol_version: 1,
 			id: `${cmd.id}:close:${index + 1}`,
 			action: "tab.close",
+			nick: cmd.nick,
 			params: {},
 			session: cmd.session,
 			deadline: cmd.deadline,

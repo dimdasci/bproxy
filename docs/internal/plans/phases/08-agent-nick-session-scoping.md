@@ -355,13 +355,13 @@ bproxy text -s m4q7z2
 
 ### 4. Daemon — configuration (`service/`)
 
-- [ ] Define daemon config types for both `pacing` and `safety`
-- [ ] Move hard-coded pacing preset defaults out of `shared/` and into daemon config/defaults
-- [ ] Load `BPROXY_HOME/config.json` at startup (optional file, missing = all defaults)
-- [ ] Validate config shape (reject unknown keys, wrong types) → fail startup on invalid
-- [ ] Validate pacing ranges (`min <= max`) and enforce `pacing.*.*.min/max >= safety.minInterval.ms` → fail startup on invalid
-- [ ] Log active configuration at startup (`info` level)
-- [ ] Wire config values into pacing and safety modules
+- [x] Define daemon config types for both `pacing` and `safety`
+- [x] Move hard-coded pacing preset defaults out of `shared/` and into daemon config/defaults
+- [x] Load `BPROXY_HOME/config.json` at startup (optional file, missing = all defaults)
+- [x] Validate config shape (reject unknown keys, wrong types) → fail startup on invalid
+- [x] Validate pacing ranges (`min <= max`) and enforce `pacing.*.*.min/max >= safety.minInterval.ms` → fail startup on invalid
+- [x] Log active configuration at startup (`info` level)
+- [x] Wire config values into pacing and safety modules
 
 ### 5. Daemon — safety guards (`service/`)
 

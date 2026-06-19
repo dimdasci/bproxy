@@ -4,7 +4,7 @@
  * Extracted to eliminate Sonar-flagged duplication (connectClient, waitUntil,
  * server lifecycle) across action-contract, round-trip, observability, etc.
  */
-import type { SessionId } from "@bproxy/shared";
+import type { Nick, SessionId } from "@bproxy/shared";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../../logger";
 import { type BuildServerOptions, type BuiltServer, buildServer } from "../../server";
@@ -33,6 +33,8 @@ export function waitUntil(fn: () => boolean, timeoutMs = 2000): Promise<void> {
 	});
 }
 
+export const TEST_NICK = "halbot" as Nick;
+
 export interface TestServerContext {
 	built: BuiltServer;
 	stateDir: string;
@@ -57,7 +59,7 @@ export async function setupTestServer(
 	});
 	const addr = await built.app.listen({ host: "127.0.0.1", port: 0 });
 	const port = Number.parseInt(addr.split(":").pop() ?? "0", 10);
-	const currentSession = built.sessions.create().id;
+	const currentSession = built.sessions.create(TEST_NICK).id;
 	return { built, stateDir, port, captured, currentSession };
 }
 

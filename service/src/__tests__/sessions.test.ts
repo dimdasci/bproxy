@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createSessionRegistry, SESSION_ID_PATTERN } from "../sessions";
 
+const OWNER = "halbot";
+
 describe("session registry", () => {
 	it("generates 6-char base32 session ids", () => {
 		const reg = createSessionRegistry();
-		const session = reg.create("research");
+		const session = reg.create(OWNER, "research");
 		expect(session.id).toMatch(SESSION_ID_PATTERN);
 		expect(session.label).toBe("research");
 		expect(session.tab).toBeNull();
@@ -17,8 +19,8 @@ describe("session registry", () => {
 		const reg = createSessionRegistry({
 			generateId: () => issued.shift() ?? "cccccc",
 		});
-		const first = reg.create();
-		const second = reg.create();
+		const first = reg.create(OWNER);
+		const second = reg.create(OWNER);
 		expect(first.id).toBe("aaaaaa");
 		expect(second.id).toBe("bbbbbb");
 		expect(reg.list().map((session) => session.id)).toEqual(["aaaaaa", "bbbbbb"]);
@@ -26,7 +28,7 @@ describe("session registry", () => {
 
 	it("registers session-scoped logical tab handles", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
-		const session = reg.create();
+		const session = reg.create(OWNER);
 
 		reg.bind(session.id, 42, "fast");
 		reg.bind(session.id, 99);
@@ -41,7 +43,7 @@ describe("session registry", () => {
 
 	it("can rebind to an existing logical handle without losing pacing", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
-		const session = reg.create();
+		const session = reg.create(OWNER);
 
 		reg.bind(session.id, 42, "fast");
 		reg.bind(session.id, 99);
@@ -53,7 +55,7 @@ describe("session registry", () => {
 
 	it("pauses, resumes, and unbind clears the tab plus pause flag", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
-		const session = reg.create();
+		const session = reg.create(OWNER);
 
 		reg.bind(session.id, 42);
 		reg.pause(session.id, "captcha");
@@ -69,7 +71,7 @@ describe("session registry", () => {
 
 	it("closes a session and returns owned Chrome tab ids", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
-		const session = reg.create();
+		const session = reg.create(OWNER);
 
 		reg.bind(session.id, 42);
 		reg.bind(session.id, 99);
@@ -83,8 +85,8 @@ describe("session registry", () => {
 	it("tracks tab handles per session", () => {
 		const issued = ["aaaaaa", "bbbbbb"];
 		const reg = createSessionRegistry({ generateId: () => issued.shift() ?? "cccccc" });
-		const first = reg.create();
-		const second = reg.create();
+		const first = reg.create(OWNER);
+		const second = reg.create(OWNER);
 
 		reg.bind(first.id, 11);
 		reg.bind(second.id, 22);
@@ -96,7 +98,7 @@ describe("session registry", () => {
 
 	it("exposes mutable internal state only for existing sessions", () => {
 		const reg = createSessionRegistry({ generateId: () => "m4q8z2" });
-		const created = reg.create();
+		const created = reg.create(OWNER);
 		const internal = reg.internal(created.id);
 		expect(internal).toBe(reg.getOrCreate(created.id));
 		expect(internal.lastActionAt).toEqual({});

@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
-import type { ServiceConfig } from "./config";
+import type { LoadedServiceConfig, ServiceConfig } from "./config";
 import { stateFile } from "./config";
 import { buildLogger } from "./logger";
 import { createPairingStore } from "./pairing";
@@ -182,37 +182,36 @@ export function writePidFile(config: ServiceConfig, pid: number): void {
 	writeFileSync(stateFile(config.stateDir, "bproxy.pid"), String(pid));
 }
 
-export async function startForeground(config: ServiceConfig): Promise<void> {
+function persistClaimedExtensionToken(config: ServiceConfig, token: string): void {
+	writeExtensionToken(config, token);
+	removePairingFile(config);
+}
+
+export async function startForeground(config: LoadedServiceConfig): Promise<void> {
 	ensureStateDir(config);
 	wipeTmpDir(config.stateDir);
 	removeOrphanedTmpFiles(config.stateDir);
 	const logger = buildLogger(config);
+	logger.info({ event: "active_config", daemon: config.daemon });
 	const daemonToken = writeToken(config);
 	const extensionToken = readExtensionToken(config) ?? "";
 	const pairing = createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const issued = pairing.issue();
-
-	// Write pairing metadata atomically for the detached parent to read
-	const pairingMeta: PairingMetadata = {
+	writePairingFile(config, {
 		pairingCode: issued.code,
 		pairingExpiresAt: issued.expiresAt,
 		issuedAt: Date.now(),
-	};
-	writePairingFile(config, pairingMeta);
-
+	});
 	const built = await buildServer({
 		port: config.port,
 		stateDir: config.stateDir,
 		daemonToken,
 		extensionToken,
 		logger,
+		daemonConfig: config.daemon,
 		pairing,
 		sessions: createSessionRegistry(),
-		onExtensionTokenChanged: (token) => {
-			writeExtensionToken(config, token);
-			// Pairing claim succeeded — remove pairing.json
-			removePairingFile(config);
-		},
+		onExtensionTokenChanged: (token) => persistClaimedExtensionToken(config, token),
 	});
 	let resolveShutdown!: () => void;
 	const shutdownPromise = new Promise<void>((resolve) => {
@@ -238,7 +237,6 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 	};
 	process.once("SIGTERM", () => shutdown("SIGTERM"));
 	process.once("SIGINT", () => shutdown("SIGINT"));
-
 	const addr = await built.app.listen({ host: config.host, port: config.port });
 	const boundPort = Number.parseInt(addr.split(":").pop() ?? String(config.port), 10);
 	writePort(config, boundPort);

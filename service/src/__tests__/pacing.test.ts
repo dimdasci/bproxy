@@ -1,6 +1,6 @@
 import type { BproxyRequest } from "@bproxy/shared";
-import { PACING_PRESETS } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_DAEMON_CONFIG } from "../daemon-config";
 import { createPacing } from "../pacing";
 import { createSessionRegistry } from "../sessions";
 
@@ -15,6 +15,7 @@ function createTestHarness(opts: { random?: () => number; session?: string } = {
 	sessions.getOrCreate(sid);
 	const pacing = createPacing({
 		sessions,
+		config: DEFAULT_DAEMON_CONFIG.pacing,
 		now: () => clock,
 		sleep: async (ms) => {
 			sleeps.push(ms);
@@ -63,7 +64,7 @@ describe("pacing engine", () => {
 		await h.pacing.waitForSlot(SESSION, "navigate");
 		await h.pacing.waitForSlot(SESSION, "navigate");
 		expect(h.sleeps.length).toBe(1);
-		const { min, max } = PACING_PRESETS.human.navigate;
+		const { min, max } = DEFAULT_DAEMON_CONFIG.pacing.human.navigate;
 		expect(h.sleeps[0]).toBeGreaterThanOrEqual(min - 1);
 		expect(h.sleeps[0]).toBeLessThanOrEqual(max);
 	});
@@ -74,13 +75,14 @@ describe("pacing engine", () => {
 		await h.pacing.waitForSlot(SESSION, "click");
 		h.advance(10);
 		await h.pacing.waitForSlot(SESSION, "hover");
-		expect(h.sleeps).toEqual([1250 - 10]);
+		expect(h.sleeps).toEqual([1850 - 10]);
 	});
 
 	it("passes through unpaced actions immediately", async () => {
 		const sleep = vi.fn();
 		const pacing = createPacing({
 			sessions: createSessionRegistry(),
+			config: DEFAULT_DAEMON_CONFIG.pacing,
 			now: () => 0,
 			sleep,
 			random: () => 0,
@@ -97,7 +99,7 @@ describe("pacing engine", () => {
 		await h.pacing.waitForSlot(FAST_SESSION, "fill");
 		h.advance(10);
 		await h.pacing.waitForSlot(FAST_SESSION, "fill");
-		expect(h.sleeps).toEqual([250 - 10]);
+		expect(h.sleeps).toEqual([1050 - 10]);
 	});
 
 	it("never sleeps when elapsed already exceeds the configured delay", async () => {

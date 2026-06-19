@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { type DaemonConfig, loadDaemonConfig } from "./daemon-config";
 
 export interface ServiceConfig {
 	port: number;
@@ -8,11 +9,15 @@ export interface ServiceConfig {
 	logLevel: "trace" | "debug" | "info" | "warn" | "error";
 }
 
+export interface LoadedServiceConfig extends ServiceConfig {
+	daemon: DaemonConfig;
+}
+
 const DEFAULT_PORT = 9615;
 const DEFAULT_HOST = "127.0.0.1";
 const VALID_LEVELS = new Set(["trace", "debug", "info", "warn", "error"]);
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
+export function loadBaseConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
 	const port = Number.parseInt(env["BPROXY_PORT"] ?? "", 10);
 	const level = env["BPROXY_LOG_LEVEL"] ?? "info";
 	return {
@@ -21,6 +26,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
 		stateDir: env["BPROXY_HOME"] ?? resolve(homedir(), ".bproxy"),
 		logLevel: VALID_LEVELS.has(level) ? (level as ServiceConfig["logLevel"]) : "info",
 	};
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedServiceConfig {
+	const base = loadBaseConfig(env);
+	return { ...base, daemon: loadDaemonConfig(base.stateDir) };
 }
 
 export function stateFile(

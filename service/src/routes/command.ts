@@ -1,10 +1,12 @@
-import type {
-	BproxyRequest,
-	BproxyResponse,
-	DaemonRequestTrace,
-	ElementInfo,
-	LinkInfo,
-	SessionId,
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	type DaemonRequestTrace,
+	type ElementInfo,
+	isValidNick,
+	type LinkInfo,
+	type SessionId,
+	type TraceEntry,
 } from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import { handleDaemonLocal, isDaemonLocal } from "../debug-actions";
@@ -20,7 +22,8 @@ async function executeCommand(cmd: BproxyRequest, deps: CommandRouteDeps): Promi
 	if (isSessionLocal(cmd.action)) return await handleSessionLocal(cmd, deps);
 	if (isTabMediated(cmd.action)) return await handleTabMediated(cmd, deps);
 	const response = await dispatchAndPause(cmd, deps);
-	return decorateReadHandles(cmd, deps, response);
+	const filtered = filterDebugLogEntries(cmd, deps, response);
+	return decorateReadHandles(cmd, deps, filtered);
 }
 
 function decorateReadHandles(
@@ -57,6 +60,18 @@ function decorateReadHandles(
 	return { ...response, data: { ...(response.data as object), links } };
 }
 
+function filterDebugLogEntries(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	response: BproxyResponse,
+): BproxyResponse {
+	if (cmd.action !== "debug.log" || !response.ok) return response;
+	const entries = (response.data as { entries: TraceEntry[] }).entries.filter(
+		(entry) => entry.session !== undefined && deps.sessions.getOwner(entry.session) === cmd.nick,
+	);
+	return { ...response, data: { entries } };
+}
+
 function logResponse(
 	cmd: BproxyRequest,
 	deps: CommandRouteDeps,
@@ -71,6 +86,7 @@ function logResponse(
 		ok: response.ok,
 		elapsed_ms: elapsedMs,
 		error_code: errorCode,
+		ownerHash: deps.computeOwnerHash(cmd.nick),
 	});
 	deps.trace?.({
 		id: cmd.id,
@@ -94,6 +110,12 @@ export function commandRoute(deps: CommandRouteDeps) {
 				});
 			}
 			const cmd = parsed.data;
+			if (!isValidNick(cmd.nick)) {
+				return reply.code(400).send({
+					ok: false,
+					error: { code: "BAD_REQUEST", message: "nick must match /^[a-z][a-z0-9]{5}$/" },
+				});
+			}
 			const receivedAt = Date.now();
 			deps.logger.info({
 				id: cmd.id,
@@ -101,6 +123,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 				session: cmd.session,
 				destructive: cmd.destructive,
 				event: "received",
+				ownerHash: deps.computeOwnerHash(cmd.nick),
 			});
 
 			const sessionError = validateSession(cmd, deps);

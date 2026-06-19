@@ -21,21 +21,6 @@ export interface PacingConfig {
 	fill: { min: number; max: number };
 }
 
-export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
-	human: {
-		navigate: { min: 1500, max: 4000 },
-		scroll: { min: 4000, max: 8000 },
-		interaction: { min: 500, max: 2000 },
-		fill: { min: 500, max: 2000 },
-	},
-	fast: {
-		navigate: { min: 300, max: 800 },
-		scroll: { min: 500, max: 1500 },
-		interaction: { min: 100, max: 400 },
-		fill: { min: 100, max: 400 },
-	},
-};
-
 export interface SessionInfo {
 	id: SessionId;
 	label?: string;

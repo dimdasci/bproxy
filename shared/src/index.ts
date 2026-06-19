@@ -42,6 +42,6 @@ export type {
 	TabHandle,
 	TabInfo,
 } from "./sessions";
-export { isValidNick, PACING_PRESETS } from "./sessions";
+export { isValidNick } from "./sessions";
 export type { ElementRoute, ElementTarget } from "./targets";
 export { PROTOCOL_VERSION, VERSION } from "./version";
