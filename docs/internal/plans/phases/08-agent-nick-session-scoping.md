@@ -385,12 +385,12 @@ bproxy text -s m4q7z2
 
 ### 7. Documentation
 
-- [ ] Update `docs/internal/architecture.md` — mention nick scoping in session authority
-- [ ] Update `docs/public/solution/cli.md` — add `--nick` to global flags table, update examples
-- [ ] Update `docs/public/solution/service.md` — session ownership, scope validation, safety guards, config file
-- [ ] Update `docs/public/solution/shared.md` — new types, new error codes, TraceEntry change
-- [ ] Update `docs/public/views/04-session-state.md` — ownership on session creation
-- [ ] Update `docs/public/views/06-threat-model.md` — inter-agent isolation via nick, ownerHash in logs
+- [x] Update `docs/internal/architecture.md` — mention nick scoping in session authority
+- [x] Update `docs/public/solution/cli.md` — add `--nick` to global flags table, update examples
+- [x] Update `docs/public/solution/service.md` — session ownership, scope validation, safety guards, config file
+- [x] Update `docs/public/solution/shared.md` — new types, new error codes, TraceEntry change
+- [x] Update `docs/public/views/04-session-state.md` — ownership on session creation
+- [x] Update `docs/public/views/06-threat-model.md` — inter-agent isolation via nick, ownerHash in logs
 
 ---
 

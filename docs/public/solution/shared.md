@@ -18,21 +18,22 @@ shared/
     ├── actions.ts            # action names, per-action params and results
     ├── handles.ts            # daemon-owned element handle aliases at the CLI/daemon boundary
     ├── errors.ts             # error codes, categories, structured error shape
-    └── sessions.ts           # session/tab identifiers, pacing config
+    └── sessions.ts           # nick/session/tab identifiers, validation helpers, pacing mode
 ```
 
 ## Protocol Envelope
 
 ```typescript
 // src/protocol.ts
-import type { Action, ActionParams, ActionResult } from './actions';
+import type { Action, ActionParams, ActionResult, ForwardedActionParams } from './actions';
 import type { BproxyError } from './errors';
-import type { SessionId } from './sessions';
+import type { Nick, SessionId } from './sessions';
 
 export interface BproxyRequest<A extends Action = Action> {
   protocol_version: 1;
   id: string;
   action: A;
+  nick: Nick;
   params: ActionParams[A];
   session: SessionId;
   deadline: number;       // unix ms
@@ -40,13 +41,16 @@ export interface BproxyRequest<A extends Action = Action> {
 }
 
 // Daemon → extension wire shape. The CLI's HTTP input is `BproxyRequest`;
-// the daemon owns the mapping session → tabId and wraps the request with
-// `target.tabId` at the dispatch site. Only forwarded actions use this shape —
-// daemon-local actions (session.*, debug.last, debug.status) never carry a target.
+// the daemon consumes `nick`, resolves session → tabId, narrows params from
+// client targets/handles to forwarded explicit targets, and wraps the request
+// with `target.tabId` at the dispatch site. Only forwarded actions use this
+// shape — daemon-local actions (session.*, debug.last, debug.status) never
+// carry a target.
 //
 // `target.tabId` may be `null` for background-handled actions that do not
-// require an existing tab (tab.open, tab.list, tab.close).
-export type BproxyForwardedRequest<A extends Action = Action> = BproxyRequest<A> & {
+// require an existing tab (tab.open, tab.close).
+export type BproxyForwardedRequest<A extends Action = Action> = Omit<BproxyRequest<A>, 'nick' | 'params'> & {
+  params: ForwardedActionParams[A];
   target: { tabId: number | null };
 };
 
@@ -206,9 +210,9 @@ export interface ActionResult {
   'tab.list': { session: SessionId; tabs: Array<TabInfo> };
   'tab.pin': { tab: TabHandle; pinned: true };
   'tab.unpin': { tab: TabHandle; pinned: false };
-  'tab.open': { session: SessionId; tab: TabHandle; bound: boolean; url: string };
+  'tab.open': { session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string; ownerHash: string };
   'tab.close': { tab: TabHandle; closed: true };
-  'session.create': { session: SessionId; label?: string };
+  'session.create': { session: SessionId; label?: string; tmpDir: string; ownerHash: string };
   'session.list': { sessions: Array<SessionInfo> };
   'session.bind': { session: SessionId; tab: TabHandle };
   'session.unbind': Record<string, never>;
@@ -254,6 +258,9 @@ export type ErrorCode =
   | 'HUMAN_REQUIRED'
   | 'DEBUGGER_DISABLED'
   | 'SESSION_REQUIRED'
+  | 'SESSION_SCOPE_MISMATCH'
+  | 'METRONOME_DETECTED'
+  | 'RATE_LIMITED'
   // Execution
   | 'SCRIPT_ERROR'
   | 'NAVIGATION_FAILED'
@@ -279,8 +286,13 @@ export interface BproxyError {
 // src/sessions.ts
 
 // Branded types — prevent accidental string/number interchange
+declare const nickBrand: unique symbol;
 declare const sessionIdBrand: unique symbol;
 declare const tabHandleBrand: unique symbol;
+
+// 6-character lowercase alphanumeric nick, e.g. "halbot"
+export type Nick = string & { readonly [nickBrand]: 'Nick' };
+export function isValidNick(value: string): value is Nick; // /^[a-z][a-z0-9]{5}$/
 
 // 6-character base32 lowercase, e.g. "m4q7z2"
 export type SessionId = string & { readonly [sessionIdBrand]: 'SessionId' };
@@ -296,21 +308,6 @@ export interface PacingConfig {
   interaction: { min: number; max: number };
   fill: { min: number; max: number };
 }
-
-export const PACING_PRESETS: Record<PacingMode, PacingConfig> = {
-  human: {
-    navigate: { min: 1500, max: 4000 },
-    scroll: { min: 4000, max: 8000 },
-    interaction: { min: 500, max: 2000 },
-    fill: { min: 500, max: 2000 },
-  },
-  fast: {
-    navigate: { min: 300, max: 800 },
-    scroll: { min: 500, max: 1500 },
-    interaction: { min: 100, max: 400 },
-    fill: { min: 100, max: 400 },
-  },
-};
 
 export interface SessionInfo {
   id: SessionId;
@@ -391,6 +388,7 @@ export interface Heading {
 export interface TraceEntry {
   id: string;
   action: Action;
+  session?: string;        // optional for backward compatibility with pre-ADR-030 entries
   tab: number;
   timestamp: number;
   elapsed: number;
