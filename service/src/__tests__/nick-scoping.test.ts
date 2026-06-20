@@ -5,6 +5,9 @@ import { computeOwnerHash } from "../owner-hash";
 import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
+	type MakeCmdOptions,
+	makeCmd as makeTestCmd,
+	postCommand as post,
 	setupTestServer,
 	TEST_NICK,
 	type TestServerContext,
@@ -22,33 +25,20 @@ let built: BuiltServer;
 let port: number;
 let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
+let cmdOpts: MakeCmdOptions;
 
-function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? `nick-${crypto.randomUUID().slice(0, 8)}`,
-		action: overrides.action ?? "session.list",
-		nick: overrides.nick ?? TEST_NICK,
-		params: overrides.params ?? {},
-		session: overrides.session ?? currentSession,
-		deadline: overrides.deadline ?? Date.now() + 5000,
-		destructive: false,
-		...overrides,
-	};
+function cmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
+	return makeTestCmd(cmdOpts, overrides);
 }
 
-async function postCommand(cmd: BproxyRequest): Promise<BproxyResponse> {
-	const res = await fetch(`http://127.0.0.1:${port}/`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: `Bearer ${daemonToken}` },
-		body: JSON.stringify(cmd),
-	});
-	return (await res.json()) as BproxyResponse;
+async function postCommand(request: BproxyRequest): Promise<BproxyResponse> {
+	return post(port, daemonToken, request);
 }
 
 beforeEach(async () => {
 	ctx = await setupTestServer({ daemonToken, extensionToken, instanceSalt: SALT });
 	({ built, port, captured, currentSession } = ctx);
+	cmdOpts = { idPrefix: "nick", defaultSession: () => currentSession };
 });
 
 afterEach(async () => {
@@ -66,7 +56,7 @@ describe("nick scoping", () => {
 		built.sessions.pause(bobcatSession, "captcha-other");
 
 		const listed = (await postCommand(
-			makeCmd({ action: "session.list", params: {} }),
+			cmd({ action: "session.list", params: {} }),
 		)) as BproxyResponse<"session.list">;
 		expect(listed.ok).toBe(true);
 		if (!listed.ok) return;
@@ -76,7 +66,7 @@ describe("nick scoping", () => {
 		);
 
 		const status = (await postCommand(
-			makeCmd({ action: "debug.status", params: {} }),
+			cmd({ action: "debug.status", params: {} }),
 		)) as BproxyResponse<"debug.status">;
 		expect(status.ok).toBe(true);
 		if (!status.ok) return;
@@ -94,7 +84,7 @@ describe("nick scoping", () => {
 	it("returns SESSION_SCOPE_MISMATCH for a foreign live session", async () => {
 		const foreignSession = built.sessions.create(OTHER_NICK).id;
 		const response = await postCommand(
-			makeCmd({ action: "text", session: foreignSession, nick: TEST_NICK }),
+			cmd({ action: "text", session: foreignSession, nick: TEST_NICK }),
 		);
 		expect(response).toMatchObject({ ok: false, error: { code: "SESSION_SCOPE_MISMATCH" } });
 		if (!response.ok) {
@@ -109,12 +99,12 @@ describe("nick scoping", () => {
 		built.sessions.registerTab(foreignSession, 99);
 
 		const ownBind = await postCommand(
-			makeCmd({ id: "trace-own", action: "session.bind", params: { tab: T1 } }),
+			cmd({ id: "trace-own", action: "session.bind", params: { tab: T1 } }),
 		);
 		expect(ownBind.ok).toBe(true);
 
 		const foreignBind = await postCommand(
-			makeCmd({
+			cmd({
 				id: "trace-foreign",
 				action: "session.bind",
 				nick: OTHER_NICK,
@@ -125,7 +115,7 @@ describe("nick scoping", () => {
 		expect(foreignBind.ok).toBe(true);
 
 		const live = (await postCommand(
-			makeCmd({ action: "debug.last", params: { count: 10 } }),
+			cmd({ action: "debug.last", params: { count: 10 } }),
 		)) as BproxyResponse<"debug.last">;
 		expect(live.ok).toBe(true);
 		if (!live.ok) return;
@@ -134,7 +124,7 @@ describe("nick scoping", () => {
 
 		built.sessions.close(currentSession);
 		const afterClose = (await postCommand(
-			makeCmd({ action: "debug.last", params: { count: 10 } }),
+			cmd({ action: "debug.last", params: { count: 10 } }),
 		)) as BproxyResponse<"debug.last">;
 		expect(afterClose.ok).toBe(true);
 		if (!afterClose.ok) return;
@@ -210,7 +200,7 @@ describe("nick scoping", () => {
 		});
 
 		const response = (await postCommand(
-			makeCmd({ action: "debug.log", params: {}, destructive: false }),
+			cmd({ action: "debug.log", params: {}, destructive: false }),
 		)) as BproxyResponse<"debug.log">;
 		expect(response.ok).toBe(true);
 		if (!response.ok) return;
@@ -223,7 +213,7 @@ describe("nick scoping", () => {
 
 		captured.clear();
 		const created = (await postCommand(
-			makeCmd({ action: "session.create", params: { label: "research" } }),
+			cmd({ action: "session.create", params: { label: "research" } }),
 		)) as BproxyResponse<"session.create">;
 		expect(created.ok).toBe(true);
 		if (created.ok) {
@@ -253,7 +243,7 @@ describe("nick scoping", () => {
 		});
 
 		const opened = (await postCommand(
-			makeCmd({ action: "tab.open", params: { url: "https://example.com" }, session: "" as never }),
+			cmd({ action: "tab.open", params: { url: "https://example.com" }, session: "" as never }),
 		)) as BproxyResponse<"tab.open">;
 		expect(opened.ok).toBe(true);
 		if (opened.ok) {

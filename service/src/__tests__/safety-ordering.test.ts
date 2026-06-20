@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_DAEMON_CONFIG } from "../daemon-config";
 import type { BuiltServer } from "../server";
 import {
+	type MakeCmdOptions,
+	makeCmd as makeTestCmd,
+	postCommand as post,
 	setupTestServer,
-	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 } from "./helpers/integration";
@@ -17,28 +19,14 @@ let ctx: TestServerContext;
 let built: BuiltServer;
 let port: number;
 let currentSession: BproxyRequest["session"];
+let cmdOpts: MakeCmdOptions;
 
-function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? `safe-${crypto.randomUUID().slice(0, 8)}`,
-		action: overrides.action ?? "session.list",
-		nick: overrides.nick ?? TEST_NICK,
-		params: overrides.params ?? {},
-		session: overrides.session ?? currentSession,
-		deadline: overrides.deadline ?? Date.now() + 5000,
-		destructive: false,
-		...overrides,
-	};
+function cmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
+	return makeTestCmd(cmdOpts, overrides);
 }
 
-async function postCommand(cmd: BproxyRequest): Promise<BproxyResponse> {
-	const res = await fetch(`http://127.0.0.1:${port}/`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: `Bearer ${daemonToken}` },
-		body: JSON.stringify(cmd),
-	});
-	return (await res.json()) as BproxyResponse;
+async function postCommand(request: BproxyRequest): Promise<BproxyResponse> {
+	return post(port, daemonToken, request);
 }
 
 afterEach(async () => {
@@ -56,10 +44,11 @@ describe("safety guard ordering", () => {
 			safetyRandom: () => 0,
 		});
 		({ built, port, currentSession } = ctx);
+		cmdOpts = { idPrefix: "safe", defaultSession: () => currentSession };
 		const foreignSession = built.sessions.create(OTHER_NICK).id;
 
-		expect((await postCommand(makeCmd({ action: "session.list", params: {} }))).ok).toBe(true);
-		const second = await postCommand(makeCmd({ action: "text", session: foreignSession }));
+		expect((await postCommand(cmd({ action: "session.list", params: {} }))).ok).toBe(true);
+		const second = await postCommand(cmd({ action: "text", session: foreignSession }));
 		expect(second).toMatchObject({ ok: false, error: { code: "RATE_LIMITED" } });
 	});
 
@@ -84,9 +73,10 @@ describe("safety guard ordering", () => {
 			safetyRandom: () => 0,
 		});
 		({ built, port, currentSession } = ctx);
+		cmdOpts = { idPrefix: "safe", defaultSession: () => currentSession };
 		const foreignSession = built.sessions.create(OTHER_NICK).id;
 
-		const response = await postCommand(makeCmd({ action: "text", session: foreignSession }));
+		const response = await postCommand(cmd({ action: "text", session: foreignSession }));
 		expect(response).toMatchObject({ ok: false, error: { code: "SESSION_SCOPE_MISMATCH" } });
 		expect(sleeps).toEqual([500]);
 	});

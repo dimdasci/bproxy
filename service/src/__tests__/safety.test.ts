@@ -72,20 +72,25 @@ describe("safety guards", () => {
 		});
 	});
 
-	it("detects metronomic request timing", () => {
+	function metronomeHarness() {
 		const h = createHarness({
 			config: {
 				minInterval: { ms: 100 },
 				metronome: { tolerance: 0.1, consecutiveEqual: 3, maxIntervalMs: 60_000 },
 			},
 		});
-
+		// Establish two equal intervals (at 0, 1000, 2000) — not yet rejected
 		h.setNow(0);
 		expect(h.safety.checkIngress("halbot")).toBeNull();
 		h.setNow(1_000);
 		expect(h.safety.checkIngress("halbot")).toBeNull();
 		h.setNow(2_000);
 		expect(h.safety.checkIngress("halbot")).toBeNull();
+		return h;
+	}
+
+	it("detects metronomic request timing", () => {
+		const h = metronomeHarness();
 		h.setNow(3_000);
 		expect(h.safety.checkIngress("halbot")).toMatchObject({
 			code: "METRONOME_DETECTED",
@@ -94,21 +99,11 @@ describe("safety guards", () => {
 	});
 
 	it("resets the metronome streak after a pattern break", () => {
-		const h = createHarness({
-			config: {
-				minInterval: { ms: 100 },
-				metronome: { tolerance: 0.1, consecutiveEqual: 3, maxIntervalMs: 60_000 },
-			},
-		});
-
-		h.setNow(0);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
-		h.setNow(1_000);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
-		h.setNow(2_000);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
+		const h = metronomeHarness();
+		// Break the pattern with a non-equal interval
 		h.setNow(3_300);
 		expect(h.safety.checkIngress("halbot")).toBeNull();
+		// Start a new streak (4300, 5300, 6300 = equal intervals again)
 		h.setNow(4_300);
 		expect(h.safety.checkIngress("halbot")).toBeNull();
 		h.setNow(5_300);

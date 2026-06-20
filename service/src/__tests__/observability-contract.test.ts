@@ -5,8 +5,10 @@ import type { CapturedLogger } from "../logger";
 import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
+	type MakeCmdOptions,
+	makeCmd as makeTestCmd,
+	postRaw,
 	setupTestServer,
-	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 	waitUntil,
@@ -21,27 +23,18 @@ let port: number;
 let captured: CapturedLogger;
 let currentSession: BproxyRequest["session"];
 const T1 = "t1" as TabHandle;
+const cmdOpts: MakeCmdOptions = {
+	idPrefix: "obs",
+	defaultAction: "text",
+	defaultSession: () => currentSession,
+};
 
-function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
-	return {
-		protocol_version: 1,
-		id: overrides.id ?? `obs-${crypto.randomUUID().slice(0, 8)}`,
-		action: overrides.action ?? "text",
-		nick: overrides.nick ?? TEST_NICK,
-		params: overrides.params ?? {},
-		session: overrides.session ?? currentSession,
-		deadline: overrides.deadline ?? Date.now() + 5000,
-		destructive: false,
-		...overrides,
-	};
+function buildCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
+	return makeTestCmd(cmdOpts, overrides);
 }
 
-async function postCommand(cmd: BproxyRequest, token = daemonToken): Promise<Response> {
-	return fetch(`http://127.0.0.1:${port}/`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-		body: JSON.stringify(cmd),
-	});
+async function postCommand(request: BproxyRequest, token = daemonToken): Promise<Response> {
+	return postRaw(port, token, request);
 }
 
 beforeEach(async () => {
@@ -73,7 +66,7 @@ describe("observability contract — GAP D", () => {
 				ws.send(JSON.stringify(resp));
 			});
 
-			const cmd = makeCmd({ id: "obs-seq-test-1", action: "text" });
+			const cmd = buildCmd({ id: "obs-seq-test-1", action: "text" });
 			await postCommand(cmd);
 
 			const events = captured.lines.filter((line) => line["id"] === cmd.id);
@@ -121,11 +114,11 @@ describe("observability contract — GAP D", () => {
 			});
 
 			await postCommand(
-				makeCmd({ id: "obs-pacing-1", action: "navigate", params: { url: "https://a.com" } }),
+				buildCmd({ id: "obs-pacing-1", action: "navigate", params: { url: "https://a.com" } }),
 			);
 			captured.clear();
 
-			const cmd2 = makeCmd({
+			const cmd2 = buildCmd({
 				id: "obs-pacing-2",
 				action: "navigate",
 				params: { url: "https://b.com" },
@@ -144,7 +137,7 @@ describe("observability contract — GAP D", () => {
 		it("emits response with error_code when forward fails", async () => {
 			captured.clear();
 			const ws = await connectWsClient(port, extensionToken);
-			const cmd = makeCmd({ id: "obs-err-1", action: "text" });
+			const cmd = buildCmd({ id: "obs-err-1", action: "text" });
 			await postCommand(cmd);
 
 			const events = captured.lines.filter((line) => line["id"] === cmd.id);
@@ -165,7 +158,7 @@ describe("observability contract — GAP D", () => {
 				// Intentionally hang.
 			});
 
-			const cmd = makeCmd({ id: "obs-timeout-1", action: "text", deadline: Date.now() + 500 });
+			const cmd = buildCmd({ id: "obs-timeout-1", action: "text", deadline: Date.now() + 500 });
 			await postCommand(cmd);
 
 			await waitUntil(() => {
@@ -191,7 +184,7 @@ describe("observability contract — GAP D", () => {
 				ws.once("message", (raw: unknown) => resolve(JSON.parse(String(raw)) as BproxyRequest));
 			});
 
-			const cmd = makeCmd({ id: "obs-replay-1", action: "text", deadline: Date.now() + 10000 });
+			const cmd = buildCmd({ id: "obs-replay-1", action: "text", deadline: Date.now() + 10000 });
 			const postPromise = postCommand(cmd);
 			await seenByClient1;
 			ws.close();
@@ -241,7 +234,7 @@ describe("observability contract — GAP D", () => {
 			captured.clear();
 			built.sessions.registerTab(currentSession, 42);
 
-			const cmd = makeCmd({
+			const cmd = buildCmd({
 				id: "obs-config-1",
 				action: "session.bind",
 				params: { tab: T1, pacing: "fast" },
@@ -288,7 +281,7 @@ describe("observability contract — GAP D", () => {
 	describe("error_code field presence", () => {
 		it("includes error_code in response event on failure", async () => {
 			captured.clear();
-			const cmd = makeCmd({ id: "obs-errcode-1", action: "text" });
+			const cmd = buildCmd({ id: "obs-errcode-1", action: "text" });
 			await postCommand(cmd);
 
 			const events = captured.lines.filter((line) => line["id"] === cmd.id);
@@ -298,7 +291,7 @@ describe("observability contract — GAP D", () => {
 
 		it("omits error_code when response is successful", async () => {
 			captured.clear();
-			const cmd = makeCmd({ id: "obs-success-1", action: "debug.status" });
+			const cmd = buildCmd({ id: "obs-success-1", action: "debug.status" });
 			await postCommand(cmd);
 
 			const events = captured.lines.filter((line) => line["id"] === cmd.id);

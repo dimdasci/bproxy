@@ -2,9 +2,10 @@
  * Shared integration test utilities for service route tests.
  *
  * Extracted to eliminate Sonar-flagged duplication (connectClient, waitUntil,
- * server lifecycle) across action-contract, round-trip, observability, etc.
+ * server lifecycle, makeCmd, postCommand) across action-contract, round-trip,
+ * observability, nick-scoping, safety-ordering, etc.
  */
-import type { Nick, SessionId } from "@bproxy/shared";
+import type { BproxyRequest, BproxyResponse, Nick, SessionId } from "@bproxy/shared";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../../logger";
 import { type BuildServerOptions, type BuiltServer, buildServer } from "../../server";
@@ -75,4 +76,50 @@ export async function setupTestServer(
 export async function teardownTestServer(ctx: TestServerContext): Promise<void> {
 	await ctx.built.app.close();
 	removeTestStateDir(ctx.stateDir);
+}
+
+// ─── Shared request helpers ────────────────────────────────────────────
+
+export interface MakeCmdOptions {
+	idPrefix?: string;
+	defaultAction?: BproxyRequest["action"];
+	defaultSession: () => BproxyRequest["session"];
+}
+
+export function makeCmd(
+	opts: MakeCmdOptions,
+	overrides: Partial<BproxyRequest> = {},
+): BproxyRequest {
+	const defaults: BproxyRequest = {
+		protocol_version: 1,
+		id: `${opts.idPrefix ?? "test"}-${crypto.randomUUID().slice(0, 8)}`,
+		action: opts.defaultAction ?? "session.list",
+		nick: TEST_NICK,
+		params: {},
+		session: opts.defaultSession() as BproxyRequest["session"],
+		deadline: Date.now() + 5000,
+		destructive: false,
+	};
+	return { ...defaults, ...overrides };
+}
+
+export async function postCommand(
+	port: number,
+	token: string,
+	cmd: BproxyRequest,
+): Promise<BproxyResponse> {
+	const res = await fetch(`http://127.0.0.1:${port}/`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+		body: JSON.stringify(cmd),
+	});
+	return (await res.json()) as BproxyResponse;
+}
+
+export async function postRaw(port: number, token: string, cmd: BproxyRequest): Promise<Response> {
+	return fetch(`http://127.0.0.1:${port}/`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+		body: JSON.stringify(cmd),
+	});
 }
