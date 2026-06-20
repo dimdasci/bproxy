@@ -103,6 +103,7 @@ export interface InspectElement {
 export interface TraceEntry {
 	id: string;
 	action: Action;
+	session?: string;
 	tab: number;
 	timestamp: number;
 	elapsed: number;
@@ -209,9 +210,16 @@ export interface ActionResult {
 	"tab.list": { session: SessionId; tabs: Array<TabInfo> };
 	"tab.pin": { tab: TabHandle; pinned: true };
 	"tab.unpin": { tab: TabHandle; pinned: false };
-	"tab.open": { session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string };
+	"tab.open": {
+		session: SessionId;
+		tab: TabHandle;
+		bound: boolean;
+		url: string;
+		tmpDir: string;
+		ownerHash: string;
+	};
 	"tab.close": { tab: TabHandle; closed: true };
-	"session.create": { session: SessionId; label?: string; tmpDir: string };
+	"session.create": { session: SessionId; label?: string; tmpDir: string; ownerHash: string };
 	"session.list": { sessions: Array<SessionInfo> };
 	"session.bind": { session: SessionId; tab: TabHandle };
 	"session.unbind": Record<string, never>;

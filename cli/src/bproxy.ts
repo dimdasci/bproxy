@@ -14,6 +14,11 @@ const main = defineCommand({
 		description: "Browser proxy CLI for code agents",
 	},
 	args: {
+		nick: {
+			type: "string",
+			alias: "n",
+			description: "Agent nickname for request scoping",
+		},
 		session: {
 			type: "string",
 			alias: "s",

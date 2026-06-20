@@ -1,11 +1,12 @@
 import type { Action, ActionParams, ActionResult, ForwardedActionParams } from "./actions";
 import type { BproxyError } from "./errors";
-import type { SessionId } from "./sessions";
+import type { Nick, SessionId } from "./sessions";
 
 export interface BproxyRequest<A extends Action = Action> {
 	protocol_version: 1;
 	id: string;
 	action: A;
+	nick: Nick;
 	params: ActionParams[A];
 	session: SessionId;
 	deadline: number; // unix ms
@@ -25,7 +26,10 @@ export interface BproxyRequest<A extends Action = Action> {
  * `debug.last`, and `debug.status` remain daemon-local and never carry a
  * `target`.
  */
-export type BproxyForwardedRequest<A extends Action = Action> = Omit<BproxyRequest<A>, "params"> & {
+export type BproxyForwardedRequest<A extends Action = Action> = Omit<
+	BproxyRequest<A>,
+	"nick" | "params"
+> & {
 	params: ForwardedActionParams[A];
 	target: { tabId: number | null };
 };

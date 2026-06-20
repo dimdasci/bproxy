@@ -28,16 +28,20 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 	if (cmd.action === "debug.last") {
 		const params = cmd.params as { count?: number };
 		const count = params.count ?? 50;
+		const requests = deps
+			.traces()
+			.filter((trace) => deps.sessions.getOwner(trace.session) === cmd.nick)
+			.slice(-count);
 		return {
 			protocol_version: 1,
 			id: cmd.id,
 			ok: true,
-			data: { requests: deps.traces().slice(-count) },
+			data: { requests },
 			page: pageOk(),
 			replay: false,
 		};
 	}
-	const sessions = deps.sessions.list();
+	const sessions = deps.sessions.listByOwner(cmd.nick);
 	const sessionTabs = sessions.map((session) => ({
 		session: session.id,
 		tabs: deps.sessions.listTabs(session.id),

@@ -84,10 +84,13 @@ Every leaf command defines these via `globalArgs` spread:
 
 | Flag | Alias | Type | Default | Description |
 |------|-------|------|---------|-------------|
-| `--session` | `-s` | string | *(required for browser commands)* | Session ID for the request |
+| `--nick` | `-n` | string | *(required for protocol commands)* | Agent nickname for request scoping; must match `/^[a-z][a-z0-9]{5}$/` |
+| `--session` | `-s` | string | *(required for most browser commands)* | Session ID for the request |
 | `--timeout` | | string (ms) | `30000` | Protocol deadline in milliseconds |
 | `--home` | | string | `~/.bproxy` | Override `BPROXY_HOME` state directory |
 | `--verbose` | `-v` | boolean | `false` | Write structured diagnostics to stderr |
+
+`--nick` is required on every protocol-backed command, including `debug.*`, `session.*`, `tab.*`, and the top-level `status` alias. Service lifecycle commands (`service start|stop|status|restart`) are the only CLI surface that does not require it.
 
 ## Exit Codes
 
@@ -135,7 +138,7 @@ export default defineCommand({
 2. Token preflight (exists, mode `0600`, owner) → exit `2` on failure
 3. Read port file → exit `2` if daemon not running
 4. Parse `--timeout` → exit `2` if invalid
-5. Build `BproxyRequest<A>` with `protocol_version: 1`, session, deadline, destructive flag
+5. Validate `--nick` and build `BproxyRequest<A>` with `protocol_version: 1`, nick, session, deadline, destructive flag
 6. Verbose pre-request stderr entry (no token leaked)
 7. POST to `http://127.0.0.1:{port}/` with Bearer auth + abort timeout (deadline + 2s)
 8. Fetch failure → exit `2` (connection refused, abort timeout)
@@ -195,8 +198,8 @@ Composition: stop then start. Produces the same JSON as start.
 
 Daemon-local (no extension required):
 
-- `session create [--label TEXT]` — creates a new session, returns generated id
-- `session list` — returns all active sessions
+- `session create [--label TEXT]` — creates a new nick-owned session, returns generated id, `tmpDir`, and `ownerHash`
+- `session list` — returns only active sessions owned by the supplied nick
 - `session bind --tab tN [--pacing human|fast]` — binds session to logical tab
 - `session unbind` — unbinds session from tab (destructive)
 - `session resume` — clears paused state (destructive)
@@ -210,18 +213,18 @@ Forwarded to extension (require connected WS client):
 
 - `tab pin [--tab tN]` — pin a tab (destructive)
 - `tab unpin` — unpin current tab (destructive)
-- `tab open --url <url>` — open new tab, auto-create session if `-s` omitted (destructive)
+- `tab open --url <url>` — open new tab, auto-create a session owned by the supplied nick if `-s` omitted, and return `tmpDir` + `ownerHash` (destructive)
 - `tab close [--tab tN]` — close tab (destructive)
 
 ## Debug Commands
 
-- `debug log [--id ID] [--limit N]` — forwarded to extension (ring buffer)
-- `debug last [--count N]` — daemon-local request history
-- `debug status` — daemon-local full status
+- `debug log [--id ID] [--limit N]` — forwarded to extension (ring buffer), filtered to the requesting nick's live sessions
+- `debug last [--count N]` — daemon-local request history for the requesting nick's live sessions only
+- `debug status` — daemon-local full status scoped to the requesting nick
 
 ## Top-level `status`
 
-`bproxy status` is a protocol-backed alias for `debug.status`. It requires token preflight. It does **not** fall back to `service status` on auth failure — that's a config/security failure (exit `2`).
+`bproxy status` is a protocol-backed alias for `debug.status`. It requires token preflight and `--nick`. It does **not** fall back to `service status` on auth failure — that's a config/security failure (exit `2`).
 
 ## Write Commands
 
@@ -265,6 +268,16 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 **Destructive:** navigate, scroll, click, hover, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
 
 **Non-destructive:** text, links, images, elements, outline, dom, inspect, snapshot, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
+
+## Examples
+
+```bash
+bproxy tab open --url https://example.com -n halbot
+bproxy session create -n halbot --label research
+bproxy text -n halbot -s m4q7z2
+bproxy session list -n halbot
+bproxy debug status -n halbot
+```
 
 ## Verbose Mode (`--verbose`)
 

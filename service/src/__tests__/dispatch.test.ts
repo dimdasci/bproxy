@@ -15,6 +15,7 @@ function req(id: string, session = DEFAULT_SESSION): BproxyRequest {
 		protocol_version: 1,
 		id,
 		action: "text",
+		nick: "halbot" as BproxyRequest["nick"],
 		params: {},
 		session,
 		deadline: Date.now() + 5000,
@@ -36,7 +37,7 @@ function ok(id: string): BproxyResponse {
 function createSeededRegistry(...sessionIds: BproxyRequest["session"][]) {
 	const sessions = createSessionRegistry();
 	for (const sessionId of sessionIds) {
-		sessions.getOrCreate(sessionId);
+		sessions.getOrCreate(sessionId, "halbot");
 	}
 	return sessions;
 }

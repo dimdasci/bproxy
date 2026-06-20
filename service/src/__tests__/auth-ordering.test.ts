@@ -5,6 +5,7 @@ import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
 	setupTestServer,
+	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 } from "./helpers/integration";
@@ -22,6 +23,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		protocol_version: 1,
 		id: overrides.id ?? `auth-test-${crypto.randomUUID().slice(0, 8)}`,
 		action: overrides.action ?? "text",
+		nick: overrides.nick ?? TEST_NICK,
 		params: overrides.params ?? {},
 		session: overrides.session ?? DEFAULT_SESSION,
 		deadline: Date.now() + 5000,
@@ -203,7 +205,7 @@ describe("auth ordering — GAP C", () => {
 		});
 
 		it("session state is not modified when auth fails", async () => {
-			const sessionId = built.sessions.create().id;
+			const sessionId = built.sessions.create(TEST_NICK).id;
 			built.sessions.pause(sessionId, "captcha");
 			const sessionBefore = built.sessions.internal(sessionId);
 			const beforePaused = sessionBefore.paused;

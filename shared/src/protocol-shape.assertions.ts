@@ -10,7 +10,7 @@ import type {
 import type { ErrorCode } from "./errors";
 import type { ClientElementTarget } from "./handles";
 import type { BproxyForwardedRequest, BproxyRequest } from "./protocol";
-import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
+import type { Nick, PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "./sessions";
 import type { ElementTarget } from "./targets";
 
 type Equals<A, B> = ((<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
@@ -37,7 +37,14 @@ type _BindUsesLogicalTab = Expect<
 type _TabOpenUsesLogicalHandles = Expect<
 	Equals<
 		ActionResult["tab.open"],
-		{ session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string }
+		{
+			session: SessionId;
+			tab: TabHandle;
+			bound: boolean;
+			url: string;
+			tmpDir: string;
+			ownerHash: string;
+		}
 	>
 >;
 type _TabListIsScoped = Expect<
@@ -52,9 +59,11 @@ type _TabCloseResultUsesLogicalHandle = Expect<
 type _SessionInfoUsesLogicalBinding = Expect<
 	Equals<SessionInfo["tab"], TabHandle | null> & Equals<SessionInfo["id"], SessionId>
 >;
+type _RequestUsesNick = Expect<Equals<BproxyRequest["nick"], Nick>>;
 type _RequestUsesSessionId = Expect<Equals<BproxyRequest["session"], SessionId>>;
 type _TraceUsesNarrowActionAndErrorCode = Expect<
 	Equals<TraceEntry["action"], Action> &
+		Equals<TraceEntry["session"], string | undefined> &
 		Equals<TraceEntry["errorCode"], ErrorCode | undefined> &
 		Equals<DaemonRequestTrace["action"], Action> &
 		Equals<DaemonRequestTrace["errorCode"], ErrorCode | undefined>
@@ -62,6 +71,9 @@ type _TraceUsesNarrowActionAndErrorCode = Expect<
 type _TabInfoUsesLogicalHandle = Expect<Equals<TabInfo["tab"], TabHandle>>;
 type _ForwardedTargetAllowsNull = Expect<
 	Equals<BproxyForwardedRequest["target"]["tabId"], number | null>
+>;
+type _ForwardedStripsNick = Expect<
+	Equals<"nick" extends keyof BproxyForwardedRequest ? true : false, false>
 >;
 type _DebugStatusExposesSessionTabs = Expect<
 	Equals<

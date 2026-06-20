@@ -29,8 +29,8 @@ Escape hatches (`--trusted`, network shim, chrome.debugger) are opt-in when real
 
 - **Read mode covers most work** — URL-driven navigation + ISOLATED-world text extraction + explicit scroll/click/hover actuators when the agent chooses them.
 - **DOM polling beats MutationObserver** as the default "is page settled" mechanism. Polling is **jittered** (randomized intervals) and **visibility-aware** (destructive actions bail on hidden tabs unless user-initiated) [ADR-006](./decisions.md#adr-006-dom-polling-over-mutationobserver).
-- **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay.
-- **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, and pacing / pause state remains daemon-owned in-memory state.
+- **Pacing is daemon-enforced** — per-session, applied to navigations, scrolls, and per-field fill delay, with an absolute per-agent ingress safety floor (`minInterval`) that pacing mode cannot bypass.
+- **Session authority lives in the daemon** — session ids are daemon-generated capability handles, labels are display-only, logical tabs (`t1`, `t2`, ...) are session-scoped, raw Chrome tab ids stay internal, session ownership is nick-scoped, raw nicks never appear in persisted logs or API responses, and pacing / pause state remains daemon-owned in-memory state.
 - **Auth is transport-boundary first-fail (header-auth routes)** — `POST /` and `GET /ws` are rejected at request ingress (before body parsing/validation and before any route logic). `POST /pair/claim` keeps Host/Origin checks at ingress and validates pairing code after body parse.
 - **Lifecycle is single-instance per `BPROXY_HOME`** — daemon startup must fail cleanly when the lockfile PID is alive; stale PID files are recoverable; `status` truth is process-liveness based.
 - **Three explicit write methods** — `direct` | `paste` | `runtime-api`, no `auto` [ADR-007](./decisions.md#adr-007-three-method-write-contract). Method and world choice are agent-owned per call.
@@ -71,7 +71,7 @@ Implementation: `docs/public/solution/extension.md`
 
 ### CLI
 
-One invocation = one command = one HTTP POST to the daemon = one JSON response on stdout. Browser-control commands accept `-s, --session <id>` where `<id>` is a daemon-generated 6-character handle matching `/^[a-z2-7]{6}$/`. `tab open --url ...` is the sole bootstrap exception that may omit `-s`; it returns the generated `session` id plus logical `tab` handle. Exits 0/1/2.
+One invocation = one command = one HTTP POST to the daemon = one JSON response on stdout. Every protocol command requires `-n, --nick <nick>` where `<nick>` matches `/^[a-z][a-z0-9]{5}$/`. Browser-control commands accept `-s, --session <id>` where `<id>` is a daemon-generated 6-character handle matching `/^[a-z2-7]{6}$/`. `tab open --url ...` is the sole bootstrap exception that may omit `-s`; it returns the generated `session` id plus logical `tab` handle, `tmpDir`, and `ownerHash`. Exits 0/1/2.
 
 Implementation: `docs/public/solution/cli.md`
 
@@ -108,6 +108,7 @@ The shared contract between all three components. Every message uses the same JS
   "protocol_version": 1,
   "id": "01HZX9C2K8R7Q3VG9MNPYJVZ4D",
   "action": "fill",
+  "nick": "halbot",
   "params": { "target": { "handle": "el1" }, "value": "user@example.com", "method": "paste", "world": "isolated" },
   "session": "m4q7z2",
   "deadline": 1714000030000,
@@ -148,7 +149,7 @@ Errors use a single RFC 9457-aligned envelope:
 
 - **Generated sessions:** daemon-created only, 6-character base32 lowercase ids (`SessionId` branded type); no implicit shared `default` session for browser-control flows.
 - **Logical tabs:** normal CLI/protocol responses expose session-scoped handles such as `t1` (`TabHandle` branded type); raw Chrome tab ids remain daemon/extension internals.
-- **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. It returns `{ session, tab, bound: true, url, tmpDir }`.
+- **Fresh bootstrap:** `tab open --url ...` is the only command that may auto-create a session when `-s` is omitted. The daemon stamps the new session with the request nick and returns `{ session, tab, bound: true, url, tmpDir, ownerHash }`.
 - **Session temp directory:** every session receives a pre-created artifact directory at `BPROXY_HOME/tmp/sessions/<id>/`, returned as `tmpDir` in session bootstrap and `session.create` responses. Agents use it for file output (screenshots, exports) without managing directory lifecycle. Cleaned on `session close` or daemon stop.
 - **Scoped privacy:** `tab list` returns only tabs owned by the supplied session. Operator-opened tabs are not exposed through the normal agent surface.
 - **Bind/close rules:** `session bind --tab tN` accepts logical tab handles only; `session close -s <id>` closes all session-owned Chrome tabs.
@@ -190,7 +191,7 @@ Routing details and contract: `docs/public/solution/service.md` § Action routin
 ## Reliability
 
 - **At-most-once** for destructive actions (client-supplied `id`, proxy pending map, extension dedupe table).
-- **Pacing** - daemon-enforced human-pace delays. Agent cannot bypass.
+- **Pacing + safety guards** - daemon-enforced human-pace delays plus per-nick ingress guards (`minInterval`, rate cap, metronome detection, jittered error delay). Agent cannot bypass them.
 - **`HUMAN_REQUIRED`** - structured stop signal on interstitials. No retry through bot detection.
 
 ## Related Documents

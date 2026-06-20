@@ -1,23 +1,26 @@
-import type { PacingMode, SessionId, SessionInfo, TabHandle, TabInfo } from "@bproxy/shared";
+import type { PacingMode, SessionInfo, TabHandle, TabInfo } from "@bproxy/shared";
 import { randomSessionId, SESSION_ID_PATTERN, TAB_HANDLE_PATTERN } from "./session-identifiers";
+import {
+	createInternalSession,
+	registerChromeTab,
+	setPacing,
+	syncBoundFlags,
+	toInternalTabInfo,
+	toSessionInfo,
+	toTabInfo,
+} from "./session-registry-support";
+import type { InternalSession, InternalTabInfo } from "./session-registry-types";
 
 export { SESSION_ID_PATTERN, TAB_HANDLE_PATTERN } from "./session-identifiers";
 
-export interface InternalTabInfo extends TabInfo {
-	chromeTabId: number;
-}
-
-export interface InternalSession extends SessionInfo {
-	lastActionAt: Record<string, number>;
-	tabs: Map<TabHandle, InternalTabInfo>;
-	nextTabOrdinal: number;
-}
+export type { InternalSession, InternalTabInfo } from "./session-registry-types";
 
 export interface SessionRegistry {
-	create(label?: string): SessionInfo;
+	create(owner: string, label?: string): SessionInfo;
 	get(id: string): SessionInfo | null;
+	getOwner(id: string): string | null;
 	has(id: string): boolean;
-	getOrCreate(id: string): InternalSession;
+	getOrCreate(id: string, owner?: string): InternalSession;
 	bind(id: string, tab: number | string, pacing?: PacingMode): void;
 	registerTab(
 		id: string,
@@ -33,6 +36,7 @@ export interface SessionRegistry {
 	pause(id: string, reason?: string): void;
 	resume(id: string): void;
 	list(): SessionInfo[];
+	listByOwner(owner: string): SessionInfo[];
 	close(id: string): { session: SessionInfo; tabs: Array<InternalTabInfo> } | null;
 	internal(id: string): InternalSession;
 	isValidSessionId(id: string): boolean;
@@ -57,10 +61,11 @@ export function createSessionRegistry(options: SessionRegistryOptions = {}): Ses
 	};
 
 	return {
-		create: (label) => createGeneratedSession(state, label),
+		create: (owner, label) => createGeneratedSession(state, owner, label),
 		get: (id) => getSessionInfo(state, id),
+		getOwner: (id) => state.sessions.get(id)?.owner ?? null,
 		has: (id) => state.sessions.has(id),
-		getOrCreate: (id) => getOrCreateSession(state, id),
+		getOrCreate: (id, owner) => getOrCreateSession(state, id, owner),
 		bind: (id, tab, pacing) => bindSession(state, id, tab, pacing),
 		registerTab: (id, chromeTabId, config) => registerTabForSession(state, id, chromeTabId, config),
 		removeTab: (id, tab) => removeTabFromSession(state, id, tab),
@@ -72,6 +77,8 @@ export function createSessionRegistry(options: SessionRegistryOptions = {}): Ses
 		pause: (id, reason) => pauseSession(state, id, reason),
 		resume: (id) => resumeSession(state, id),
 		list: () => [...state.sessions.values()].map(toSessionInfo),
+		listByOwner: (owner) =>
+			[...state.sessions.values()].filter((session) => session.owner === owner).map(toSessionInfo),
 		close: (id) => closeSession(state, id),
 		internal: (id) => requireSession(state, id),
 		isValidSessionId: (id) => SESSION_ID_PATTERN.test(id),
@@ -79,12 +86,12 @@ export function createSessionRegistry(options: SessionRegistryOptions = {}): Ses
 	};
 }
 
-function createGeneratedSession(state: RegistryState, label?: string): SessionInfo {
+function createGeneratedSession(state: RegistryState, owner: string, label?: string): SessionInfo {
 	let id = state.generateId();
 	while (state.sessions.has(id)) {
 		id = state.generateId();
 	}
-	const session = createInternalSession(id, label);
+	const session = createInternalSession(id, owner, label);
 	state.sessions.set(id, session);
 	return toSessionInfo(session);
 }
@@ -102,10 +109,10 @@ function requireSession(state: RegistryState, id: string): InternalSession {
 	return session;
 }
 
-function getOrCreateSession(state: RegistryState, id: string): InternalSession {
+function getOrCreateSession(state: RegistryState, id: string, owner = ""): InternalSession {
 	const existing = state.sessions.get(id);
 	if (existing) return existing;
-	const created = createInternalSession(id);
+	const created = createInternalSession(id, owner);
 	state.sessions.set(id, created);
 	return created;
 }
@@ -227,106 +234,5 @@ function closeSession(
 	return {
 		session: toSessionInfo(session),
 		tabs: [...session.tabs.values()].map(toInternalTabInfo),
-	};
-}
-
-function createInternalSession(id: string, label?: string): InternalSession {
-	return {
-		id: id as SessionId,
-		label,
-		tab: null,
-		pacing: "human",
-		paused: false,
-		lastActionAt: {},
-		tabs: new Map(),
-		nextTabOrdinal: 1,
-	};
-}
-
-function registerChromeTab(
-	session: InternalSession,
-	chromeTabId: number,
-	config?: { url?: string; title?: string; bind?: boolean },
-): InternalTabInfo {
-	const existing = findTabByChromeId(session, chromeTabId);
-	if (existing) return updateExistingTab(session, existing, config);
-	return createChromeTab(session, chromeTabId, config);
-}
-
-function updateExistingTab(
-	session: InternalSession,
-	tab: InternalTabInfo,
-	config?: { url?: string; title?: string; bind?: boolean },
-): InternalTabInfo {
-	if (config?.url !== undefined) tab.url = config.url;
-	if (config?.title !== undefined) tab.title = config.title;
-	if (config?.bind) session.tab = tab.tab;
-	syncBoundFlags(session);
-	return tab;
-}
-
-function createChromeTab(
-	session: InternalSession,
-	chromeTabId: number,
-	config?: { url?: string; title?: string; bind?: boolean },
-): InternalTabInfo {
-	const handle = `t${session.nextTabOrdinal++}` as TabHandle;
-	const created: InternalTabInfo = {
-		tab: handle,
-		url: config?.url ?? "",
-		title: config?.title ?? "",
-		bound: false,
-		chromeTabId,
-	};
-	session.tabs.set(handle, created);
-	if (config?.bind) session.tab = handle;
-	syncBoundFlags(session);
-	return created;
-}
-
-function setPacing(session: InternalSession, pacing?: PacingMode): void {
-	if (pacing) session.pacing = pacing;
-}
-
-function findTabByChromeId(session: InternalSession, chromeTabId: number): InternalTabInfo | null {
-	for (const tab of session.tabs.values()) {
-		if (tab.chromeTabId === chromeTabId) return tab;
-	}
-	return null;
-}
-
-function syncBoundFlags(session: InternalSession): void {
-	for (const [handle, tab] of session.tabs) {
-		tab.bound = session.tab === handle;
-	}
-}
-
-function toSessionInfo(session: InternalSession): SessionInfo {
-	return {
-		id: session.id,
-		label: session.label,
-		tab: session.tab,
-		pacing: session.pacing,
-		paused: session.paused,
-		pauseReason: session.pauseReason,
-	};
-}
-
-function toTabInfo(tab: InternalTabInfo): TabInfo {
-	return {
-		tab: tab.tab,
-		url: tab.url,
-		title: tab.title,
-		bound: tab.bound,
-	};
-}
-
-function toInternalTabInfo(tab: InternalTabInfo): InternalTabInfo {
-	return {
-		tab: tab.tab,
-		url: tab.url,
-		title: tab.title,
-		bound: tab.bound,
-		chromeTabId: tab.chromeTabId,
 	};
 }

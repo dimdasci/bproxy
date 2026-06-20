@@ -11,6 +11,7 @@ import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
 	setupTestServer,
+	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 } from "./helpers/integration";
@@ -36,6 +37,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		protocol_version: 1,
 		id: overrides.id ?? nextCommandId(),
 		action: overrides.action ?? "text",
+		nick: overrides.nick ?? TEST_NICK,
 		params: overrides.params ?? {},
 		session: overrides.session ?? currentSession,
 		deadline: overrides.deadline ?? Date.now() + 5000,
@@ -199,7 +201,7 @@ describe("BproxyError envelope completeness", () => {
 	});
 
 	it("TAB_NOT_IN_SESSION — tab from another session", async () => {
-		const otherSession = built.sessions.create().id;
+		const otherSession = built.sessions.create(TEST_NICK).id;
 		built.sessions.registerTab(otherSession, 999);
 		const ws = await connectWsClient(port, extensionToken);
 		const cmd = makeCmd({

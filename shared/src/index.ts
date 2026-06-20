@@ -34,6 +34,7 @@ export type {
 	PageState,
 } from "./protocol";
 export type {
+	Nick,
 	PacingConfig,
 	PacingMode,
 	SessionId,
@@ -41,6 +42,6 @@ export type {
 	TabHandle,
 	TabInfo,
 } from "./sessions";
-export { PACING_PRESETS } from "./sessions";
+export { isValidNick } from "./sessions";
 export type { ElementRoute, ElementTarget } from "./targets";
 export { PROTOCOL_VERSION, VERSION } from "./version";

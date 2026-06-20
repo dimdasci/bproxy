@@ -12,12 +12,14 @@ import { extractGlobals, parseSessionId, parseTabHandle } from "../globals.js";
 describe("extractGlobals", () => {
 	it("extracts all global args when present", () => {
 		const result = extractGlobals({
+			nick: "halbot",
 			session: "m4q7z2",
 			timeout: "5000",
 			home: "/home/testuser/.bproxy",
 			verbose: true,
 		});
 		expect(result).toEqual({
+			nick: "halbot",
 			session: "m4q7z2",
 			timeout: "5000",
 			home: "/home/testuser/.bproxy",
@@ -25,29 +27,47 @@ describe("extractGlobals", () => {
 		});
 	});
 
-	it("returns undefined for missing string args", () => {
-		const result = extractGlobals({});
-		expect(result).toEqual({
-			session: undefined,
-			timeout: undefined,
-			home: undefined,
-			verbose: undefined,
-		});
+	it("fails when nick is missing", () => {
+		expect(() =>
+			extractGlobals(
+				{},
+				{
+					onUsageError: (message) => {
+						throw new Error(message);
+					},
+				},
+			),
+		).toThrow("Missing required --nick (-n). Every command requires an agent nickname.");
 	});
 
-	it("ignores non-string values for string args", () => {
+	it("ignores non-string values for non-nick args", () => {
 		const result = extractGlobals({
+			nick: "halbot",
 			session: 123,
 			timeout: true,
 			home: null,
 			verbose: "yes",
 		});
 		expect(result).toEqual({
+			nick: "halbot",
 			session: undefined,
 			timeout: undefined,
 			home: undefined,
 			verbose: undefined,
 		});
+	});
+
+	it("fails when nick format is invalid", () => {
+		expect(() =>
+			extractGlobals(
+				{ nick: "bad" },
+				{
+					onUsageError: (message) => {
+						throw new Error(message);
+					},
+				},
+			),
+		).toThrow("Invalid --nick value: bad. Must match /^[a-z][a-z0-9]{5}$/.");
 	});
 });
 

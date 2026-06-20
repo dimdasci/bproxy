@@ -101,8 +101,9 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 				return errorResponse(cmd.id, {
 					code: "SESSION_NOT_FOUND",
 					category: "target",
-					retry: "conditional",
+					retry: "never",
 					message: `Session '${cmd.session}' was not found`,
+					suggestedAction: `Session '${cmd.session}' is permanently closed or never existed. Do not retry. Create a new session with 'bproxy tab open --url ... -n ${cmd.nick}'. If you need historical diagnostics, inspect BPROXY_HOME/logs/ and correlate entries with your ownerHash.`,
 					details: { session: cmd.session },
 				});
 			}
@@ -129,8 +130,13 @@ export function createDispatch(deps: DispatchDeps): DispatchEngine {
 			}
 
 			const forwarded: BproxyForwardedRequest = {
-				...cmd,
+				protocol_version: cmd.protocol_version,
+				id: cmd.id,
+				action: cmd.action,
 				params: resolved.params,
+				session: cmd.session,
+				deadline: cmd.deadline,
+				destructive: cmd.destructive,
 				target: { tabId: resolved.tabId },
 			};
 			const registerPending = () =>

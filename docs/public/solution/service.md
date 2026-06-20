@@ -26,11 +26,13 @@ service/
     │   └── types.ts          # CommandRouteDeps interface
     ├── clients.ts            # WS client registry
     ├── config.ts             # env-based configuration
+    ├── daemon-config.ts      # BPROXY_HOME/config.json load + validation
     ├── debug-actions.ts      # debug.status / debug.last handlers
     ├── dispatch.ts           # route command to correct WS client + tab
     ├── element-handles.ts    # daemon-owned handle cache + page-epoch tracking
     ├── logger.ts             # structured JSON logger (pino-compatible)
     ├── pacing.ts             # per-session delay enforcement
+    ├── safety.ts             # per-nick ingress guards + error-path delay
     ├── pairing.ts            # pairing code generation and validation
     ├── pairing-rate-limit.ts # global in-memory failed-attempt throttle for /pair/claim
     ├── pairing-file.ts       # pairing.json file I/O
@@ -111,26 +113,23 @@ Failure at any layer → 401, connection closed.
 Receives CLI commands. Single route, single method.
 
 ```typescript
-app.post('/', {
-  schema: {
-    body: BproxyRequestSchema,  // JSON Schema from shared types
-    response: { 200: BproxyResponseSchema }
-  }
-}, async (request, reply) => {
-  const cmd = request.body as BproxyRequest;
+app.post('/', async (request, reply) => {
+  const cmd = parseAndValidateRequest(request.body); // includes required `nick`
 
-  // 1. Enforce pacing (may delay before proceeding)
+  // 1. Per-nick ingress safety guards
+  const safetyError = safety.checkIngress(cmd.nick);
+  if (safetyError) return delayedErrorReply(safetyError);
+
+  // 2. Session validation + nick scope check
+  const sessionError = validateSession(cmd);
+  if (sessionError) return delayedErrorReply(sessionError);
+
+  // 3. Daemon pacing (cannot bypass safety.minInterval.ms)
   await pacing.waitForSlot(cmd.session, cmd.action);
 
-  // 2. Find target WS client for this session's tab
-  const client = dispatch.resolveClient(cmd.session);
-  if (!client) return reply.code(502).send(noExtensionError(cmd));
-
-  // 3. Forward to extension, await response (with deadline)
-  const result = await dispatch.send(client, cmd);
-
-  // 4. Return to CLI
-  return result;
+  // 4. Execute daemon-local or forwarded action
+  const result = await executeCommand(cmd);
+  return finalize(result); // applies jittered error delay on error responses
 });
 ```
 
@@ -138,12 +137,31 @@ The route is synchronous from the CLI's perspective: POST blocks until the exten
 
 **Status precedence (normative):** for `POST /`, auth failure (`401`) takes precedence over request-body parse/schema failures (`400`).
 
+### Ingress safety ordering
+
+For every authenticated protocol request, the daemon evaluates ingress policy in this order:
+
+1. Nick validation (`400` on malformed)
+2. Minimum interval guard (`RATE_LIMITED`)
+3. Per-nick sliding-window rate cap (`RATE_LIMITED`)
+4. Metronome detection (`METRONOME_DETECTED`)
+5. Session existence + owner-scope validation (`SESSION_NOT_FOUND` / `SESSION_SCOPE_MISMATCH`)
+6. Daemon pacing (`human` / `fast`)
+7. Dispatch / daemon-local execution
+
+Any error response produced at steps 2–7 is delayed by a jittered `errorDelay` sleep before being returned. `safety.minInterval.ms` is an absolute ingress floor: pacing mode may add delay above it, but may not reduce execution below it.
+
 ## Action Routing and Session Contract
 
 ### Session authority
 
-Daemon is the source of truth for session state (tab ownership, pacing, paused, pauseReason).
-This state is in-memory only and resets on daemon restart.
+Daemon is the source of truth for session state (owner nick, tab ownership, pacing, paused, pauseReason). This state is in-memory only and resets on daemon restart.
+
+Ownership rules:
+- every session is stamped with immutable `owner = request.nick` at `session.create` and `tab.open` auto-create time
+- every session-referencing command validates `session.owner === request.nick`
+- `session.list`, `debug.status`, `debug.last`, and `debug.log` are nick-scoped surfaces
+- raw nick never appears in persisted log files or API responses; log correlation uses `ownerHash`
 
 ### Routing matrix
 
@@ -157,8 +175,8 @@ This state is in-memory only and resets on daemon restart.
 
 ### `session.*` semantics
 
-- `session.create` — generates a new 6-character base32 `SessionId` with default pacing; returns `{ session, label?, tmpDir }`.
-- `session.list` — returns daemon's current in-memory session snapshot.
+- `session.create` — generates a new 6-character base32 `SessionId`, stamps `owner = nick`, creates the session temp directory, and returns `{ session, label?, tmpDir, ownerHash }`.
+- `session.list` — returns only the requesting nick's current in-memory sessions.
 - `session.bind` — binds a session to a logical `TabHandle`. Rebinding is immediate: the very next forwarded command resolves the new tab.
 - `session.unbind` — clears tab binding; idempotent.
 - `session.resume` — clears paused state/reason; idempotent.
@@ -176,7 +194,7 @@ This state is in-memory only and resets on daemon restart.
 
 ### Forwarded request shape
 
-Daemon→extension messages carry a daemon-owned `target.tabId`. The CLI HTTP input is the bare `BproxyRequest` (no target); the daemon wraps it as `BproxyForwardedRequest = BproxyRequest & { target: { tabId: number } }` at the dispatch site. `session.*`, `debug.last`, and `debug.status` are handled daemon-locally and never carry `target`. Rebinding (`session.bind` with a new `tabId`) is immediate: the very next forwarded request picks up the new tab.
+Daemon→extension messages carry a daemon-owned `target.tabId`. The CLI HTTP input is the bare `BproxyRequest`; the daemon consumes `nick`, resolves `session → tabId`, narrows any handle-based params, and forwards `BproxyForwardedRequest` with `target.tabId`. `nick` is **not** present on the daemon→extension wire. `session.*`, `debug.last`, and `debug.status` are handled daemon-locally and never carry `target`. Rebinding (`session.bind` with a new `tabId`) is immediate: the very next forwarded request picks up the new tab.
 
 ### Pause/resume contract
 
@@ -364,10 +382,29 @@ async function waitForSlot(session: string, action: string): Promise<void> {
 Default pacing (human mode):
 - Navigate: 1500–4000ms
 - Scroll: 4000–8000ms
-- Interaction (`click` / `hover`): 500–2000ms
-- Fill (per field): 500–2000ms
+- Interaction (`click` / `hover`): 1200–2500ms
+- Fill (per field): 1200–2500ms
 
-Configurable per session via `bproxy session bind --pacing human|fast`. Per-session config overrides (arbitrary `PacingConfig` literal) are deferred to a later phase.
+Default fast mode:
+- Navigate: 900–1400ms
+- Scroll: 900–1600ms
+- Interaction (`click` / `hover`): 900–1200ms
+- Fill (per field): 900–1200ms
+
+Configurable per session via `bproxy session bind --pacing human|fast`, but all pacing buckets are bounded by the daemon-wide `safety.minInterval.ms` floor loaded from `BPROXY_HOME/config.json`.
+
+## Daemon Configuration
+
+The daemon loads `BPROXY_HOME/config.json` once at startup. The file is optional; when absent, hardcoded defaults are used.
+
+Top-level sections:
+- `pacing.human` / `pacing.fast` — per-action delay ranges
+- `safety.minInterval.ms` — absolute minimum inter-request interval per nick
+- `safety.rateCap.requestsPerMinute` — sliding-window per-nick cap
+- `safety.errorDelay.minMs/maxMs` — jittered delay applied before any error response
+- `safety.metronome.tolerance/consecutiveEqual/maxIntervalMs` — regular-cadence detection
+
+Startup is fail-closed: unknown keys, wrong types, inverted ranges, pacing values below `minInterval`, or nonsensical safety values abort daemon startup with a meaningful configuration error. The daemon logs the active config at startup.
 
 ## Pending Request Map
 
@@ -510,7 +547,10 @@ These use the shared `BproxyError` envelope (`{ code, category, retry, message, 
 | `OVERLOADED` | transport | Pending map full |
 | `SESSION_REQUIRED` | policy | Browser-control command sent without `-s` |
 | `INVALID_SESSION_ID` | target | Session id doesn't match `/^[a-z2-7]{6}$/` |
-| `SESSION_NOT_FOUND` | target | Session id not in daemon registry |
+| `SESSION_NOT_FOUND` | target | Session id not in daemon registry; retry is `never` with create-new-session guidance |
+| `SESSION_SCOPE_MISMATCH` | policy | Session exists but belongs to another nick |
+| `RATE_LIMITED` | policy | Nick violated the minimum interval floor or per-minute cap |
+| `METRONOME_DETECTED` | policy | Nick sent three equal-interval requests within the suspicious range |
 | `TAB_NOT_FOUND` | target | Session has no bound tab |
 | `TAB_HANDLE_NOT_FOUND` | target | Logical tab handle not registered in any session |
 | `TAB_NOT_IN_SESSION` | target | Tab exists but belongs to another session |
@@ -547,20 +587,21 @@ The daemon is the central point of visibility — all requests flow through it.
 Structured JSON via Fastify's pino logger. Every log line includes the request `id` when applicable.
 
 ```
-{"level":"info","id":"01HZX9C2K8","action":"scroll","session":"m4q7z2","event":"received","ts":1714000027000}
+{"level":"info","id":"01HZX9C2K8","action":"scroll","session":"m4q7z2","event":"received","ownerHash":"a3f7c012","ts":1714000027000}
 {"level":"info","id":"01HZX9C2K8","event":"pacing_wait","delay_ms":2400}
 {"level":"info","id":"01HZX9C2K8","event":"forwarded","ws_client":"client-1","tab":1234}
-{"level":"info","id":"01HZX9C2K8","event":"response","ok":true,"elapsed_ms":377}
+{"level":"info","id":"01HZX9C2K8","event":"response","ok":true,"elapsed_ms":377,"ownerHash":"a3f7c012"}
 ```
 
 ### Lifecycle Events Logged
 
 | Event | When | Fields |
 |---|---|---|
-| `received` | HTTP POST arrives | `id`, `action`, `session`, `destructive` |
+| `received` | HTTP POST arrives | `id`, `action`, `session`, `destructive`, `ownerHash` |
 | `pacing_wait` | Before forwarding, delay enforced | `id`, `delay_ms` |
+| `error_delay` | Before returning an error response | `id`, `delay_ms` |
 | `forwarded` | Sent to extension via WS | `id`, `ws_client`, `tab` |
-| `response` | Extension replied | `id`, `ok`, `elapsed_ms`, `error_code?` |
+| `response` | Extension replied or daemon-local action completed | `id`, `ok`, `elapsed_ms`, `error_code?`, `ownerHash` |
 | `timeout` | Deadline expired | `id`, `elapsed_ms` |
 | `replay` | Re-sent after WS reconnect | `id`, `ws_client` |
 | `ws_connect` | Extension WS client connected | `ws_client`, `remote` |

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type SendOptions, sendAction } from "../client.js";
+import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
 import { writeScreenshotFile } from "../screenshot-file.js";
 import type { BproxyResponse } from "../types.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
@@ -122,23 +122,28 @@ function mockFetch(responseBody: unknown): typeof globalThis.fetch {
 	};
 }
 
+async function takeScreenshot(requestId: string) {
+	const home = setupHome();
+	const opts: SendOptions = {
+		fetch: mockFetch(screenshotResponse(requestId)),
+		requestId,
+	};
+	const plan = await sendAction(
+		"screenshot",
+		{},
+		{ home, nick: "halbot" as ClientGlobalArgs["nick"], session: "abc234" },
+		opts,
+	);
+	expect(plan.code).toBe(0);
+	const response = plan.stdout as BproxyResponse<"screenshot">;
+	expect(response.ok).toBe(true);
+	return response;
+}
+
 describe("screenshot --output-dir integration", () => {
 	it("command writes file and stdout has file path instead of base64", async () => {
-		const home = setupHome();
 		const outputDir = join(makeTempDir(), "screens");
-		const requestId = "ss-file-test-1";
-
-		const opts: SendOptions = {
-			fetch: mockFetch(screenshotResponse(requestId)),
-			requestId,
-		};
-
-		const plan = await sendAction("screenshot", {}, { home, session: "abc234" }, opts);
-
-		// Simulate what screenshot command does with --output-dir
-		expect(plan.code).toBe(0);
-		const response = plan.stdout as BproxyResponse<"screenshot">;
-		expect(response.ok).toBe(true);
+		const response = await takeScreenshot("ss-file-test-1");
 		if (!response.ok) return;
 
 		const result = writeScreenshotFile(outputDir, response.data.base64, response.data.format);
@@ -159,19 +164,7 @@ describe("screenshot --output-dir integration", () => {
 	});
 
 	it("without --output-dir, base64 remains in stdout", async () => {
-		const home = setupHome();
-		const requestId = "ss-no-dir-1";
-
-		const opts: SendOptions = {
-			fetch: mockFetch(screenshotResponse(requestId)),
-			requestId,
-		};
-
-		const plan = await sendAction("screenshot", {}, { home, session: "abc234" }, opts);
-
-		expect(plan.code).toBe(0);
-		const response = plan.stdout as BproxyResponse<"screenshot">;
-		expect(response.ok).toBe(true);
+		const response = await takeScreenshot("ss-no-dir-1");
 		if (!response.ok) return;
 		expect(response.data.base64).toBe(INT_TINY_PNG);
 	});

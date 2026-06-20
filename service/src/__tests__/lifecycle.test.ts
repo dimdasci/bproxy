@@ -3,6 +3,7 @@ import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "no
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_DAEMON_CONFIG } from "../daemon-config";
 import { readExtensionToken, writeExtensionToken, writeToken } from "../lifecycle";
 import { createTestStateDir } from "./helpers/test-state-dir";
 
@@ -80,6 +81,31 @@ describe("lifecycle smoke", () => {
 		expect(out.status).toBe(0);
 		const parsed = JSON.parse(out.stdout) as { running: boolean };
 		expect(parsed.running).toBe(false);
+	});
+
+	it("start fails with a meaningful config error when pacing undercuts minInterval", () => {
+		expect(existsSync(BIN)).toBe(true);
+		writeFileSync(
+			join(home, "config.json"),
+			JSON.stringify({
+				...DEFAULT_DAEMON_CONFIG,
+				pacing: {
+					...DEFAULT_DAEMON_CONFIG.pacing,
+					fast: {
+						...DEFAULT_DAEMON_CONFIG.pacing.fast,
+						interaction: { min: 850, max: 1200 },
+					},
+				},
+			}),
+		);
+		const out = spawnSync(process.execPath, [BIN, "start"], {
+			env: { ...process.env, BPROXY_HOME: home },
+			encoding: "utf8",
+		});
+		expect(out.status).toBe(1);
+		expect(out.stderr).toContain("config.json");
+		expect(out.stderr).toContain("pacing.fast.interaction.min");
+		expect(existsSync(join(home, "bproxy.pid"))).toBe(false);
 	});
 });
 

@@ -59,6 +59,7 @@ const ABORT_BUFFER_MS = 2_000;
 interface RequestContext {
 	requestId: string;
 	action: string;
+	nick: ClientGlobalArgs["nick"];
 	session: string;
 	port: number;
 	token: string;
@@ -119,6 +120,7 @@ function resolveContext(
 	return {
 		requestId: opts.requestId ?? generateRequestId(),
 		action,
+		nick: globals.nick,
 		session,
 		port,
 		token: tokenResult.token,
@@ -170,6 +172,7 @@ function buildRequest<A extends Action>(
 		protocol_version: 1,
 		id: ctx.requestId,
 		action,
+		nick: ctx.nick,
 		params,
 		session: ctx.session as BproxyRequest<A>["session"],
 		deadline: Date.now() + ctx.deadlineMs,

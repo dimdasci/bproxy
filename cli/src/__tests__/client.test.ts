@@ -12,6 +12,7 @@ const T1 = "t1" as TabHandle;
 
 function makeGlobals(overrides: Partial<ClientGlobalArgs> = {}): ClientGlobalArgs {
 	return {
+		nick: "halbot" as ClientGlobalArgs["nick"],
 		session: "m4q7z2",
 		timeout: "5000",
 		home: "/home/testuser/.bproxy",

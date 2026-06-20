@@ -1,218 +1,88 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-	writeFileSync,
-} from "node:fs";
 import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
-import type { ServiceConfig } from "./config";
-import { stateFile } from "./config";
+import type { LoadedServiceConfig, ServiceConfig } from "./config";
+import {
+	cleanupRuntimeState,
+	clearToken,
+	ensureStateDir,
+	isAlive,
+	readExtensionToken,
+	readPid,
+	readPidState,
+	readPort,
+	waitForDaemonReady,
+	waitForProcessExit,
+	writeExtensionToken,
+	writePidFile,
+	writePort,
+	writeToken,
+} from "./lifecycle-state";
 import { buildLogger } from "./logger";
 import { createPairingStore } from "./pairing";
-import type {
-	LifecycleStartResult,
-	LifecycleStatusResult,
-	LifecycleStopResult,
-	PairingMetadata,
-} from "./pairing-file";
 import { readPairingFile, removePairingFile, writePairingFile } from "./pairing-file";
 import { buildServer } from "./server";
 import { removeOrphanedTmpFiles, wipeTmpDir } from "./session-tmp";
 import { createSessionRegistry } from "./sessions";
 
-export type { LifecycleStartResult, LifecycleStatusResult, LifecycleStopResult, PairingMetadata };
+export type {
+	LifecycleStartResult,
+	LifecycleStatusResult,
+	LifecycleStopResult,
+	PairingMetadata,
+} from "./pairing-file";
+
+import type {
+	LifecycleStartResult,
+	LifecycleStatusResult,
+	LifecycleStopResult,
+} from "./pairing-file";
+
+export {
+	clearToken,
+	ensureStateDir,
+	isAlive,
+	readExtensionToken,
+	readPid,
+	writeExtensionToken,
+	writePidFile,
+	writePort,
+	writeToken,
+} from "./lifecycle-state";
 export { readPairingFile, removePairingFile, writePairingFile };
 
 const STARTUP_TIMEOUT_MS = 5_000;
 const STOP_TIMEOUT_MS = 5_000;
-const POLL_MS = 50;
 
-export function ensureStateDir(config: ServiceConfig): void {
-	mkdirSync(config.stateDir, { recursive: true, mode: 0o700 });
-	// Tighten pre-existing dir that may have been created with a permissive umask
-	const st = statSync(config.stateDir);
-	if ((st.mode & 0o777) !== 0o700) {
-		chmodSync(config.stateDir, 0o700);
-	}
+function persistClaimedExtensionToken(config: ServiceConfig, token: string): void {
+	writeExtensionToken(config, token);
+	removePairingFile(config);
 }
 
-interface PidState {
-	exists: boolean;
-	pid: number | null;
-}
-
-function readPidState(config: ServiceConfig): PidState {
-	const path = stateFile(config.stateDir, "bproxy.pid");
-	if (!existsSync(path)) return { exists: false, pid: null };
-	const raw = readFileSync(path, "utf8").trim();
-	const pid = Number.parseInt(raw, 10);
-	return {
-		exists: true,
-		pid: Number.isFinite(pid) && pid > 0 ? pid : null,
-	};
-}
-
-export function readPid(config: ServiceConfig): number | null {
-	return readPidState(config).pid;
-}
-
-function readPort(config: ServiceConfig): number | undefined {
-	const path = stateFile(config.stateDir, "port");
-	if (!existsSync(path)) return undefined;
-	const port = Number.parseInt(readFileSync(path, "utf8").trim(), 10);
-	return Number.isFinite(port) && port > 0 && port <= 65_535 ? port : undefined;
-}
-
-export function isAlive(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (e) {
-		const code = (e as NodeJS.ErrnoException).code;
-		if (code === "ESRCH") return false;
-		if (code === "EPERM") return true;
-		return false;
-	}
-}
-
-function assertOwnerMode600(
-	path: string,
-	errCode: "INSECURE_TOKEN_FILE" | "INSECURE_EXTENSION_TOKEN_FILE",
-): void {
-	const st = statSync(path);
-	if ((st.mode & 0o777) !== 0o600) {
-		throw new Error(`${errCode}: mode is ${(st.mode & 0o777).toString(8)}, expected 600`);
-	}
-	const uid = process.getuid?.();
-	if (uid !== undefined && st.uid !== uid) {
-		throw new Error(`${errCode}: owned by uid ${st.uid}, expected ${uid}`);
-	}
-}
-
-function removeStateFiles(
-	config: ServiceConfig,
-	names: readonly ("bproxy.pid" | "port" | "token" | "pairing.json")[],
-): void {
-	for (const name of names) {
-		try {
-			rmSync(stateFile(config.stateDir, name), { force: true });
-		} catch {
-			/* best effort */
-		}
-	}
-}
-
-function cleanupRuntimeState(config: ServiceConfig): void {
-	removeStateFiles(config, ["bproxy.pid", "port", "pairing.json"]);
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() <= deadline) {
-		if (!isAlive(pid)) return true;
-		await sleep(POLL_MS);
-	}
-	return !isAlive(pid);
-}
-
-async function waitForDaemonReady(
-	config: ServiceConfig,
-	pid: number,
-	timeoutMs: number,
-): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() <= deadline) {
-		if (!isAlive(pid)) {
-			throw new Error("daemon failed during startup");
-		}
-		const port = readPort(config);
-		if (port !== undefined) return;
-		await sleep(POLL_MS);
-	}
-	throw new Error("startup timeout waiting for daemon readiness");
-}
-
-export function writeToken(config: ServiceConfig): string {
-	ensureStateDir(config);
-	const path = stateFile(config.stateDir, "token");
-	if (existsSync(path)) assertOwnerMode600(path, "INSECURE_TOKEN_FILE");
-	const token = randomBytes(32).toString("hex");
-	writeFileSync(path, token, { mode: 0o600 });
-	return token;
-}
-
-export function readExtensionToken(config: ServiceConfig): string | null {
-	ensureStateDir(config);
-	const path = stateFile(config.stateDir, "extension-token");
-	if (!existsSync(path)) return null;
-	assertOwnerMode600(path, "INSECURE_EXTENSION_TOKEN_FILE");
-	const token = readFileSync(path, "utf8").trim();
-	return token.length > 0 ? token : null;
-}
-
-export function writeExtensionToken(config: ServiceConfig, token: string): void {
-	ensureStateDir(config);
-	const path = stateFile(config.stateDir, "extension-token");
-	if (existsSync(path)) assertOwnerMode600(path, "INSECURE_EXTENSION_TOKEN_FILE");
-	writeFileSync(path, token, { mode: 0o600 });
-}
-
-export function clearToken(config: ServiceConfig): void {
-	try {
-		rmSync(stateFile(config.stateDir, "token"), { force: true });
-	} catch {
-		/* best effort */
-	}
-}
-
-export function writePort(config: ServiceConfig, port: number): void {
-	writeFileSync(stateFile(config.stateDir, "port"), String(port));
-}
-
-export function writePidFile(config: ServiceConfig, pid: number): void {
-	writeFileSync(stateFile(config.stateDir, "bproxy.pid"), String(pid));
-}
-
-export async function startForeground(config: ServiceConfig): Promise<void> {
+export async function startForeground(config: LoadedServiceConfig): Promise<void> {
 	ensureStateDir(config);
 	wipeTmpDir(config.stateDir);
 	removeOrphanedTmpFiles(config.stateDir);
 	const logger = buildLogger(config);
+	logger.info({ event: "active_config", daemon: config.daemon });
 	const daemonToken = writeToken(config);
 	const extensionToken = readExtensionToken(config) ?? "";
 	const pairing = createPairingStore({ ttlMs: 300_000, now: () => Date.now() });
 	const issued = pairing.issue();
-
-	// Write pairing metadata atomically for the detached parent to read
-	const pairingMeta: PairingMetadata = {
+	writePairingFile(config, {
 		pairingCode: issued.code,
 		pairingExpiresAt: issued.expiresAt,
 		issuedAt: Date.now(),
-	};
-	writePairingFile(config, pairingMeta);
-
+	});
 	const built = await buildServer({
 		port: config.port,
 		stateDir: config.stateDir,
 		daemonToken,
 		extensionToken,
 		logger,
+		daemonConfig: config.daemon,
 		pairing,
 		sessions: createSessionRegistry(),
-		onExtensionTokenChanged: (token) => {
-			writeExtensionToken(config, token);
-			// Pairing claim succeeded — remove pairing.json
-			removePairingFile(config);
-		},
+		onExtensionTokenChanged: (token) => persistClaimedExtensionToken(config, token),
 	});
 	let resolveShutdown!: () => void;
 	const shutdownPromise = new Promise<void>((resolve) => {
@@ -238,7 +108,6 @@ export async function startForeground(config: ServiceConfig): Promise<void> {
 	};
 	process.once("SIGTERM", () => shutdown("SIGTERM"));
 	process.once("SIGINT", () => shutdown("SIGINT"));
-
 	const addr = await built.app.listen({ host: config.host, port: config.port });
 	const boundPort = Number.parseInt(addr.split(":").pop() ?? String(config.port), 10);
 	writePort(config, boundPort);

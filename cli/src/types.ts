@@ -3,7 +3,10 @@
  * This module exists so command implementations can import from a
  * single CLI-local path without reaching into shared internals.
  */
+import type { Nick } from "@bproxy/shared";
+
 export interface ClientGlobalArgs {
+	nick: Nick;
 	session?: string;
 	timeout?: string;
 	home?: string;
@@ -23,7 +26,8 @@ export type {
 	ElementTarget,
 	ExecutionWorld,
 	FillMethod,
+	Nick,
 	SessionId,
 	TabHandle,
 } from "@bproxy/shared";
-export { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
+export { isValidNick, PROTOCOL_VERSION, VERSION } from "@bproxy/shared";

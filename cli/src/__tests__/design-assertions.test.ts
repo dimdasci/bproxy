@@ -29,11 +29,23 @@ function setupTempHome(): string {
 }
 
 function makeGlobals(home: string): ClientGlobalArgs {
-	return { session: "m4q7z2", timeout: "5000", home, verbose: false };
+	return {
+		nick: "halbot" as ClientGlobalArgs["nick"],
+		session: "m4q7z2",
+		timeout: "5000",
+		home,
+		verbose: false,
+	};
 }
 
 function makeVerboseGlobals(home: string): ClientGlobalArgs {
-	return { session: "m4q7z2", timeout: "5000", home, verbose: true };
+	return {
+		nick: "halbot" as ClientGlobalArgs["nick"],
+		session: "m4q7z2",
+		timeout: "5000",
+		home,
+		verbose: true,
+	};
 }
 
 function successResponse(id: string) {

@@ -4,6 +4,7 @@ import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
 	setupTestServer,
+	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 } from "./helpers/integration";
@@ -54,6 +55,7 @@ function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): Bproxy
 		id:
 			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action,
+		nick: overrides.nick ?? TEST_NICK,
 		params: paramsFor(action),
 		session: overrides.session ?? currentSession,
 		deadline: Date.now() + 5000,

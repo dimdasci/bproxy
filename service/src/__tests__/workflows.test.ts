@@ -4,6 +4,7 @@ import type { BuiltServer } from "../server";
 import {
 	connectWsClient,
 	setupTestServer,
+	TEST_NICK,
 	type TestServerContext,
 	teardownTestServer,
 } from "./helpers/integration";
@@ -23,6 +24,7 @@ function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 		id:
 			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action: overrides.action ?? "text",
+		nick: overrides.nick ?? TEST_NICK,
 		params: overrides.params ?? {},
 		session: overrides.session ?? currentSession,
 		deadline: Date.now() + 5000,
@@ -216,7 +218,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 		});
 
 		it("rejects logical handles owned by another session", async () => {
-			const otherSession = built.sessions.create().id;
+			const otherSession = built.sessions.create(TEST_NICK).id;
 			built.sessions.registerTab(currentSession, 42);
 			const res = await postCommand(
 				makeCmd({

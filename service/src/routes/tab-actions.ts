@@ -51,7 +51,7 @@ async function handleTabOpen(
 	deps: CommandRouteDeps,
 ): Promise<BproxyResponse> {
 	const createdSession = !cmd.session;
-	const session = cmd.session || deps.sessions.create().id;
+	const session = cmd.session || deps.sessions.create(cmd.nick).id;
 	const request = { ...cmd, session } as BproxyRequest<"tab.open">;
 	const opened = await dispatchAndPause(request, deps, { targetTabId: null });
 	if (!opened.ok) return tabOpenFailure(opened, deps, createdSession, session);
@@ -69,7 +69,14 @@ async function handleTabOpen(
 	const tmpDir = createSessionTmpDir(deps.stateDir, session);
 	return success(
 		request,
-		{ session, tab: tab.tab, bound: true, url: tab.url, tmpDir },
+		{
+			session,
+			tab: tab.tab,
+			bound: true,
+			url: tab.url,
+			tmpDir,
+			ownerHash: deps.computeOwnerHash(cmd.nick),
+		},
 		opened.page,
 	);
 }

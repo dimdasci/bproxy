@@ -1,4 +1,5 @@
-import { type Action, PACING_PRESETS, type PacingConfig } from "@bproxy/shared";
+import { type Action, type PacingConfig } from "@bproxy/shared";
+import type { DaemonPacingConfig } from "./daemon-config";
 import type { SessionRegistry } from "./sessions";
 
 function pacingKey(action: Action): keyof PacingConfig | null {
@@ -10,6 +11,7 @@ function pacingKey(action: Action): keyof PacingConfig | null {
 
 export interface PacingDeps {
 	sessions: SessionRegistry;
+	config: DaemonPacingConfig;
 	now: () => number;
 	sleep: (ms: number) => Promise<void>;
 	random: () => number;
@@ -25,7 +27,7 @@ export function createPacing(deps: PacingDeps): PacingEngine {
 			const key = pacingKey(action);
 			if (!key) return 0;
 			const s = deps.sessions.internal(session);
-			const preset = PACING_PRESETS[s.pacing][key];
+			const preset = deps.config[s.pacing][key];
 			const target = preset.min + deps.random() * (preset.max - preset.min);
 			const lastEntry = s.lastActionAt[key];
 			if (lastEntry === undefined) {

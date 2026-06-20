@@ -84,6 +84,7 @@ async function probeDaemonHttp(
 				protocol_version: CLI_PROTOCOL_VERSION,
 				id: "doctor-check",
 				action: "debug.status",
+				nick: "doctor",
 				params: {},
 				session: "",
 				deadline: Date.now() + 5000,

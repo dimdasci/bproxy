@@ -51,13 +51,15 @@ Figure 4. State machine the daemon maintains for each session — the four state
 
 The daemon is the only place this state lives. Nothing on the CLI side carries a "session is bound" flag — an agent cannot fabricate a bound session by sending different headers. Every transition above is a daemon-side mutation, and every session is forgotten when the daemon stops. Restarting the service clears all sessions; only the extension token survives across restarts.
 
-Sessions are created **explicitly** — either via `session.create` (returns a fresh `SessionId`) or as a side-effect of `tab open --url ...` when `-s` is omitted (which auto-creates a session, opens a tab, and binds them together). Session ids are daemon-generated 6-character base32 strings matching `/^[a-z2-7]{6}$/`; agents cannot choose or reuse them.
+Sessions are created **explicitly** — either via `session.create` (returns a fresh `SessionId`) or as a side-effect of `tab open --url ...` when `-s` is omitted (which auto-creates a session, opens a tab, and binds them together). Session ids are daemon-generated 6-character base32 strings matching `/^[a-z2-7]{6}$/`; agents cannot choose or reuse them. At creation time the daemon also stamps immutable ownership from the request `--nick` value. Session visibility and command authority are scoped to that nick for the session lifetime.
 
 `session.bind --tab tN` moves the session to `bound` by resolving a logical `TabHandle` (like `t1`) to the internal Chrome tab id. Only tabs registered to the same session can be bound. Calling `session.bind` again with a different tab (or just a new pacing setting) is the self-loop on `bound`: the very next forwarded action picks up the new target.
 
 The session moves to `paused` when the extension reports that the page needs human help — for example, a CAPTCHA or a login wall — and the daemon refuses every forwarded action in that state with `HUMAN_REQUIRED`, so the agent stops looping into an unresponsive page. Daemon-local actions still work: the operator can run `session.*` or `debug.last` to inspect, or rebind to another tab. Either `session.resume` (back to `bound`) or `session.unbind` (back to `created`, also clearing pause) leaves the state.
 
 `session.close` is a terminal transition from any state. It closes all Chrome tabs owned by the session (forwarding `tab.close` for each one), then destroys the session. The closed session id cannot be reused.
+
+A session handle alone is therefore not sufficient authority: the daemon checks both the session id and the matching nick on every session-bound command. `session list`, `debug.status`, `debug.last`, and `debug.log` are all filtered to the requesting nick's live sessions.
 
 ## Logical tab handles
 
