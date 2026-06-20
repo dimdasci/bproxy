@@ -37,6 +37,23 @@ function createHarness(opts: HarnessOptions = {}) {
 	};
 }
 
+function metronomeHarness() {
+	const h = createHarness({
+		config: {
+			minInterval: { ms: 100 },
+			metronome: { tolerance: 0.1, consecutiveEqual: 3, maxIntervalMs: 60_000 },
+		},
+	});
+	// Establish two equal intervals (at 0, 1000, 2000) — not yet rejected
+	h.setNow(0);
+	expect(h.safety.checkIngress("halbot")).toBeNull();
+	h.setNow(1_000);
+	expect(h.safety.checkIngress("halbot")).toBeNull();
+	h.setNow(2_000);
+	expect(h.safety.checkIngress("halbot")).toBeNull();
+	return h;
+}
+
 describe("safety guards", () => {
 	it("rejects requests below the minimum interval with RATE_LIMITED", () => {
 		const h = createHarness({
@@ -71,23 +88,6 @@ describe("safety guards", () => {
 			details: { retryAfter: 58_000 },
 		});
 	});
-
-	function metronomeHarness() {
-		const h = createHarness({
-			config: {
-				minInterval: { ms: 100 },
-				metronome: { tolerance: 0.1, consecutiveEqual: 3, maxIntervalMs: 60_000 },
-			},
-		});
-		// Establish two equal intervals (at 0, 1000, 2000) — not yet rejected
-		h.setNow(0);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
-		h.setNow(1_000);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
-		h.setNow(2_000);
-		expect(h.safety.checkIngress("halbot")).toBeNull();
-		return h;
-	}
 
 	it("detects metronomic request timing", () => {
 		const h = metronomeHarness();

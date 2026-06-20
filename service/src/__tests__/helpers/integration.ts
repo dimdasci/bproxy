@@ -96,7 +96,7 @@ export function makeCmd(
 		action: opts.defaultAction ?? "session.list",
 		nick: TEST_NICK,
 		params: {},
-		session: opts.defaultSession() as BproxyRequest["session"],
+		session: opts.defaultSession(),
 		deadline: Date.now() + 5000,
 		destructive: false,
 	};

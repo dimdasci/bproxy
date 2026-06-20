@@ -122,25 +122,25 @@ function mockFetch(responseBody: unknown): typeof globalThis.fetch {
 	};
 }
 
-describe("screenshot --output-dir integration", () => {
-	async function takeScreenshot(requestId: string) {
-		const home = setupHome();
-		const opts: SendOptions = {
-			fetch: mockFetch(screenshotResponse(requestId)),
-			requestId,
-		};
-		const plan = await sendAction(
-			"screenshot",
-			{},
-			{ home, nick: "halbot" as ClientGlobalArgs["nick"], session: "abc234" },
-			opts,
-		);
-		expect(plan.code).toBe(0);
-		const response = plan.stdout as BproxyResponse<"screenshot">;
-		expect(response.ok).toBe(true);
-		return response;
-	}
+async function takeScreenshot(requestId: string) {
+	const home = setupHome();
+	const opts: SendOptions = {
+		fetch: mockFetch(screenshotResponse(requestId)),
+		requestId,
+	};
+	const plan = await sendAction(
+		"screenshot",
+		{},
+		{ home, nick: "halbot" as ClientGlobalArgs["nick"], session: "abc234" },
+		opts,
+	);
+	expect(plan.code).toBe(0);
+	const response = plan.stdout as BproxyResponse<"screenshot">;
+	expect(response.ok).toBe(true);
+	return response;
+}
 
+describe("screenshot --output-dir integration", () => {
 	it("command writes file and stdout has file path instead of base64", async () => {
 		const outputDir = join(makeTempDir(), "screens");
 		const response = await takeScreenshot("ss-file-test-1");
