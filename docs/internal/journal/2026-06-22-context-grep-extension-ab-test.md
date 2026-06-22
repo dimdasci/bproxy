@@ -455,3 +455,36 @@ Unlike session 03 where Lane A was 48% more expensive, session 04 shows near-equ
 | 04 (offset+trunc) | 3/17 vs 0/15 | 33 vs 50 | 76 vs 101 (−25%) | $4.43 vs $4.53 |
 
 Consistent pattern: Lane B uses 25–33% more turns across all implementation sessions, with the gap concentrated in exploration. Cost varies and doesn't consistently favor either approach.
+
+---
+
+## Hypothesis: extension disrupts post-trained exploration patterns
+
+After session 04 revealed that Lane A produced an architecturally inferior implementation (blind pagination, unfixed truncation bug), a stronger hypothesis emerges:
+
+**The extension satisfies the model's "do I know enough?" threshold prematurely.**
+
+The model was post-trained (RLHF) to operate in a calibrated exploration loop:
+
+```
+grep → short result (line numbers) → "I need more context" → read/grep again → deeper understanding
+```
+
+The trained threshold for "I understand enough to proceed" assumes a specific information density per tool call. When the extension enriches grep output with AST containers + callers (4.6× more context per call), that threshold is crossed earlier — before the incidental breadth exposure that the natural loop would provide.
+
+This is analogous to how custom fine-tuning can degrade a model: overwriting learned weight distributions makes the model better at the fine-tuned task but worse at general behavior. The extension "fine-tunes" the information landscape, making the model better at targeted lookup but worse at thorough exploration.
+
+**Evidence from sessions 01–04:**
+
+| Session | Extension effect | Consequence |
+|---------|-----------------|-------------|
+| 01 | Agent stopped exploring earlier | Plan missed `exit.ts`, `command.ts`, used shorter paths |
+| 02 | Plan prescribed less work | Implementation lacked window focus, protocol assertions |
+| 03 | Agent skipped file-discovery steps | Functionally equivalent but explored less |
+| 04 | Plan didn't prescribe truncation fix | Agent concluded "not my bug" — left a real defect unfixed |
+
+The extension makes each individual search more productive, but **the exploration loop itself is the mechanism for discovering things you didn't know to search for.** Cutting the loop short removes serendipitous discovery.
+
+**Counter-hypothesis:** maybe the extension just needs a task-type gate (active during implementation, disabled during planning). Or maybe it's not needed at all — let the model act the way it was trained, accepting more turns and more cost in exchange for broader structural understanding.
+
+This question remains open. The final session (feature 5, `text --after`) will add one more data point.
