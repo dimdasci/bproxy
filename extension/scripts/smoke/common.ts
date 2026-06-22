@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type {
-	Action,
-	ActionParams,
-	BproxyRequest,
-	BproxyResponse,
-	BproxySuccessResponse,
-	ElementInfo,
+import {
+	type Action,
+	type ActionParams,
+	type BproxyRequest,
+	type BproxyResponse,
+	type BproxySuccessResponse,
+	type ElementInfo,
+	PROTOCOL_VERSION,
 } from "@bproxy/shared";
 
 const DESTRUCTIVE_ACTIONS = new Set<Action>([
@@ -86,7 +87,7 @@ export function buildRequest<A extends Action>(
 	options: SendCommandOptions = {},
 ): BproxyRequest<A> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: options.id ?? randomUUID(),
 		action,
 		nick: (options.nick ?? "smoke1") as BproxyRequest<A>["nick"],

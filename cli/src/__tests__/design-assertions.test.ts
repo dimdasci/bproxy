@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction } from "../client.js";
 import { allRegisteredActions } from "../command-registry.js";
 import type { Action } from "../types.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Test infrastructure ───────────────────────────────────────────────
@@ -50,7 +51,7 @@ function makeVerboseGlobals(home: string): ClientGlobalArgs {
 
 function successResponse(id: string) {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data: { text: "hello" },
@@ -61,7 +62,7 @@ function successResponse(id: string) {
 
 function errorResponse(id: string, code: string) {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: false,
 		error: { code, message: "Something failed" },
@@ -321,7 +322,7 @@ describe("stdout cleanliness", () => {
 		const plan = await sendAction("text", {}, makeGlobals(home), { fetch, requestId });
 		expect(plan.code).toBe(0);
 		const output = plan.stdout as Record<string, unknown>;
-		expect(output["protocol_version"]).toBe(1);
+		expect(output["protocol_version"]).toBe(PROTOCOL_VERSION);
 		expect(output["ok"]).toBe(true);
 		expect(output["id"]).toBe(requestId);
 	});

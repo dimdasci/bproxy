@@ -1,4 +1,5 @@
 import type { BproxyError, BproxyForwardedRequest, BproxyResponse } from "@bproxy/shared";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 
 type SendFn = (cmd: BproxyForwardedRequest) => void;
 
@@ -26,7 +27,7 @@ export interface PendingMap {
 }
 
 function errorResponse(id: string, error: BproxyError): BproxyResponse {
-	return { protocol_version: 1, id, ok: false, error };
+	return { protocol_version: PROTOCOL_VERSION, id, ok: false, error };
 }
 
 function timeoutResponse(id: string): BproxyResponse {

@@ -1,4 +1,5 @@
 import type { BproxyError, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import { createSessionTmpDir, removeSessionTmpDir } from "../session-tmp";
 import { failure, success } from "./responses";
 import type { CommandRouteDeps } from "./types";
@@ -161,7 +162,7 @@ async function handleSessionClose(
 	for (const [index, handle] of handles.entries()) {
 		deps.sessions.bind(cmd.session, handle);
 		const closeResponse = await deps.dispatch.send({
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: `${cmd.id}:close:${index + 1}`,
 			action: "tab.close",
 			nick: cmd.nick,

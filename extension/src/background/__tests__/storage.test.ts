@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import {
 	bootstrapItem,
@@ -17,7 +18,7 @@ describe("storage items", () => {
 		const payload: PairingBootstrap = {
 			extensionToken: "tok",
 			wsUrl: "ws://127.0.0.1:9615",
-			protocolVersion: 1,
+			protocolVersion: PROTOCOL_VERSION,
 			issuedAt: 100,
 			expiresAt: 200,
 			nonce: "n",

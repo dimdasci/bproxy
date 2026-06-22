@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { type SendOptions, sendAction } from "../client.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import {
 	createMockFetch,
 	makeGlobals,
@@ -383,7 +384,7 @@ describe("request envelope structure", () => {
 		await sendAction("text", {}, makeGlobals(home), opts);
 
 		const body = calls[0]!.body;
-		expect(body["protocol_version"]).toBe(1);
+		expect(body["protocol_version"]).toBe(PROTOCOL_VERSION);
 		expect(body["id"]).toBe(requestId);
 		expect(body["session"]).toBe("m4q7z2");
 		expect(body["deadline"]).toBeGreaterThan(Date.now() - 10000);
@@ -518,7 +519,7 @@ describe("response pass-through", () => {
 		const home = setupTempHome();
 		const requestId = "test-id-001";
 		const responseBody = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: requestId,
 			ok: false,
 			error: {

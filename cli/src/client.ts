@@ -28,6 +28,7 @@ import type {
 	BproxyResponse,
 	ClientGlobalArgs,
 } from "./types.js";
+import { PROTOCOL_VERSION } from "./types.js";
 
 export { validateResponse } from "./response-validation.js";
 export type { ClientGlobalArgs } from "./types.js";
@@ -169,7 +170,7 @@ function buildRequest<A extends Action>(
 	ctx: RequestContext,
 ): BproxyRequest<A> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: ctx.requestId,
 		action,
 		nick: ctx.nick,

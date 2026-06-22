@@ -1,4 +1,4 @@
-import type { BproxyForwardedRequest, BproxyResponse } from "@bproxy/shared";
+import { type BproxyForwardedRequest, type BproxyResponse, PROTOCOL_VERSION } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createPending } from "../pending";
 
@@ -6,7 +6,7 @@ const BASE = 1_000_000;
 
 function req(id: string, deadline = BASE + 5000): BproxyForwardedRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		action: "text",
 		params: {},
@@ -19,7 +19,7 @@ function req(id: string, deadline = BASE + 5000): BproxyForwardedRequest {
 
 function okResponse(id: string): BproxyResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data: { text: "x" },

@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { type SendOptions, sendAction } from "../client.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import {
 	createMockFetch,
 	makeGlobals,
@@ -361,7 +362,7 @@ describe("fill/fill-form never invent or retry method/world", () => {
 		const home = setupTempHome();
 		const requestId = "test-id-001";
 		const errorResponse = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: requestId,
 			ok: false,
 			error: {
@@ -395,7 +396,7 @@ describe("fill/fill-form never invent or retry method/world", () => {
 		const home = setupTempHome();
 		const requestId = "test-id-001";
 		const errorResponse = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: requestId,
 			ok: false,
 			error: {

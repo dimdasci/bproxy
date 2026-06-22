@@ -1,9 +1,10 @@
 import type { Action, ActionParams, ActionResult, ForwardedActionParams } from "./actions";
 import type { BproxyError } from "./errors";
 import type { Nick, SessionId } from "./sessions";
+import type { PROTOCOL_VERSION } from "./version";
 
 export interface BproxyRequest<A extends Action = Action> {
-	protocol_version: 1;
+	protocol_version: typeof PROTOCOL_VERSION;
 	id: string;
 	action: A;
 	nick: Nick;
@@ -35,7 +36,7 @@ export type BproxyForwardedRequest<A extends Action = Action> = Omit<
 };
 
 export interface BproxySuccessResponse<A extends Action = Action> {
-	protocol_version: 1;
+	protocol_version: typeof PROTOCOL_VERSION;
 	id: string;
 	ok: true;
 	data: ActionResult[A];
@@ -44,7 +45,7 @@ export interface BproxySuccessResponse<A extends Action = Action> {
 }
 
 export interface BproxyErrorResponse {
-	protocol_version: 1;
+	protocol_version: typeof PROTOCOL_VERSION;
 	id: string;
 	ok: false;
 	error: BproxyError;

@@ -1,4 +1,4 @@
-import { type Action, type BproxyRequest, HANDLE_PATTERN } from "@bproxy/shared";
+import { type Action, type BproxyRequest, HANDLE_PATTERN, PROTOCOL_VERSION } from "@bproxy/shared";
 import { z } from "zod";
 import { TAB_HANDLE_PATTERN } from "./sessions";
 
@@ -164,7 +164,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 };
 
 const ENVELOPE_BASE = z.object({
-	protocol_version: z.literal(1),
+	protocol_version: z.literal(PROTOCOL_VERSION),
 	id: z.string().min(1),
 	action: z.string(),
 	nick: z.string(),

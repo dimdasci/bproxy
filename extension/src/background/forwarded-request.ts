@@ -1,4 +1,5 @@
 import type { BproxyForwardedRequest } from "@bproxy/shared";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import { type ForwardedAction, isForwardedAction } from "./forwarded-actions";
 import { isTarget, paramsValidForAction } from "./forwarded-params";
 
@@ -10,7 +11,7 @@ type EnvelopeValidation =
 	| {
 			success: true;
 			data: {
-				protocol_version: 1;
+				protocol_version: typeof PROTOCOL_VERSION;
 				id: string;
 				action: ForwardedAction;
 				params: unknown;
@@ -42,7 +43,7 @@ export function parseForwardedRequest(raw: unknown): ParseResult {
 	return {
 		success: true,
 		data: {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: env.id,
 			action: env.action,
 			params: env.params,
@@ -84,7 +85,7 @@ function validateEnvelope(input: EnvelopeRecord): EnvelopeValidation {
 	return {
 		success: true,
 		data: {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id,
 			action,
 			params: input["params"],
@@ -121,8 +122,8 @@ function validateEnvelopeShape(
 	if (!hasExpectedKeys(input)) {
 		return { success: false, id, error: "unexpected top-level keys" };
 	}
-	if (input["protocol_version"] !== 1) {
-		return { success: false, id, error: "protocol_version must be 1" };
+	if (input["protocol_version"] !== PROTOCOL_VERSION) {
+		return { success: false, id, error: `protocol_version must be ${PROTOCOL_VERSION}` };
 	}
 	return undefined;
 }

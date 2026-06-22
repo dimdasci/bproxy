@@ -229,6 +229,53 @@ describe("read actions", () => {
 		expect(filtered.links.map((l) => l.text)).toEqual(["Link 5", "Link 6", "Link 7"]);
 	});
 
+	it("links returns capped: true when page has more than MAX_COLLECTION_CAP links", () => {
+		// MAX_COLLECTION_CAP is 2000 — create 2001 links to trigger the cap
+		const page = doc(
+			el("html", {
+				children: [
+					el("body", {
+						children: Array.from({ length: 2001 }, (_, i) =>
+							el("a", {
+								attrs: { href: `https://example.com/${i}` },
+								text: `L${i}`,
+							}),
+						),
+					}),
+				],
+			}),
+		);
+		Object.assign(page, { baseURI: "https://example.com/" });
+
+		const result = handleLinks(request("links", { limit: 500 }), withDocument(page));
+
+		// Total is capped at 2000 (MAX_COLLECTION_CAP), not the true 2001
+		expect(result.total).toBe(2000);
+		expect(result.capped).toBe(true);
+		expect(result.links).toHaveLength(500); // limit applies to slice
+
+		// Without capping, total is accurate when within cap
+		const smallPage = doc(
+			el("html", {
+				children: [
+					el("body", {
+						children: Array.from({ length: 10 }, (_, i) =>
+							el("a", {
+								attrs: { href: `https://example.com/${i}` },
+								text: `L${i}`,
+							}),
+						),
+					}),
+				],
+			}),
+		);
+		Object.assign(smallPage, { baseURI: "https://example.com/" });
+
+		const smallResult = handleLinks(request("links", {}), withDocument(smallPage));
+		expect(smallResult.total).toBe(10);
+		expect(smallResult.capped).toBeUndefined();
+	});
+
 	it("images returns only visible images within the requested scope", () => {
 		const scoped = el("img", {
 			attrs: { src: "https://cdn.test/hero.png", alt: "Hero" },

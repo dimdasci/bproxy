@@ -1,4 +1,4 @@
-import type { BproxyForwardedRequest, SessionId } from "@bproxy/shared";
+import { type BproxyForwardedRequest, PROTOCOL_VERSION, type SessionId } from "@bproxy/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { doc, el, type FakeDocument, type FakeElement } from "../../test/fixtures/fake-dom";
 import { createMainWorldExecutor, type MainWorldExecuteDetails } from "../main-world";
@@ -100,7 +100,7 @@ function fillRequest(
 	overrides: Partial<BproxyForwardedRequest<"fill">> = {},
 ): BproxyForwardedRequest<"fill"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-fill-main",
 		action: "fill",
 		params: overrides.params ?? {

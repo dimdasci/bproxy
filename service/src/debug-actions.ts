@@ -33,7 +33,7 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 			.filter((trace) => deps.sessions.getOwner(trace.session) === cmd.nick)
 			.slice(-count);
 		return {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: cmd.id,
 			ok: true,
 			data: { requests },
@@ -47,7 +47,7 @@ export function handleDaemonLocal(cmd: BproxyRequest, deps: DebugDeps): BproxyRe
 		tabs: deps.sessions.listTabs(session.id),
 	}));
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: cmd.id,
 		ok: true,
 		data: {

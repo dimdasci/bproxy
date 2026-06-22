@@ -1,11 +1,12 @@
-import type {
-	Action,
-	ActionResult,
-	BproxyError,
-	BproxyErrorResponse,
-	BproxyForwardedRequest,
-	BproxySuccessResponse,
-	PageState,
+import {
+	type Action,
+	type ActionResult,
+	type BproxyError,
+	type BproxyErrorResponse,
+	type BproxyForwardedRequest,
+	type BproxySuccessResponse,
+	type PageState,
+	PROTOCOL_VERSION,
 } from "@bproxy/shared";
 
 export interface SuccessInput<A extends Action> {
@@ -29,7 +30,7 @@ export function successResponse<A extends Action>(
 	input: SuccessInput<A>,
 ): BproxySuccessResponse<A> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: input.request.id,
 		ok: true,
 		data: input.data,
@@ -40,7 +41,7 @@ export function successResponse<A extends Action>(
 
 export function errorResponse<A extends Action>(input: ErrorInput<A>): BproxyErrorResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: input.request.id,
 		ok: false,
 		error: input.error,

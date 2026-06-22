@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import type { FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 import { z } from "zod";
@@ -46,7 +47,7 @@ export function pairRoute(deps: PairRouteDeps) {
 			const r = deps.pairing.claim(body.data.code, () => ({
 				extensionToken: randomBytes(32).toString("base64url"),
 				wsUrl: deps.wsUrl(),
-				protocolVersion: 1,
+				protocolVersion: PROTOCOL_VERSION,
 			}));
 			if (!r.ok) {
 				deps.rateLimiter.recordFailure();

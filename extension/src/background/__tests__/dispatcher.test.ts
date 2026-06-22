@@ -1,4 +1,9 @@
-import type { BproxyForwardedRequest, BproxyResponse, PageState } from "@bproxy/shared";
+import {
+	type BproxyForwardedRequest,
+	type BproxyResponse,
+	type PageState,
+	PROTOCOL_VERSION,
+} from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeStorageItem } from "../../test/fakes/storage";
 import { createDedupe } from "../dedupe";
@@ -15,7 +20,7 @@ const PAGE: PageState = {
 
 function makeRequest(overrides: Partial<BproxyForwardedRequest> = {}): BproxyForwardedRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-1",
 		action: overrides.action ?? "text",
 		params: overrides.params ?? {},
@@ -127,7 +132,7 @@ describe("parseForwardedRequest", () => {
 	it("rejects tab.list so the extension cannot enumerate browser tabs", () => {
 		const parsed = parseForwardedRequest(
 			JSON.stringify({
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: "req-1",
 				action: "tab.list",
 				params: {},
@@ -160,7 +165,7 @@ describe("dispatcher", () => {
 		const h = makeHarness();
 		await h.dispatcher.handleMessage(
 			JSON.stringify({
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: "bad-1",
 				action: "text",
 				params: { selector: 123 },

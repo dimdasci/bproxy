@@ -1,4 +1,10 @@
-import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
+import {
+	type BproxyError,
+	type BproxyForwardedRequest,
+	type PageState,
+	PROTOCOL_VERSION,
+	type SessionId,
+} from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserActionHandler } from "../browser-actions";
 import type { TabLike } from "../tabs";
@@ -364,7 +370,7 @@ function fillRequest(
 	overrides: Partial<BproxyForwardedRequest<"fill">> = {},
 ): BproxyForwardedRequest<"fill"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-fill",
 		action: "fill",
 		params: overrides.params ?? {
@@ -384,7 +390,7 @@ function navigateRequest(
 	overrides: Partial<BproxyForwardedRequest<"navigate">> = {},
 ): BproxyForwardedRequest<"navigate"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-nav",
 		action: "navigate",
 		params: overrides.params ?? { url: "https://example.test/" },
@@ -399,7 +405,7 @@ function screenshotRequest(
 	overrides: Partial<BproxyForwardedRequest<"screenshot">> = {},
 ): BproxyForwardedRequest<"screenshot"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-shot",
 		action: "screenshot",
 		params: overrides.params ?? {},
@@ -414,7 +420,7 @@ function tabOpenRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.open">> = {},
 ): BproxyForwardedRequest<"tab.open"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-open",
 		action: "tab.open",
 		params: overrides.params ?? { url: "https://opened.test/" },
@@ -429,7 +435,7 @@ function tabCloseRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.close">> = {},
 ): BproxyForwardedRequest<"tab.close"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-close",
 		action: "tab.close",
 		params: overrides.params ?? {},
@@ -444,7 +450,7 @@ function tabPinRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.pin">> = {},
 ): BproxyForwardedRequest<"tab.pin"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-pin",
 		action: "tab.pin",
 		params: overrides.params ?? {},
@@ -459,7 +465,7 @@ function tabUnpinRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.unpin">> = {},
 ): BproxyForwardedRequest<"tab.unpin"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-unpin",
 		action: "tab.unpin",
 		params: overrides.params ?? {},
@@ -474,7 +480,7 @@ function requireHumanRequest(
 	overrides: Partial<BproxyForwardedRequest<"require-human">> = {},
 ): BproxyForwardedRequest<"require-human"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-human",
 		action: "require-human",
 		params: overrides.params ?? { reason: "Need manual step" },
@@ -489,7 +495,7 @@ function tabActivateRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.activate">> = {},
 ): BproxyForwardedRequest<"tab.activate"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-activate",
 		action: "tab.activate",
 		params: overrides.params ?? {},

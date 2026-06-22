@@ -1,9 +1,10 @@
-import type {
-	ActionResult,
-	BproxyError,
-	BproxyForwardedRequest,
-	BproxyResponse,
-	PageState,
+import {
+	type ActionResult,
+	type BproxyError,
+	type BproxyForwardedRequest,
+	type BproxyResponse,
+	type PageState,
+	PROTOCOL_VERSION,
 } from "@bproxy/shared";
 import type { Dedupe } from "./dedupe";
 import {
@@ -163,7 +164,7 @@ function emptyPageState(): PageState {
 
 function malformedRequest(id: string): BproxyForwardedRequest<"debug.log"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		action: "debug.log",
 		params: {},

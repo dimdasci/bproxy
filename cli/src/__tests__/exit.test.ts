@@ -8,6 +8,7 @@ import {
 	exitUsageError,
 } from "../exit.js";
 import type { BproxyResponse } from "../types.js";
+import { PROTOCOL_VERSION } from "../types.js";
 
 /** Fake writable stream that captures written data. */
 function fakeStream(): NodeJS.WritableStream & { data: string } {
@@ -27,7 +28,7 @@ function fakeStream(): NodeJS.WritableStream & { data: string } {
 describe("exitFromResponse", () => {
 	it("maps ok:true response to exit code 0", () => {
 		const response = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: "req-1",
 			ok: true,
 			data: { text: "hello" },
@@ -43,7 +44,7 @@ describe("exitFromResponse", () => {
 
 	it("maps ok:false response to exit code 1", () => {
 		const response = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: "req-2",
 			ok: false,
 			error: { code: "TIMEOUT", message: "Request timed out" },
@@ -202,7 +203,7 @@ describe("executeExitPlan", () => {
 		}));
 
 		const response = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: "req-large",
 			ok: true,
 			data: { links, total: 500, capped: false },

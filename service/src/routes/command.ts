@@ -5,6 +5,7 @@ import {
 	type ElementInfo,
 	isValidNick,
 	type LinkInfo,
+	PROTOCOL_VERSION,
 	type SessionId,
 	type TraceEntry,
 } from "@bproxy/shared";
@@ -146,7 +147,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 				return await finalizeResponse(
 					cmd,
 					deps,
-					{ protocol_version: 1, id: cmd.id, ok: false, error: safetyError },
+					{ protocol_version: PROTOCOL_VERSION, id: cmd.id, ok: false, error: safetyError },
 					receivedAt,
 				);
 			}

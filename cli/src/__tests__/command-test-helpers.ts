@@ -6,6 +6,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import type { ClientGlobalArgs, SendOptions } from "../client.js";
 import { sendAction } from "../client.js";
 import { extractUrl } from "./fetch-helper.js";
@@ -34,7 +35,7 @@ export function makeGlobals(
 
 export function successResponse(id: string, data: unknown = {}) {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data,

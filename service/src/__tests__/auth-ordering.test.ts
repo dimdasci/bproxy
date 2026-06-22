@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import { type BproxyRequest, type BproxyResponse, PROTOCOL_VERSION } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import type { BuiltServer } from "../server";
@@ -20,7 +20,7 @@ const DEFAULT_SESSION = "m4q8z2" as BproxyRequest["session"];
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? `auth-test-${crypto.randomUUID().slice(0, 8)}`,
 		action: overrides.action ?? "text",
 		nick: overrides.nick ?? TEST_NICK,

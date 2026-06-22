@@ -1,4 +1,10 @@
-import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
+import {
+	type BproxyError,
+	type BproxyForwardedRequest,
+	type PageState,
+	PROTOCOL_VERSION,
+	type SessionId,
+} from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import { errorResponse, successResponse } from "../responses";
 
@@ -6,7 +12,7 @@ const TEST_SESSION = "m4q7z2" as SessionId;
 
 function req(id: string): BproxyForwardedRequest<"text"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		action: "text",
 		params: {},
@@ -25,7 +31,7 @@ const PAGE: PageState = {
 };
 
 describe("response builders", () => {
-	it("successResponse copies id, sets protocol_version=1, ok=true, replay=false by default", () => {
+	it("successResponse copies id, sets protocol_version=PROTOCOL_VERSION, ok=true, replay=false by default", () => {
 		const res = successResponse({
 			request: req("abc"),
 			data: { text: "hello" },
@@ -33,7 +39,7 @@ describe("response builders", () => {
 		});
 
 		expect(res).toEqual({
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: "abc",
 			ok: true,
 			data: { text: "hello" },
@@ -57,7 +63,7 @@ describe("response builders", () => {
 		expect(res.page).toBe(PAGE);
 	});
 
-	it("errorResponse copies id, sets protocol_version=1, ok=false, and the error payload", () => {
+	it("errorResponse copies id, sets protocol_version=PROTOCOL_VERSION, ok=false, and the error payload", () => {
 		const err: BproxyError = {
 			code: "ELEMENT_NOT_FOUND",
 			category: "target",
@@ -67,7 +73,7 @@ describe("response builders", () => {
 		const res = errorResponse({ request: req("xyz"), error: err });
 
 		expect(res).toEqual({
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: "xyz",
 			ok: false,
 			error: err,

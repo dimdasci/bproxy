@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { PairingBootstrap } from "../../../background/storage";
 import { createFakeStorageItem } from "../../../test/fakes/storage";
@@ -25,7 +26,7 @@ function happyBody(overrides: Partial<PairingBootstrap> = {}) {
 	const data: PairingBootstrap = {
 		extensionToken: "tok-abc",
 		wsUrl: "ws://127.0.0.1:9615/ws",
-		protocolVersion: 1,
+		protocolVersion: PROTOCOL_VERSION,
 		issuedAt: 1000,
 		expiresAt: 9999,
 		nonce: "n-1",
@@ -64,7 +65,7 @@ describe("runPairing", () => {
 		expect(stored).toEqual({
 			extensionToken: "tok-abc",
 			wsUrl: "ws://127.0.0.1:9615/ws",
-			protocolVersion: 1,
+			protocolVersion: PROTOCOL_VERSION,
 			issuedAt: 1000,
 			expiresAt: 9999,
 			nonce: "n-1",
@@ -140,11 +141,11 @@ describe("runPairing", () => {
 		expect(deps.sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("protocolVersion !== 1 is rejected with UNSUPPORTED_PROTOCOL_VERSION", async () => {
+	it("protocolVersion !== 2 is rejected with UNSUPPORTED_PROTOCOL_VERSION", async () => {
 		const deps = makeDeps({
 			fetch: makeFetch(200, {
 				ok: true,
-				data: { ...happyBody().data, protocolVersion: 2 },
+				data: { ...happyBody().data, protocolVersion: 99 },
 			}),
 		});
 

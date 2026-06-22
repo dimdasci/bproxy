@@ -5,6 +5,7 @@ import type {
 	ActionResult,
 	DaemonRequestTrace,
 	ForwardedActionParams,
+	LinkInfo,
 	TraceEntry,
 } from "./actions";
 import type { ErrorCode } from "./errors";
@@ -34,6 +35,9 @@ type _LinksParams = Expect<
 	>
 >;
 type _ClickParams = Expect<Equals<ActionParams["click"], { target: ClientElementTarget }>>;
+type _LinksResult = Expect<
+	Equals<ActionResult["links"], { links: Array<LinkInfo>; total: number; capped?: boolean }>
+>;
 type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ClientElementTarget }>>;
 type _ForwardedClickParams = Expect<
 	Equals<ForwardedActionParams["click"], { target: ElementTarget }>
