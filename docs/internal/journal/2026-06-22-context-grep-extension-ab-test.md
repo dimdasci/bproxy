@@ -182,6 +182,46 @@ The efficiency differences in this session are attributable to:
 - Non-deterministic model behavior (different edit ordering, test structure)
 - Human interaction timing (operator gave Lane A an extra confirmation turn)
 
+### Forward-propagation effect
+
+The raw turn/tool-call gap (56 vs 78 turns, 60 vs 83 tool calls) is **not** an implementation efficiency difference — it's a **scope difference** inherited from session 01.
+
+Lane B's plan (produced without extension enrichment, via more grep cycles that incidentally exposed more code) prescribed additional work:
+- `protocol-shape.assertions.ts` — compile-time shape assertion
+- `BrowserWindowsSeam` — separate interface for `chrome.windows.update`
+- `action-contract.test.ts` — service-level integration test update
+- Window focus alongside tab activation
+
+Lane A's plan mentioned none of these. The session 02 agents faithfully implemented their respective specifications — Lane B did more because its plan said to do more.
+
+The cascade:
+
+```
+Session 01 (planning):
+  Extension → fewer grep cycles → less incidental code exposure
+  No extension → more grep cycles → saw protocol-shape, action-contract, ExitPlan patterns
+  → Lane B plan included more touchpoints
+
+Session 02 (implementation):
+  Lane A implements leaner plan → 19 unique files read → 16 edits → 8 verify cycles
+  Lane B implements fuller plan → 23 unique files read → 22 edits → 14 verify cycles
+```
+
+Decomposed by phase within the main implementation turn:
+
+| Phase | Lane A | Lane B | Extra work in B |
+|-------|--------|--------|----------------|
+| EXPLORE | 20 turns | 36 turns | +4 files (protocol-shape, action-contract, cli.md, own plan) |
+| IMPLEMENT | 13 turns | 21 turns | Protocol assertion, windows seam, action-contract test, larger extension test |
+| VERIFY | 8 turns | 14 turns | Per-package test runs + `pnpm format:fix` cycle |
+
+This is the most interesting finding: **the extension's efficiency gain during planning had a second-order narrowing effect on implementation scope.** Faster planning ≠ better planning if speed comes at the cost of structural exposure. The agent that struggled more during exploration produced a more thorough specification.
+
 ### Conclusion for session 02
 
-The extension's value is **task-type dependent**. It excels at investigation/planning (session 01: −56% grep calls, −22% turns) but is inert during implementation (session 02: 0 enrichments triggered, no measurable difference). This aligns with Phase 9's validation data: the mechanism helps when the agent is tracing call chains and understanding structure, not when it's writing code with a plan already in hand.
+The extension's value is **task-type dependent**:
+- Planning/investigation: strong direct effect (−56% grep calls, −22% turns)
+- Implementation: no direct effect (0 enrichments triggered)
+- But planning efficiency has a **forward-propagating indirect effect** — a leaner exploration during planning produced a leaner spec, which produced a leaner implementation
+
+Whether this is good or bad depends on whether Lane B's extras (window focus, protocol assertions) represent genuine quality improvement or over-engineering. Both pass all gates. The 1-test difference (180 vs 179) and the `protocol-shape.assertions.ts` update suggest Lane B's implementation is marginally more robust against future regressions — but not materially so for a feature this simple.
