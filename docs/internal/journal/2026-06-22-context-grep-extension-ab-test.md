@@ -354,3 +354,104 @@ Session 03 revealed that Lane A's fewer-turns approach is actually **more expens
 Lane A reads whole files (full-path confidence from plan) → larger context → higher cache costs. Lane B uses grep→partial-read with offset/limit (uncertain paths) → smaller context per turn → cheaper per turn despite more turns.
 
 The extension optimizes for **time and cognitive efficiency** (fewer round-trips, less fragmented exploration), not for **cost**. In API-cost terms, the targeted-search pattern is more economical.
+
+---
+
+## Session 04: Feature 3 implementation (`links --offset` + truncation investigation)
+
+**Sessions:**
+- Lane A: `019ef0fa-c118-7e74-8985-1ac256dfdece`
+- Lane B: `019ef0fa-cfcf-7889-bd64-8018d5bc9c94`
+
+### Outcome
+
+Both lanes successfully implemented feature 3. Both pass `pnpm check` and `pnpm test`. Both committed. But the implementations are **architecturally different**.
+
+| Metric | Lane A (ext) | Lane B (no ext) | Delta |
+|--------|-------------|-----------------|-------|
+| Wall clock | 19.0 min | 19.5 min | ~same |
+| User messages | 3 | 3 | same |
+| Assistant turns | 76 | 101 | B +33% |
+| Tool calls | 79 | 105 | B +33% |
+| Reads | 26 | 46 | B +77% |
+| Searches (grep/find) | 23 | 24 | ~same |
+| Edits | 12 | 16 | B +33% |
+| pnpm runs | 14 | 18 | B +29% |
+| Output tokens | 17,086 | 24,813 | B +45% |
+| Total cost | $4.43 | $4.53 | ~same |
+| Code diff | 9 files, +268/−3 | 12 files, +222/−31 | see below |
+| Tests | 186 ext, 264 svc, 390 cli | 182 ext, 259 svc, 390 cli | A has more tests |
+
+### Enrichment: minimal again
+
+Lane A: 3/17 greps enriched. Lane B: 0/15. The enrichment continues to be a minor factor during implementation.
+
+### Two fundamentally different architectures for the same feature
+
+This is the most interesting session so far. The plans diverged on whether `ActionResult['links']` should change, and this produced completely different implementations:
+
+**Lane A (simpler, no result shape change):**
+- Extension: streaming offset — skip N items during DOM walk, then collect up to limit. Single-pass, no full collection.
+- Result type unchanged: still `{ links: Array<LinkInfo> }` — no `total`, no `capped`.
+- Truncation fix: wrote a test proving the CLI handles >100KB JSON correctly. Concluded the issue is environmental. No code change to the output path.
+- 9 files changed, net +265 lines.
+
+**Lane B (richer, breaking result shape change):**
+- Extension: two-phase — collect ALL matching links up to `MAX_COLLECTION_CAP` (2000), then slice by offset/limit. Returns `total` count and `capped` flag.
+- Result type changed: `{ links: Array<LinkInfo>; total: number; capped?: boolean }` — breaking change requiring updates across packages.
+- Truncation fix: modified `cli/src/exit.ts` to use synchronous `writeFileSync(1, payload)` for stdout, preventing pipe-buffer truncation. Added `exit.test.ts`.
+- Also updated `service/src/routes/command.ts` to handle the new `total`/`capped` fields in `decorateReadHandles`.
+- 12 files changed, net +191 lines.
+
+### Why the implementations diverge
+
+The plans prescribed different designs:
+
+| Aspect | Lane A plan | Lane B plan |
+|--------|------------|------------|
+| Result shape | No change to `ActionResult['links']` | Add `total: number`, `capped?: boolean` |
+| Collection strategy | Skip offset during iteration | Collect all, then slice |
+| Truncation approach | "If test passes, issue is environmental" | "Ensure `executeExitPlan` uses synchronous writes" |
+| Collection cap | Not mentioned | `MAX_COLLECTION_CAP = 2000` |
+
+Lane B's plan explicitly noted the truncation fix path (`exit.ts` + `writeFileSync`) and the `total`/`capped` pagination metadata — because its session 01 planning had explored `exit.ts` and `command.ts` (the forward-propagation effect from more grep cycles). Lane A's plan treated truncation as an investigation-only task.
+
+### Which is better?
+
+Lane B's implementation is arguably more robust:
+- `total` lets agents know how many pages remain without a separate call
+- `capped` prevents silent data loss on huge pages
+- The `writeFileSync` fix addresses the actual truncation root cause
+- `command.ts` properly handles the new result fields
+
+Lane A's implementation is simpler and non-breaking:
+- No result shape change means no downstream consumers need updating
+- Streaming offset is more memory-efficient (no full collection array)
+- The truncation test proves the current output path works correctly
+
+Both pass all gates. The trade-off is: Lane B is more feature-complete for the stated use case (agents paginating large link sets), Lane A is more conservative and lower-risk.
+
+### Exploration pattern update
+
+| Phase | Lane A | Lane B |
+|-------|--------|--------|
+| EXPLORE | 33 turns | 50 turns |
+| IMPLEMENT | 10 turns | 15 turns |
+| VERIFY | 12 turns | 21 turns |
+
+The exploration gap (33 vs 50, +52%) persists. The implementation gap (10 vs 15) reflects the larger scope. The verify gap (12 vs 21) reflects more test failures and more per-package test runs in Lane B — unsurprising given it touched more files and made a breaking type change.
+
+### Cost convergence
+
+Unlike session 03 where Lane A was 48% more expensive, session 04 shows near-equal cost ($4.43 vs $4.53). The driver: Lane B's cache write cost dropped to $0.61 (from session-typical ~$0.7+) while Lane A's rose to $1.19. Lane A's larger cache write here reflects reading more docs (it updated `cli.md` and `shared.md` during the review turn). The cost model is not stable across sessions — it depends on what gets read and cached.
+
+### Session pattern (updated)
+
+| Session | Enrichments | Explore A vs B | Total turns A vs B | Cost A vs B |
+|---------|------------|----------------|-------------------|-------------|
+| 01 (planning) | 7/8 vs 0/18 | inherent | 36 vs 46 (−22%) | $2.28 vs $2.58 |
+| 02 (tab.activate) | 0/6 vs 0/9 | 20 vs 36 | 56 vs 78 (−28%) | $3.36 vs $3.82 |
+| 03 (links filter) | 2/6 vs 0/8 | 13 vs 34 | 41 vs 59 (−31%) | $1.93 vs $1.31 |
+| 04 (offset+trunc) | 3/17 vs 0/15 | 33 vs 50 | 76 vs 101 (−25%) | $4.43 vs $4.53 |
+
+Consistent pattern: Lane B uses 25–33% more turns across all implementation sessions, with the gap concentrated in exploration. Cost varies and doesn't consistently favor either approach.
