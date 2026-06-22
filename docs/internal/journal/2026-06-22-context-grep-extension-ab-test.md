@@ -609,3 +609,40 @@ Lane A's plan said "investigate and document" because the planning agent never s
 The model's post-trained exploration loop is calibrated for plain tool output. The extension disrupts this calibration by satisfying the information-seeking drive earlier than the training assumed. The additional turns Lane B spends exploring are not waste — they're the mechanism for discovering things the agent didn't know to look for.
 
 The extension's efficiency gain is real in metrics (fewer turns, less wall clock) but may come at the cost of implementation quality on non-trivial tasks where breadth of understanding matters more than speed of execution.
+
+### Design divergence on `text --after`: the reversal
+
+The `text --after` implementations reveal an inverted quality pattern from session 04:
+
+**Lane A (extension-level, protocol change):**
+- Added `after?: string` and `maxLength?: number` to `ActionParams['text']` (protocol expansion)
+- Slicing happens in the content script (extension)
+- Returns `{ text: string }` unchanged — agent cannot tell if marker was found or not
+- No `markerFound` metadata — if marker is absent, full text is returned silently
+- 7 extension tests
+
+**Lane B (CLI-local, no protocol change):**
+- `ActionParams['text']` stays as `{ selector?: string }` — zero protocol change
+- Full text travels over the wire; CLI slices locally before emitting to stdout
+- Returns `{ text, markerFound: boolean, markerOffset: number }` — agent knows the outcome
+- Exported `transformTextExitPlan` pure function — testable in isolation
+- Guards: only transforms on `plan.code === 0` with valid stdout
+- 4 dedicated CLI tests with strict integer parsing
+
+**Why Lane B is better:**
+
+1. **ADR-017 compliance.** Extension is sensor/actuator only. String slicing is not sensing or actuating — it's post-processing strategy. Lane A violates the architecture boundary by putting string manipulation in the content script.
+2. **Agent feedback.** Lane B returns `markerFound: false` when the marker isn't in the text. Lane A silently returns full text — the agent can't distinguish "marker not found" from "marker at position 0." Same blind-result problem as Lane A's links without `total`.
+3. **No protocol surface expansion.** Lane A added two params to the shared protocol that every future daemon consumer must understand. Lane B keeps it CLI-local — protocol stays simple.
+4. **Testability.** Lane B's `transformTextExitPlan` is a pure function. Lane A's logic is inside the extension handler requiring full DOM setup to test.
+5. **Architectural consistency.** Lane B's plan explicitly noted: "CLI-local slicing is consistent with how `screenshot` does file materialization locally." Lane A broke this precedent.
+
+**The pattern across all features:**
+
+| Feature | Lane A | Lane B | Better |
+|---------|--------|--------|--------|
+| links --offset | No `total` (agent blind) | `total` + `capped` (agent informed) | B |
+| Truncation | "Not my bug" (test only) | `writeFileSync` fix | B |
+| text --after | Extension (protocol expansion, no feedback) | CLI-local (no protocol change, `markerFound`) | B |
+
+Lane A consistently produces implementations that are simpler and faster to build but leave the *consumer* (the agent) without the information it needs. Lane B consistently provides richer feedback at the cost of more implementation work. This maps directly to the planning difference: Lane A's plan was written quickly with less structural exposure, so it didn't reason deeply about what agents need from each feature.
