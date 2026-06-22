@@ -111,3 +111,77 @@ Smaller turn reduction is expected — planning is less search-intensive than pu
 The context-grep extension demonstrably reduced search iterations (8 vs 18 grep calls) and total turns (36 vs 46) while maintaining plan quality. The mechanism matches the Phase 9 design hypothesis: AST containers + back-references eliminate iterative search refinement. The efficiency gain came with a potential trade-off in incidental code exposure that led to different (not worse) design choices.
 
 Implementation sessions will test whether this planning-phase efficiency translates to fewer bugs, faster convergence on passing `pnpm check`, or merely faster wall-clock time with equivalent quality.
+
+---
+
+## Session 02: Feature 1 implementation (`tab.activate`)
+
+**Sessions:**
+- Lane A: `019ef0ce-dd51-7447-9290-c9d732c04e68`
+- Lane B: `019ef0ce-8781-722d-93f1-4bc15ef7e0d9`
+
+### Outcome
+
+Both lanes successfully implemented `tab.activate`. Both pass `pnpm check` and `pnpm test`. Both committed.
+
+| Metric | Lane A (ext) | Lane B (no ext) | Delta |
+|--------|-------------|-----------------|-------|
+| Wall clock | ~30.5 min | ~20.5 min | **A slower (+49%)** |
+| User messages | 4 | 3 | A needed extra turn |
+| Assistant turns | 56 | 78 | B +39% |
+| Tool calls | 60 | 83 | B +38% |
+| Edits | 16 | 22 | B +38% |
+| Reads | 23 | 33 | B +43% |
+| pnpm runs | 8 | 14 | B +75% |
+| Output tokens | 12,545 | 16,504 | B +32% |
+| Total cost | $3.36 | $3.82 | B +14% |
+| Code diff (excl. docs) | +74 / −2 | +119 / −4 | B +61% larger |
+| Tests added | 179 total | 180 total | B +1 test |
+
+### Key observation: Extension enrichment did NOT fire
+
+Unlike the planning session, **zero grep results were enriched in either lane**. The greps during implementation were:
+- File-listing greps (`grep -rn "tab" ... -l`)
+- Test output filtering (`pnpm test | grep -E "(FAIL|PASS)"`)
+- Pattern matching for insertion points (`grep -n "tab\." service/src/schemas.ts`)
+
+These produce short outputs (68–627 chars) with few matching lines — likely below the enrichment threshold or not matching the enrichment trigger patterns (the extension requires successful grep output with file:line format to enrich). The implementation workflow is fundamentally different from investigation: it's edit→verify cycles, not search→understand cycles.
+
+### Wall clock paradox: Lane A was slower despite fewer turns
+
+Lane A took 30.5 minutes vs Lane B's 20.5 minutes, despite making fewer tool calls and fewer assistant turns. Two factors:
+
+1. **Extra user interaction.** Lane A's agent asked for confirmation ("Good, Feature 1 is complete, isn't it?") and the operator replied "yes" — this added a human-in-the-loop round-trip. Lane B's agent also asked the same question but the operator immediately gave the final commit instruction without a separate "yes" turn.
+
+2. **Test failure debugging.** Lane A hit a test assertion mismatch (`activates a tab via tabs.update`) and needed an extra pnpm cycle to fix it. The 77s spent in turn 3 ("yes") was entirely debugging a test expectation.
+
+### Implementation approach comparison
+
+**Lane A (16 edits, 13 files):** Leaner implementation. Wrote `activate.ts` CLI command, added to shared types, service routing, extension handler. Test came last and needed one fix cycle.
+
+**Lane B (22 edits, 15 files):** More thorough. Additionally edited `protocol-shape.assertions.ts` and `action-contract.test.ts`. Larger test suite in browser-actions (58 lines vs 27). Added window focus behavior (`windows.update`). Ran `pnpm format:fix` explicitly. Hit formatting issue → fixed → re-ran check → pass.
+
+### Design differences in the implementation
+
+| Aspect | Lane A | Lane B |
+|--------|--------|--------|
+| Window focus | Not implemented | Calls `windows.update` for window focus |
+| Protocol assertion | Not updated | Added to `protocol-shape.assertions.ts` |
+| Service test | No new service test | Updated `action-contract.test.ts` |
+| Extension test size | 27 lines | 58 lines |
+| Formatting | Passed first try | Needed `pnpm format:fix` |
+
+Lane B's implementation is more complete (matches its more defensive plan), but Lane A's implementation also passes all gates.
+
+### Extension impact assessment for implementation tasks
+
+The context-grep extension provided **no measurable benefit** during implementation. The mechanism that helped during planning (enriched grep results showing AST containers) simply doesn't activate during edit→typecheck→test cycles. Implementation greps are short, targeted, and produce output that doesn't meet enrichment criteria.
+
+The efficiency differences in this session are attributable to:
+- Implementation scope (Lane B did more — window focus, extra assertions)
+- Non-deterministic model behavior (different edit ordering, test structure)
+- Human interaction timing (operator gave Lane A an extra confirmation turn)
+
+### Conclusion for session 02
+
+The extension's value is **task-type dependent**. It excels at investigation/planning (session 01: −56% grep calls, −22% turns) but is inert during implementation (session 02: 0 enrichments triggered, no measurable difference). This aligns with Phase 9's validation data: the mechanism helps when the agent is tracing call chains and understanding structure, not when it's writing code with a plan already in hand.
