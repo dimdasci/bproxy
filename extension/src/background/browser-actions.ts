@@ -30,7 +30,7 @@ export interface BrowserActionHandlerDeps {
 	mainWorld: MainWorldExecutor;
 	tabRuntime: Pick<TabRuntime, "resolveTargetTab" | "waitForLoad">;
 	tabs: BrowserTabsSeam;
-	windows?: BrowserWindowsSeam;
+	windows: BrowserWindowsSeam;
 	now?: () => number;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
@@ -192,9 +192,10 @@ async function handleTabActivate(
 ): Promise<ExecutedAction> {
 	const tabId = requireTargetTabId(request, request.action);
 	const updated = await resolveTabResult(deps, tabId, deps.tabs.update(tabId, { active: true }));
-	if (typeof updated.windowId === "number" && deps.windows) {
-		await deps.windows.update(updated.windowId, { focused: true });
+	if (typeof updated.windowId !== "number") {
+		throw scriptError(`Target tab ${updated.id} has no windowId for activation`);
 	}
+	await deps.windows.update(updated.windowId, { focused: true });
 	return { data: { activated: true }, page: pageStateFromTab(updated) };
 }
 

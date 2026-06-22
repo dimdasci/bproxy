@@ -27,7 +27,7 @@ Verify the install:
 
 ```bash
 bproxy --version
-# bproxy v0.7.0 (protocol v1)
+# bproxy v0.8.0 (protocol v2)
 ```
 
 ## Install the Chrome extension
@@ -72,7 +72,7 @@ bproxy service status
 Expected output when everything is connected:
 
 ```json
-{"running":true,"pid":12345,"port":9615,"version":"0.7.0","protocolVersion":1}
+{"running":true,"pid":12345,"port":9615,"version":"0.8.0","protocolVersion":2}
 ```
 
 For a comprehensive check of all components:

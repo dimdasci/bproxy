@@ -32,8 +32,8 @@ export default defineCommand({
 			params.visibleOnly = true;
 		}
 		if (typeof args.limit === "string") {
-			const limit = Number.parseInt(args.limit, 10);
-			if (Number.isNaN(limit) || limit <= 0) {
+			const limit = parseIntegerArg(args.limit, { min: 1 });
+			if (limit === null) {
 				executeExitPlan(
 					exitUsageError(`Invalid limit: ${args.limit}. Must be a positive integer.`),
 				);
@@ -45,8 +45,8 @@ export default defineCommand({
 			params.hrefContains = args["href-contains"];
 		}
 		if (typeof args.offset === "string") {
-			const offset = Number.parseInt(args.offset, 10);
-			if (Number.isNaN(offset) || offset < 0) {
+			const offset = parseIntegerArg(args.offset, { min: 0 });
+			if (offset === null) {
 				executeExitPlan(
 					exitUsageError(`Invalid offset: ${args.offset}. Must be a non-negative integer.`),
 				);
@@ -59,3 +59,10 @@ export default defineCommand({
 		executeExitPlan(plan);
 	},
 });
+
+function parseIntegerArg(raw: string, options: { min: number }): number | null {
+	if (!/^[0-9]+$/.test(raw)) return null;
+	const parsed = Number(raw);
+	if (!Number.isSafeInteger(parsed) || parsed < options.min) return null;
+	return parsed;
+}

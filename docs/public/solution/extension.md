@@ -170,7 +170,7 @@ Flow:
 3. popup validates the bootstrap payload shape:
    - `extensionToken` non-empty string
    - `wsUrl` loopback `ws://`
-   - `protocolVersion === 1`
+   - `protocolVersion === 2`
    - `expiresAt > Date.now()`
    - `nonce` present
 4. popup stores the bootstrap payload as **one atomic record** in `chrome.storage.local`;
@@ -254,6 +254,8 @@ Handled through `src/content/**` and routed via background/content RPC.
 | `fill-form` | Multi-field isolated-world writes with hidden-field guard and read-back verification |
 | `select` | Trigger + poll + option click + verification |
 
+The browser action handler receives separate seams for tab and window APIs (`BrowserTabsSeam` and `BrowserWindowsSeam`) so tests can fake activation/focus behavior without mixing concerns.
+
 ### MAIN-world one-shot actions
 
 Handled in `src/background/main-world*.ts`.
@@ -281,6 +283,7 @@ Handled in `src/background/browser-actions.ts`.
 | `screenshot(debugger=true)` | currently returns `DEBUGGER_DISABLED` unless a future explicit opt-in ships with permission + flag wiring |
 | `tab.list` | **not forwarded** — daemon resolves from session tab registry without extension involvement |
 | `tab.open`, `tab.close`, `tab.pin`, `tab.unpin` | Chrome tabs API only; does not take ownership of daemon session state |
+| `tab.activate` | Chrome tabs/windows API; activates the tab and focuses its window |
 | `require-human` | returns structured `HUMAN_REQUIRED` for daemon pause handling |
 
 ---

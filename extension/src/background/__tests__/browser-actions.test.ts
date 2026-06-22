@@ -38,6 +38,7 @@ interface HarnessOverrides {
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
 	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
+	windowsUpdate?: (windowId: number, updateInfo: Record<string, unknown>) => Promise<unknown>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
 		tab: TargetTab,
@@ -49,10 +50,12 @@ function createHarness(overrides: HarnessOverrides = {}) {
 	const mainWorld = createMainWorldSeam();
 	const tabRuntime = createTabRuntimeSeam(overrides, now);
 	const tabs = createTabsSeam(overrides);
+	const windows = createWindowsSeam(overrides);
 	const handler = createBrowserActionHandler({
 		mainWorld,
 		tabRuntime,
 		tabs,
+		windows: windows.windows,
 		now: () => now.value,
 		isDebuggerScreenshotEnabled: overrides.isDebuggerScreenshotEnabled,
 		captureDebuggerScreenshot: overrides.captureDebuggerScreenshot,
@@ -62,6 +65,7 @@ function createHarness(overrides: HarnessOverrides = {}) {
 		mainWorld,
 		...tabRuntime,
 		...tabs,
+		...windows,
 		handler,
 	};
 }
@@ -106,6 +110,11 @@ function createTabsSeam(overrides: HarnessOverrides) {
 		remove,
 		captureVisibleTab,
 	};
+}
+
+function createWindowsSeam(overrides: HarnessOverrides) {
+	const windowsUpdate = vi.fn(overrides.windowsUpdate ?? (async () => ({})));
+	return { windowsUpdate, windows: { update: windowsUpdate } };
 }
 
 function createUpdateResult(target: TargetTab) {
@@ -281,7 +290,6 @@ describe("createBrowserActionHandler", () => {
 	});
 
 	it("tab.activate foregrounds tab and focuses window", async () => {
-		const windowsUpdate = vi.fn(async () => ({}));
 		const h = createHarness({
 			update: async (tabId: number, updateProperties: Record<string, unknown>) =>
 				tab({
@@ -290,37 +298,27 @@ describe("createBrowserActionHandler", () => {
 					windowId: 7,
 				}),
 		});
-		// Inject windows seam
-		(h.handler as unknown as { deps: { windows: { update: typeof windowsUpdate } } }).deps;
-		const handlerWithWindows = createBrowserActionHandler({
-			mainWorld: h.mainWorld,
-			tabRuntime: { resolveTargetTab: h.resolveTargetTab, waitForLoad: h.waitForLoad },
-			tabs: {
-				update: h.update,
-				create: h.create,
-				remove: h.remove,
-				captureVisibleTab: h.captureVisibleTab,
-			},
-			windows: { update: windowsUpdate },
-			now: () => h.now.value,
-		});
-
-		const result = await handlerWithWindows.handleBrowserAction(tabActivateRequest());
-
-		expect(h.update).toHaveBeenCalledWith(42, { active: true });
-		expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
-		expect(result).toMatchObject({ data: { activated: true } });
-	});
-
-	it("tab.activate succeeds without windows seam (no window focus)", async () => {
-		const h = createHarness({
-			update: async (tabId: number) => tab({ id: tabId, active: true, windowId: 7 }),
-		});
 
 		const result = await h.handler.handleBrowserAction(tabActivateRequest());
 
 		expect(h.update).toHaveBeenCalledWith(42, { active: true });
+		expect(h.windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
 		expect(result).toMatchObject({ data: { activated: true } });
+	});
+
+	it("tab.activate fails closed when Chrome omits windowId", async () => {
+		const h = createHarness({
+			update: async (tabId: number) => {
+				const updated = tab({ id: tabId, active: true });
+				return { ...updated, windowId: undefined };
+			},
+		});
+
+		await expect(h.handler.handleBrowserAction(tabActivateRequest())).rejects.toMatchObject({
+			code: "SCRIPT_ERROR",
+			message: "Target tab 42 has no windowId for activation",
+		});
+		expect(h.windowsUpdate).not.toHaveBeenCalled();
 	});
 
 	it("propagates TAB_NOT_FOUND on tab actions that resolve a missing tab", async () => {

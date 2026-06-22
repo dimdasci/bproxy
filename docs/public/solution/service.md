@@ -171,7 +171,9 @@ Ownership rules:
 | `session.create`, `session.list`, `session.bind`, `session.unbind`, `session.resume`, `session.close` | ✅ | ❌ (session.close forwards tab.close sub-requests) |
 | `tab.list` | ✅ (reads session tab registry) | ❌ |
 | `debug.log` | ❌ | ✅ |
-| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `scroll`, `click`, `hover`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, ...) | ❌ | ✅ |
+| browser and tab actions (`navigate`, `text`, `links`, `inspect`, `snapshot`, `scroll`, `click`, `hover`, `fill`, `tab.open`, `tab.close`, `tab.pin`, `tab.unpin`, `tab.activate`, ...) | ❌ | ✅ |
+
+`tab.activate` follows the bound-tab mediation path: the daemon resolves the supplied logical tab handle (or the session's bound tab), forwards a background-handled request to the extension with the raw Chrome tab id, and returns `{ tab, activated: true }` without invalidating element handles.
 
 ### `session.*` semantics
 
@@ -222,7 +224,7 @@ Response (200):
   "data": {
     "extensionToken": "base64urlEncodedToken...",
     "wsUrl": "ws://127.0.0.1:9615/ws",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "issuedAt": 1714000000000,
     "expiresAt": 1714000300000,
     "nonce": "01J..."
@@ -509,12 +511,12 @@ The service binary emits stable JSON on stdout for each lifecycle command:
 
 **`status`** — daemon running:
 ```json
-{"running":true,"pid":123,"port":9615,"version":"0.7.0","protocolVersion":1}
+{"running":true,"pid":123,"port":9615,"version":"0.8.0","protocolVersion":2}
 ```
 
 **`status`** — daemon not running:
 ```json
-{"running":false,"version":"0.7.0","protocolVersion":1}
+{"running":false,"version":"0.8.0","protocolVersion":2}
 ```
 
 Lifecycle failures write plain text to stderr and exit non-zero.

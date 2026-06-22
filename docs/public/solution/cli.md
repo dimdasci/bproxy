@@ -32,8 +32,8 @@ cli/
     ├── types.ts              # re-exports from @bproxy/shared
     ├── commands/
     │   ├── navigate.ts       # navigate --url
-    │   ├── text.ts           # text [--selector]
-    │   ├── links.ts          # links [--selector] [--visible-only] [--limit N]
+    │   ├── text.ts           # text [--selector] [--after] [--limit-chars N]
+    │   ├── links.ts          # links [--selector] [--visible-only] [--limit N] [--href-contains S] [--offset N]
     │   ├── images.ts         # images [--selector]
     │   ├── elements.ts       # elements [--form]
     │   ├── outline.ts        # outline
@@ -68,7 +68,8 @@ cli/
     │   │   ├── pin.ts        # tab pin [--tab tN]
     │   │   ├── unpin.ts      # tab unpin
     │   │   ├── open.ts       # tab open --url
-    │   │   └── close.ts      # tab close [--tab tN]
+    │   │   ├── close.ts      # tab close [--tab tN]
+    │   │   └── activate.ts   # tab activate [--tab tN]
     │   └── debug/
     │       ├── log.ts        # debug log [--id] [--limit]
     │       ├── last.ts       # debug last [--count]
@@ -138,7 +139,7 @@ export default defineCommand({
 2. Token preflight (exists, mode `0600`, owner) → exit `2` on failure
 3. Read port file → exit `2` if daemon not running
 4. Parse `--timeout` → exit `2` if invalid
-5. Validate `--nick` and build `BproxyRequest<A>` with `protocol_version: 1`, nick, session, deadline, destructive flag
+5. Validate `--nick` and build `BproxyRequest<A>` with the shared `PROTOCOL_VERSION` (currently `2`), nick, session, deadline, destructive flag
 6. Verbose pre-request stderr entry (no token leaked)
 7. POST to `http://127.0.0.1:{port}/` with Bearer auth + abort timeout (deadline + 2s)
 8. Fetch failure → exit `2` (connection refused, abort timeout)
@@ -186,9 +187,9 @@ Spawns the service binary's `stop` command. Prints:
 
 Token-free, process-liveness based. Prints:
 ```json
-{"running":true,"pid":123,"port":9615,"version":"0.7.0","protocolVersion":1}
+{"running":true,"pid":123,"port":9615,"version":"0.8.0","protocolVersion":2}
 ```
-or `{"running":false,"version":"0.7.0","protocolVersion":1}`.
+or `{"running":false,"version":"0.8.0","protocolVersion":2}`.
 
 ### `bproxy service restart [--port N] [--home DIR]`
 
@@ -215,6 +216,12 @@ Forwarded to extension (require connected WS client):
 - `tab unpin` — unpin current tab (destructive)
 - `tab open --url <url>` — open new tab, auto-create a session owned by the supplied nick if `-s` omitted, and return `tmpDir` + `ownerHash` (destructive)
 - `tab close [--tab tN]` — close tab (destructive)
+- `tab activate [--tab tN]` — foreground a session-owned tab and focus its window (destructive)
+
+## Read Commands
+
+- `links [--selector S] [--visible-only] [--limit N] [--href-contains S] [--offset N]` — extract structured links. `--href-contains` is a case-sensitive substring match on normalized absolute hrefs, applied before `--limit`; `--offset` paginates matching links. Keep `--limit` bounded for stdout readability; use `--offset` for large pages.
+- `text [--selector S] [--after MARKER] [--limit-chars N]` — extract text. `--after` and `--limit-chars` are CLI-local output transformations; the daemon/extension still receive only the normal `text` action params.
 
 ## Debug Commands
 
@@ -265,7 +272,7 @@ There is intentionally no `eval` command. Arbitrary page/runtime investigation b
 
 `command-registry.ts` classifies every shared `Action` as destructive or non-destructive. A compile-time exhaustiveness assertion ensures adding a new shared action without updating the registry causes a build failure.
 
-**Destructive:** navigate, scroll, click, hover, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
+**Destructive:** navigate, scroll, click, hover, fill, fill-form, select, tab.pin, tab.unpin, tab.open, tab.close, tab.activate, session.create, session.bind, session.unbind, session.resume, session.close, require-human.
 
 **Non-destructive:** text, links, images, elements, outline, dom, inspect, snapshot, screenshot, wait, tab.list, session.list, debug.log, debug.last, debug.status.
 

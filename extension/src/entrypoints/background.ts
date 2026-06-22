@@ -92,6 +92,9 @@ function makeDispatcher(client: WsClient, tabs: TabRuntime): Dispatcher {
 				return options ? chrome.tabs.captureVisibleTab(options) : chrome.tabs.captureVisibleTab();
 			},
 		},
+		windows: {
+			update: (windowId, updateInfo) => chrome.windows.update(windowId, updateInfo),
+		},
 		now: () => Date.now(),
 		isDebuggerScreenshotEnabled: async () =>
 			(await configFlagsItem.getValue())["debuggerScreenshot"] === true,

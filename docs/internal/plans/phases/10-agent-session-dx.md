@@ -1,6 +1,6 @@
 ---
 title: "Phase 10: Agent session DX improvements"
-status: in-progress
+status: complete
 date: 2026-06-22
 issue: "#21"
 ---
@@ -255,7 +255,7 @@ Tasks are ordered by dependency and value:
 2. **Feature 2 (links --href-contains)** ✅ — Done. Substring filter on absolute href, applied before limit cap.
 3. **Feature 3A (truncation fix)** ✅ — Done. `executeExitPlan` uses synchronous `writeFileSync(1, ...)` for stdout, preventing pipe-buffer truncation on large payloads (>64KB).
 4. **Feature 3B (links --offset)** ✅ — Done. Collect-then-slice refactoring with `MAX_COLLECTION_CAP` (2000), `total`, `capped`, and offset-based pagination. Protocol version bumped 1→2 (breaking wire change: required `total` field in links result). All `protocol_version` literals replaced with named `PROTOCOL_VERSION` constant for cohesion-of-name.
-5. **Feature 5 (text --after)** — CLI-only, zero dependencies on other features. Can be done last or in parallel.
+5. **Feature 5 (text --after)** ✅ — Done. CLI-local output transformation with `--after`, `--limit-chars`, marker metadata, and error-response pass-through.
 
 ---
 
@@ -276,8 +276,8 @@ After implementation, update:
 
 All features must pass before the phase is considered complete:
 
-- `pnpm check` passes (typecheck + format + lint + arch + deadcode)
-- `pnpm test` passes across all packages
+- `pnpm check` passes (typecheck + format + lint + arch + deadcode) ✅
+- `pnpm test` passes across all packages ✅
 - Feature 1: unit test for `tab.activate` in extension (background-actions), service (tab-actions routing), CLI (command wiring). Integration: activate a background tab, subsequent destructive action succeeds without `TAB_NOT_VISIBLE`.
 - Feature 2: unit test in extension `links.ts` — verify `hrefContains` filters correctly (match, no-match, empty string, undefined). CLI test for arg parsing.
 - Feature 3A: integration test with >64KB JSON payload through CLI output path — verify valid JSON on stdout.

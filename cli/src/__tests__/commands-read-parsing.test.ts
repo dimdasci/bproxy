@@ -230,16 +230,19 @@ describe("optional param omission patterns", () => {
 
 // ─── links numeric param parsing ────────────────────────────────────────
 
+function parseInteger(raw: string, min: number): number | null {
+	if (!/^[0-9]+$/.test(raw)) return null;
+	const value = Number(raw);
+	if (!Number.isSafeInteger(value) || value < min) return null;
+	return value;
+}
+
 function parseLimit(raw: string): number | null {
-	const limit = Number.parseInt(raw, 10);
-	if (Number.isNaN(limit) || limit <= 0) return null;
-	return limit;
+	return parseInteger(raw, 1);
 }
 
 function parseOffset(raw: string): number | null {
-	const offset = Number.parseInt(raw, 10);
-	if (Number.isNaN(offset) || offset < 0) return null;
-	return offset;
+	return parseInteger(raw, 0);
 }
 
 describe("links --limit parsing logic", () => {
@@ -260,7 +263,7 @@ describe("links --limit parsing logic", () => {
 	});
 
 	it("rejects float string", () => {
-		expect(parseLimit("3.5")).toBe(3); // parseInt truncates; not null because > 0
+		expect(parseLimit("3.5")).toBeNull();
 	});
 });
 
@@ -280,5 +283,9 @@ describe("links --offset parsing logic", () => {
 
 	it("rejects empty string", () => {
 		expect(parseOffset("")).toBeNull();
+	});
+
+	it("rejects float string", () => {
+		expect(parseOffset("3.5")).toBeNull();
 	});
 });
