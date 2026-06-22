@@ -225,3 +225,87 @@ The extension's value is **task-type dependent**:
 - But planning efficiency has a **forward-propagating indirect effect** — a leaner exploration during planning produced a leaner spec, which produced a leaner implementation
 
 Whether this is good or bad depends on whether Lane B's extras (window focus, protocol assertions) represent genuine quality improvement or over-engineering. Both pass all gates. The 1-test difference (180 vs 179) and the `protocol-shape.assertions.ts` update suggest Lane B's implementation is marginally more robust against future regressions — but not materially so for a feature this simple.
+
+---
+
+## Session 03: Feature 2 implementation (`links --href-contains`)
+
+**Sessions:**
+- Lane A: `019ef0ed-48c4-7ba1-b0b7-169e4605cdab`
+- Lane B: `019ef0ef-070a-7112-a30a-41ca70b8e0fa`
+
+### Outcome
+
+Both lanes successfully implemented `links --href-contains`. Both pass `pnpm check` and `pnpm test`. Both committed.
+
+| Metric | Lane A (ext) | Lane B (no ext) | Delta |
+|--------|-------------|-----------------|-------|
+| Wall clock | 12.4 min | 11.6 min | ~same |
+| User messages | 3 | 3 | same |
+| Assistant turns | 41 | 59 | B +44% |
+| Tool calls | 45 | 63 | B +40% |
+| Reads | 17 | 25 | B +47% |
+| Searches (grep/find) | 7 | 17 | **B 2.4×** |
+| Edits | 8 | 9 | ~same |
+| pnpm runs | 10 | 9 | ~same |
+| Output tokens | 10,913 | 11,008 | same |
+| Total cost | $1.93 | $1.31 | **A +48% more expensive** |
+| Code diff (excl. docs) | +97 / −3 | +77 / −3 | A +26% larger |
+| Tests added | 182 ext | 181 ext | A +1 ext test |
+
+### Extension enrichment: minimal but present
+
+Lane A had **2 out of 6** grep calls enriched (vs 0/8 in Lane B). The enriched greps showed:
+- `reads.test.ts` helper function structure (the `request()` helper pattern)
+- `rpc.ts` full `parseContentRpcRequest` function
+
+This is much less than session 01 (7/8 enriched) but more than session 02 (0/6). The implementation of `links --href-contains` involves modifying existing code (content script, schemas, CLI flags) which requires understanding current structure — a moderate search task.
+
+### The exploration gap is the main driver
+
+| Phase | Lane A | Lane B |
+|-------|--------|--------|
+| EXPLORE | 13 turns | 34 turns |
+| IMPLEMENT | 6 turns | 8 turns |
+| VERIFY | 8 turns | 9 turns |
+
+Lane B spent **2.6× more turns exploring** before implementing. The implementation and verification phases were nearly identical. The gap is entirely in how much context-gathering was needed.
+
+Lane B's exploration pattern reveals the cause: **17 searches** (8 grep + 9 find) vs Lane A's **5 searches** (4 grep + 1 find). Lane B had to:
+- `find` to locate test files (5 find commands searching for links-related tests)
+- `grep` to understand test helper patterns
+- Read `decisions.md` three times (at different offsets for specific ADRs)
+- Read CLI test helpers to understand the testing approach
+
+Lane A found what it needed faster — partly from the 2 enriched greps (which showed the test helper structure), partly from reading fewer but more targeted files.
+
+### Cost paradox: Lane A was more expensive despite fewer turns
+
+Lane A cost $1.93 vs Lane B's $1.31 (+48%). This is because:
+- Lane A's cache read was higher (1.82M vs 1.51M tokens) — it accumulated more context from reading files fully
+- Lane A had fewer turns but each turn processed more cached context
+- The per-turn cost difference compounds: Lane A's 41 turns at ~$0.047/turn vs Lane B's 59 turns at ~$0.022/turn
+
+This suggests that Lane A's approach (read whole files, think more, search less) is more expensive per-turn due to larger context windows, even though it requires fewer turns. Lane B's approach (narrow searches, small reads with offset/limit) keeps per-turn cost lower.
+
+### Scope difference is smaller this time
+
+Unlike session 02 where Lane B implemented significantly more (window focus, protocol assertions), session 03 shows similar scope:
+- Both modified 7 files
+- Both added protocol-shape assertions
+- Lane A added a service schema test; Lane B added a CLI test
+- Lane A wrote slightly more extension tests (71 lines vs 49)
+
+The plans converged for this feature — both specified similar touchpoints for `links --href-contains`.
+
+### Pattern emerging across sessions
+
+| Session | Extension enrichments | Explore turns A vs B | Total turns A vs B | Wall clock |
+|---------|----------------------|---------------------|-------------------|------------|
+| 01 (planning) | 7/8 vs 0/18 | inherent to task | 36 vs 46 (−22%) | 20 vs 22 min |
+| 02 (tab.activate) | 0/6 vs 0/9 | 20 vs 36 (+80%) | 56 vs 78 (−28%) | 30.5 vs 20.5 min |
+| 03 (links filter) | 2/6 vs 0/8 | 13 vs 34 (+162%) | 41 vs 59 (−31%) | 12.4 vs 11.6 min |
+
+The exploration-phase gap is consistent: Lane B always explores more. When the extension fires (even partially), it reduces the search overhead. The effect scales with how much of the task requires understanding existing code structure.
+
+Session 02's wall-clock anomaly (Lane A slower) was operator-interaction timing; sessions 01 and 03 show the expected pattern of similar or slightly faster wall clock for Lane A despite fewer turns.
