@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { promisify } from "node:util";
 
 import type { EnrichSearchToolResultInput, ToolContent } from "../src/enrich.ts";
 import {
@@ -11,9 +13,19 @@ import {
 	parseNativeGrepOutput,
 } from "../src/index.ts";
 
+const execFileAsync = promisify(execFile);
+
 const repoRoot = process.cwd();
 const fixtureProject = path.resolve(repoRoot, "tools/pi/context-grep/test/fixtures/project");
 const fixtureSource = path.resolve(fixtureProject, "src/search-target.ts");
+
+let hasAstGrep = false;
+try {
+	await execFileAsync("ast-grep", ["--version"]);
+	hasAstGrep = true;
+} catch {
+	// ast-grep not available — skip tests that need it
+}
 
 function textContent(text: string): ToolContent[] {
 	return [{ type: "text", text }];
@@ -83,7 +95,7 @@ describe("parseBashSearchOutput", () => {
 });
 
 describe("getContainers", () => {
-	it("extracts validated TypeScript container kinds", async () => {
+	it("extracts validated TypeScript container kinds", { skip: !hasAstGrep }, async () => {
 		const containers = await getContainers(fixtureSource);
 		const labels = containers.map((container) => container.label);
 
@@ -96,7 +108,7 @@ describe("getContainers", () => {
 });
 
 describe("findBackRefs", () => {
-	it("finds callers of a function in the project", async () => {
+	it("finds callers of a function in the project", { skip: !hasAstGrep }, async () => {
 		// helper is called from handleThing in the fixture
 		const refs = await findBackRefs("helper", fixtureSource, 18, fixtureProject);
 		// The fixture is in test/fixtures which is excluded by test path filter,
@@ -117,7 +129,9 @@ describe("findBackRefs", () => {
 });
 
 describe("enrichSearchToolResult", () => {
-	it("appends AST context with back-references for supported bash search results", async () => {
+	it("appends AST context with back-references for supported bash search results", {
+		skip: !hasAstGrep,
+	}, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
@@ -142,7 +156,9 @@ describe("enrichSearchToolResult", () => {
 		assert.match(text, /search-target\.ts:22-24 \[fn handleThing\]/);
 	});
 
-	it("uses a real bproxy source file for single-file grep validation", async () => {
+	it("uses a real bproxy source file for single-file grep validation", {
+		skip: !hasAstGrep,
+	}, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
@@ -163,7 +179,7 @@ describe("enrichSearchToolResult", () => {
 		assert.match(text, /Called from:/);
 	});
 
-	it("does not enrich unsupported log searches", async () => {
+	it("does not enrich unsupported log searches", { skip: !hasAstGrep }, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",

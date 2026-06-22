@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { promisify } from "node:util";
 
 import type { EnrichSearchToolResultInput, ToolContent } from "../src/enrich.ts";
 import { enrichSearchToolResult, isSearchCommand, parseBashSearchOutput } from "../src/index.ts";
 
+const execFileAsync = promisify(execFile);
+
 const repoRoot = process.cwd();
 const fixtureProject = path.resolve(repoRoot, "tools/pi/context-grep/test/fixtures/project");
 const fixtureSource = path.resolve(fixtureProject, "src/search-target.ts");
+
+let hasAstGrep = false;
+try {
+	await execFileAsync("ast-grep", ["--version"]);
+	hasAstGrep = true;
+} catch {
+	// ast-grep not available — skip tests that need it
+}
 
 function textContent(text: string): ToolContent[] {
 	return [{ type: "text", text }];
@@ -131,7 +143,7 @@ describe("parseBashSearchOutput — lineText preservation", () => {
 // ─── End-to-end enrichment ─────────────────────────────────────────────────────
 
 describe("enrichment — single-block output with back-references", () => {
-	it("produces single text block with original + AST context", async () => {
+	it("produces single text block with original + AST context", { skip: !hasAstGrep }, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
@@ -161,7 +173,7 @@ describe("enrichment — single-block output with back-references", () => {
 		assert.match(text, /\[fn handleThing\]/);
 	});
 
-	it("includes back-references for real bproxy definitions", async () => {
+	it("includes back-references for real bproxy definitions", { skip: !hasAstGrep }, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
@@ -190,7 +202,9 @@ describe("enrichment — single-block output with back-references", () => {
 		assert.match(text, /Called from:/);
 	});
 
-	it("heredoc false positive: does not enrich node inline script", async () => {
+	it("heredoc false positive: does not enrich node inline script", {
+		skip: !hasAstGrep,
+	}, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
@@ -204,7 +218,7 @@ describe("enrichment — single-block output with back-references", () => {
 		assert.equal(result, null);
 	});
 
-	it("does not enrich markdown/docs searches", async () => {
+	it("does not enrich markdown/docs searches", { skip: !hasAstGrep }, async () => {
 		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
