@@ -488,3 +488,124 @@ The extension makes each individual search more productive, but **the exploratio
 **Counter-hypothesis:** maybe the extension just needs a task-type gate (active during implementation, disabled during planning). Or maybe it's not needed at all — let the model act the way it was trained, accepting more turns and more cost in exchange for broader structural understanding.
 
 This question remains open. The final session (feature 5, `text --after`) will add one more data point.
+
+---
+
+## Session 05: Feature 4/5 implementation (`text --after`) + protocol version bump
+
+**Sessions:**
+- Lane A: `019ef10f-8234-7038-99e2-d9bc48bbbe52` — implemented `text --after` (feature 4 in its plan)
+- Lane B: `019ef10f-e099-72c3-bdd4-869417d0b67f` — implemented `text --after` (feature 5 in its plan) + protocol version bump + protocol version constant centralization (operator-requested refactor)
+
+### Scope difference (operator-driven)
+
+Lane B had significantly more work because:
+1. Its feature 3 added `total` and `capped` to the result type → this is a protocol-breaking change → operator requested protocol version bump (1→2)
+2. Operator then noticed `protocol_version: 1` was scattered as a literal across 53 files and requested centralization to a single `PROTOCOL_VERSION` constant
+
+This makes direct comparison unfair for total metrics but the `text --after` portion is still comparable.
+
+### Raw metrics
+
+| Metric | Lane A (ext) | Lane B (no ext) |
+|--------|-------------|------------------|
+| Wall clock | 15.6 min | 74.0 min |
+| User messages | 3 | 6 |
+| Assistant turns | 57 | 272 |
+| Tool calls | 64 | 284 |
+| Total cost | $2.74 | $16.27 |
+| Failed tool results | 3 | 15 |
+| Enrichment | 3/10 | 0/105 |
+| Code diff | 6 files, +211/−5 | 53 files, +381/−174 |
+
+### Lane B turn breakdown
+
+| Turn | Duration | Cost | What |
+|------|----------|------|------|
+| 1 | 2.9 min | $0.76 | Explore for text --after implementation |
+| 2 | 3.4 min | $1.51 | Review: discovered missing items (capped test, offset parsing tests) |
+| 3 | 4.6 min | $2.13 | Implement missing items + protocol version bump |
+| 4 | 1.8 min | $0.61 | "stop then" — operator redirected |
+| 5 | 18.3 min | $10.07 | **Cohesion-of-name refactor**: replace scattered `protocol_version: 1` literal with `PROTOCOL_VERSION` constant across 53 files |
+| 6 | 0.5 min | $1.18 | Update plan + commit |
+
+Turn 5 alone: 162 assistant turns, 133 bash commands, 26 edits, $10. This is a mechanical refactor (find-and-replace across a codebase) that the model executed as individual grep→edit cycles.
+
+### Lane A: failed tool calls
+
+Lane A had 3 failures, all minor:
+1. **Edit mismatch** — tried to edit `text.ts` with wrong whitespace, recovered by reading the file and using `format:fix`
+2. **Grep with no output** — searched for test failures that didn't exist (tests were passing)
+3. **Grep with no output** — overly specific regex on `actions.ts`
+
+These are typical implementation friction — the model guessed at content that had slightly different formatting. Not related to the extension.
+
+### Lane B: failed tool calls and `packages/` confusion
+
+Lane B had 15 failures. The first three are notable:
+1. `read packages/shared/src/actions.ts` → ENOENT
+2. `find packages/cli/src/commands` → no such directory
+3. `ls packages/` → no such directory
+
+The model assumed a `packages/` monorepo layout (common in many projects) despite the actual layout being flat (`shared/`, `cli/`, `service/`, `extension/`). It corrected after `ls packages/` failed. This is the **path-specificity issue** again: without full paths in its plan, the model guessed at a conventional structure.
+
+The remaining failures were grep-with-no-output (searching for patterns that didn't exist in the codebase) and one malformed edit call.
+
+### Design divergence on `text --after`
+
+| Aspect | Lane A | Lane B |
+|--------|--------|--------|
+| Implementation location | Extension (content script) | CLI-local (per plan: "no protocol change") |
+| Protocol change | Added `after` + `maxLength` to `ActionParams['text']` | None — CLI-only post-processing |
+| Where slicing happens | In the browser, before data crosses the wire | In the CLI, after receiving full text |
+
+Wait — Lane B didn't implement `text --after` at all in this session! The session was consumed by review findings (missing tests for offset/capped) and the protocol version refactor. Feature 5 remains unimplemented in Lane B.
+
+**Lane A** implemented `text --after` as a protocol-level change (extension does the slicing), which contradicts Lane B's plan design (CLI-local). Lane A's approach sends less data over the wire (only post-marker text), while Lane B's design would send full text then slice locally.
+
+### Extension hypothesis reinforcement
+
+Lane B's `packages/` confusion (3 failed calls at session start) demonstrates the path-specificity propagation effect in real-time. The model's first instinct was wrong because its plan didn't contain full paths. It self-corrected quickly (3 wasted calls), but this adds friction that Lane A never experiences.
+
+The 105 grep calls with 0 enrichments in Lane B (vs 10 greps with 3 enrichments in Lane A) shows the extension effect during the mechanical refactor: Lane B had to manually trace every file containing `protocol_version: 1` through repeated grep cycles, while this type of task (if Lane A had been asked to do it) would have benefited from enrichment showing the full function context around each match.
+
+### Experiment status after session 05
+
+| Feature | Lane A | Lane B |
+|---------|--------|--------|
+| tab.activate | ✅ | ✅ |
+| links --href-contains | ✅ | ✅ |
+| links --offset + truncation | ✅ (simpler) | ✅ (richer) |
+| text --after | ✅ (extension-level) | ❌ not yet implemented |
+| Protocol version bump | N/A (no breaking changes) | ✅ |
+| PROTOCOL_VERSION centralization | N/A | ✅ |
+
+Lane B has one feature remaining but a stronger protocol foundation. Lane A is feature-complete but has a latent truncation bug and no `total`/`capped` pagination metadata.
+
+---
+
+## Overall findings
+
+### The extension's effect is real but double-edged
+
+**Benefits:**
+- Fewer exploration turns (25–33% reduction consistently)
+- Faster planning sessions
+- Better path specificity in artifacts (propagates to future sessions)
+- Reduced find/grep cycles during implementation
+
+**Costs:**
+- Narrower structural exposure during planning → underspecified plans
+- Premature satisfaction of the "do I know enough?" threshold
+- Plans miss code paths the model would have discovered through natural exploration
+- This propagates: leaner plan → leaner (sometimes inadequate) implementation
+
+### The strongest evidence: session 04's truncation divergence
+
+Lane A's plan said "investigate and document" because the planning agent never saw `exit.ts`. Lane B's plan said "fix with writeFileSync" because the planning agent's extra grep cycles exposed the output path. The result: Lane A left a real bug unfixed; Lane B fixed it. This is not a trade-off — it's a quality deficiency caused by reduced exploration.
+
+### Hypothesis: let the model explore naturally
+
+The model's post-trained exploration loop is calibrated for plain tool output. The extension disrupts this calibration by satisfying the information-seeking drive earlier than the training assumed. The additional turns Lane B spends exploring are not waste — they're the mechanism for discovering things the agent didn't know to look for.
+
+The extension's efficiency gain is real in metrics (fewer turns, less wall clock) but may come at the cost of implementation quality on non-trivial tasks where breadth of understanding matters more than speed of execution.
