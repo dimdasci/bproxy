@@ -22,7 +22,10 @@ type Expect<T extends true> = T;
 type _SessionCreateParams = Expect<Equals<ActionParams["session.create"], { label?: string }>>;
 type _SessionCloseParams = Expect<Equals<ActionParams["session.close"], Record<string, never>>>;
 type _LinksParams = Expect<
-	Equals<ActionParams["links"], { selector?: string; visibleOnly?: boolean; limit?: number }>
+	Equals<
+		ActionParams["links"],
+		{ selector?: string; visibleOnly?: boolean; limit?: number; hrefContains?: string }
+	>
 >;
 type _ClickParams = Expect<Equals<ActionParams["click"], { target: ClientElementTarget }>>;
 type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ClientElementTarget }>>;

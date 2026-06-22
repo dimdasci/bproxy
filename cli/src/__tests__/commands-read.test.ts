@@ -83,6 +83,17 @@ describe("links command", () => {
 			params: { selector: "#search", visibleOnly: true, limit: 10 },
 		});
 	});
+
+	it("sends links action with href-contains filter", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("links", { hrefContains: "/in/" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: { hrefContains: "/in/" },
+		});
+	});
 });
 
 describe("images command", () => {

@@ -132,7 +132,7 @@ export interface DaemonRequestTrace {
 export interface ActionParams {
 	navigate: { url: string };
 	text: { selector?: string };
-	links: { selector?: string; visibleOnly?: boolean; limit?: number };
+	links: { selector?: string; visibleOnly?: boolean; limit?: number; hrefContains?: string };
 	images: { selector?: string };
 	elements: { form?: boolean };
 	outline: Record<string, never>;

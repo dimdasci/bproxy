@@ -15,6 +15,10 @@ export default defineCommand({
 			default: false,
 		},
 		limit: { type: "string", description: "Maximum links to return" },
+		"href-contains": {
+			type: "string",
+			description: "Filter links by substring match on absolute href",
+		},
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
@@ -35,6 +39,9 @@ export default defineCommand({
 				return;
 			}
 			params.limit = limit;
+		}
+		if (typeof args["href-contains"] === "string") {
+			params.hrefContains = args["href-contains"];
 		}
 
 		const plan = await sendAction("links", params, globals);

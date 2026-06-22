@@ -22,12 +22,15 @@ export function handleLinks(
 	const root = resolveReadRoot(request.params.selector, document);
 	const visibleOnly = request.params.visibleOnly === true;
 	const limit = normalizeLimit(request.params.limit);
+	const hrefContains = request.params.hrefContains;
 	const links: ActionResult["links"]["links"] = [];
 
 	for (const element of walkComposedElements(root, { includeRoot: true })) {
 		if (links.length >= limit) break;
 		const link = toLinkInfo(element, document, visibleOnly);
-		if (link) links.push(link);
+		if (!link) continue;
+		if (hrefContains !== undefined && !link.href.includes(hrefContains)) continue;
+		links.push(link);
 	}
 
 	return links;

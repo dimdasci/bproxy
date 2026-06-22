@@ -124,6 +124,55 @@ describe("read actions", () => {
 		expect(allLinks.map((link) => link.href)).toContain("https://example.test/offscreen");
 	});
 
+	it("links --href-contains filters by substring match on absolute href", () => {
+		const page = doc(
+			el("html", {
+				children: [
+					el("body", {
+						children: [
+							el("a", { attrs: { href: "https://linkedin.com/in/alice" }, text: "Alice" }),
+							el("a", { attrs: { href: "https://linkedin.com/in/bob" }, text: "Bob" }),
+							el("a", { attrs: { href: "https://linkedin.com/jobs/123" }, text: "Job" }),
+							el("a", { attrs: { href: "https://example.com/other" }, text: "Other" }),
+						],
+					}),
+				],
+			}),
+		);
+		Object.assign(page, { baseURI: "https://linkedin.com/" });
+
+		// Matches substring
+		const profileLinks = handleLinks(
+			request("links", { hrefContains: "/in/" }),
+			withDocument(page),
+		);
+		expect(profileLinks).toHaveLength(2);
+		expect(profileLinks.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+
+		// No match returns empty
+		const noMatch = handleLinks(
+			request("links", { hrefContains: "/nonexistent/" }),
+			withDocument(page),
+		);
+		expect(noMatch).toHaveLength(0);
+
+		// Empty string matches everything
+		const allLinks = handleLinks(request("links", { hrefContains: "" }), withDocument(page));
+		expect(allLinks).toHaveLength(4);
+
+		// undefined (omitted) means no filter
+		const noFilter = handleLinks(request("links", {}), withDocument(page));
+		expect(noFilter).toHaveLength(4);
+
+		// Combined with limit: filters first, then caps
+		const limited = handleLinks(
+			request("links", { hrefContains: "linkedin.com", limit: 2 }),
+			withDocument(page),
+		);
+		expect(limited).toHaveLength(2);
+		expect(limited.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+	});
+
 	it("images returns only visible images within the requested scope", () => {
 		const scoped = el("img", {
 			attrs: { src: "https://cdn.test/hero.png", alt: "Hero" },
