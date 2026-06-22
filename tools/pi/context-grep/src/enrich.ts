@@ -1,6 +1,35 @@
 import path from "node:path";
-import { ensureAstGrepAvailable, getContainers, isSupportedFile } from "./ast.mjs";
-import { parseBashSearchOutput, parseNativeGrepOutput } from "./parse.mjs";
+
+import type { AstContainer } from "./ast.ts";
+import { ensureAstGrepAvailable, getContainers, isSupportedFile } from "./ast.ts";
+import { buildNavigationMap } from "./navigate.ts";
+import type { ParsedHit } from "./parse.ts";
+import { parseBashSearchOutput, parseNativeGrepOutput } from "./parse.ts";
+
+export interface TextContent {
+	type: "text";
+	text: string;
+}
+
+export interface OtherContent {
+	type: string;
+	[key: string]: unknown;
+}
+
+export type ToolContent = TextContent | OtherContent;
+
+export interface EnrichSearchToolResultInput {
+	toolName: "bash" | "grep";
+	content: ToolContent[];
+	cwd: string;
+	command?: string;
+	inputPath?: string;
+	signal?: AbortSignal;
+	sessionState: {
+		availability: "unknown" | "ready" | "unavailable";
+	};
+	onAstGrepUnavailable?: () => void;
+}
 
 const MAX_CONTAINERS = 10;
 const MAX_CONTAINER_LINES = 35;
@@ -9,20 +38,33 @@ const MAX_FILES_TO_SCAN = 12;
 const HEADER =
 	"\n\n── AST context (%COUNT% containers, deduplicated) ────────────────────────────\n\n";
 
-function getTextContent(content) {
+interface AggregatedEntry {
+	key: string;
+	filePath: string;
+	startLine: number;
+	endLine: number;
+	label: string;
+	snippet: string;
+	hitLines: Set<number>;
+}
+
+function getTextContent(content: ToolContent[]): string {
 	return content
-		.filter((entry) => entry.type === "text")
+		.filter((entry): entry is TextContent => entry.type === "text")
 		.map((entry) => entry.text)
 		.join("");
 }
 
-function relativeDisplayPath(filePath, cwd) {
+function relativeDisplayPath(filePath: string, cwd: string): string {
 	const relative = path.relative(cwd, filePath);
 	return (relative && !relative.startsWith("..") ? relative : filePath).replace(/\\/g, "/");
 }
 
-function chooseSmallestContainer(containers, lineNumber) {
-	let winner = null;
+function chooseSmallestContainer(
+	containers: AstContainer[],
+	lineNumber: number,
+): AstContainer | null {
+	let winner: AstContainer | null = null;
 	for (const container of containers) {
 		if (lineNumber < container.startLine || lineNumber > container.endLine) continue;
 		if (!winner) {
@@ -36,7 +78,7 @@ function chooseSmallestContainer(containers, lineNumber) {
 	return winner;
 }
 
-function truncateSnippet(snippet) {
+function truncateSnippet(snippet: string): string[] {
 	const lines = snippet.split("\n");
 	if (lines.length <= MAX_CONTAINER_LINES) return lines;
 	const headCount = 18;
@@ -45,7 +87,7 @@ function truncateSnippet(snippet) {
 	return [...lines.slice(0, headCount), `… ${omitted} lines omitted …`, ...lines.slice(-tailCount)];
 }
 
-function formatBlock(entry, cwd) {
+function formatBlock(entry: AggregatedEntry, cwd: string): string {
 	const hitLines = [...entry.hitLines].sort((left, right) => left - right);
 	const heading = `▶ ${relativeDisplayPath(entry.filePath, cwd)}:${entry.startLine}-${entry.endLine} [${entry.label}] (grep hits: [${hitLines.join(", ")}])`;
 	const body = truncateSnippet(entry.snippet)
@@ -54,7 +96,7 @@ function formatBlock(entry, cwd) {
 	return `${heading}\n${body}`;
 }
 
-function rankEntries(entries) {
+function rankEntries(entries: AggregatedEntry[]): AggregatedEntry[] {
 	return [...entries].sort((left, right) => {
 		if (right.hitLines.size !== left.hitLines.size) {
 			return right.hitLines.size - left.hitLines.size;
@@ -66,10 +108,10 @@ function rankEntries(entries) {
 	});
 }
 
-function buildAppendix(entries, cwd) {
+function buildAppendix(entries: AggregatedEntry[], cwd: string): string | null {
 	const selected = rankEntries(entries).slice(0, MAX_CONTAINERS);
 	if (selected.length === 0) return null;
-	const blocks = [];
+	const blocks: string[] = [];
 	for (const entry of selected) {
 		const block = `${formatBlock(entry, cwd)}\n\n`;
 		const tentativeHeader = HEADER.replace("%COUNT%", String(blocks.length + 1));
@@ -81,7 +123,13 @@ function buildAppendix(entries, cwd) {
 	return (HEADER.replace("%COUNT%", String(blocks.length)) + blocks.join("")).trimEnd();
 }
 
-function aggregateHits(hitGroups, cwd) {
+interface FileEntry {
+	filePath: string;
+	hitLines: Set<number>;
+	displayPath: string;
+}
+
+function aggregateHits(hitGroups: Map<string, Set<number>>, cwd: string): FileEntry[] {
 	return [...hitGroups.entries()]
 		.map(([filePath, hitLines]) => ({
 			filePath,
@@ -96,51 +144,56 @@ function aggregateHits(hitGroups, cwd) {
 		.slice(0, MAX_FILES_TO_SCAN);
 }
 
-function groupHitsByFile(hits) {
-	const grouped = new Map();
+function groupHitsByFile(hits: ParsedHit[]): Map<string, Set<number>> {
+	const grouped = new Map<string, Set<number>>();
 	for (const hit of hits) {
 		if (!isSupportedFile(hit.filePath)) continue;
-		const existing = grouped.get(hit.filePath) ?? new Set();
+		const existing = grouped.get(hit.filePath) ?? new Set<number>();
 		existing.add(hit.lineNumber);
 		grouped.set(hit.filePath, existing);
 	}
 	return grouped;
 }
 
-function parsedSearchResult({ toolName, text, cwd, command, inputPath }) {
-	if (toolName === "grep") {
-		return parseNativeGrepOutput({ text, cwd, inputPath });
+function parsedSearchResult(input: {
+	toolName: "bash" | "grep";
+	text: string;
+	cwd: string;
+	command?: string;
+	inputPath?: string;
+}) {
+	if (input.toolName === "grep") {
+		return parseNativeGrepOutput({ text: input.text, cwd: input.cwd, inputPath: input.inputPath });
 	}
-	return parseBashSearchOutput({ text, cwd, command });
+	return parseBashSearchOutput({ text: input.text, cwd: input.cwd, command: input.command! });
 }
 
-export async function enrichSearchToolResult({
-	toolName,
-	content,
-	cwd,
-	command,
-	inputPath,
-	signal,
-	sessionState,
-	onAstGrepUnavailable,
-}) {
+export async function enrichSearchToolResult(
+	input: EnrichSearchToolResultInput,
+): Promise<ToolContent[] | null> {
 	try {
-		const text = getTextContent(content);
+		const text = getTextContent(input.content);
 		if (!text.trim()) return null;
-		const parsed = parsedSearchResult({ toolName, text, cwd, command, inputPath });
+		const parsed = parsedSearchResult({
+			toolName: input.toolName,
+			text,
+			cwd: input.cwd,
+			command: input.command,
+			inputPath: input.inputPath,
+		});
 		if (!parsed) return null;
 		const groupedHits = groupHitsByFile(parsed.hits);
 		if (groupedHits.size === 0) return null;
-		if (!(await ensureAstGrepAvailable(sessionState, signal))) {
-			onAstGrepUnavailable?.();
+		if (!(await ensureAstGrepAvailable(input.sessionState, input.signal))) {
+			input.onAstGrepUnavailable?.();
 			return null;
 		}
-		const aggregated = [];
-		const containerCache = new Map();
-		for (const fileEntry of aggregateHits(groupedHits, cwd)) {
+		const aggregated: AggregatedEntry[] = [];
+		const containerCache = new Map<string, AstContainer[]>();
+		for (const fileEntry of aggregateHits(groupedHits, input.cwd)) {
 			let containers = containerCache.get(fileEntry.filePath);
 			if (!containers) {
-				containers = await getContainers(fileEntry.filePath, signal);
+				containers = await getContainers(fileEntry.filePath, input.signal);
 				containerCache.set(fileEntry.filePath, containers);
 			}
 			for (const lineNumber of fileEntry.hitLines) {
@@ -156,16 +209,32 @@ export async function enrichSearchToolResult({
 						endLine: container.endLine,
 						label: container.label,
 						snippet: container.snippet,
-						hitLines: new Set(),
+						hitLines: new Set<number>(),
 					};
 					aggregated.push(existing);
 				}
 				existing.hitLines.add(lineNumber);
 			}
 		}
-		const appendix = buildAppendix(aggregated, cwd);
-		if (!appendix) return null;
-		return [...content, { type: "text", text: appendix }];
+
+		// Build navigation map with all hits (including those without containers)
+		const navMap = buildNavigationMap({
+			hits: parsed.hits,
+			containers: containerCache,
+			cwd: input.cwd,
+			command: input.command,
+			text,
+		});
+
+		const appendix = buildAppendix(aggregated, input.cwd);
+
+		// If neither navigation map nor AST context is available, skip enrichment
+		if (!navMap && !appendix) return null;
+
+		const enrichedParts: ToolContent[] = [...input.content];
+		if (navMap) enrichedParts.push({ type: "text", text: navMap });
+		if (appendix) enrichedParts.push({ type: "text", text: appendix });
+		return enrichedParts;
 	} catch {
 		return null;
 	}

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isBashToolResult, isGrepToolResult } from "@earendil-works/pi-coding-agent";
-import { enrichSearchToolResult } from "../../../tools/pi/context-grep/src/index.mjs";
+import { enrichSearchToolResult } from "../../../tools/pi/context-grep/src/index.ts";
 
 export default function contextGrep(pi: ExtensionAPI) {
 	const sessionState = {

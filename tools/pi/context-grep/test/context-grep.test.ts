@@ -1,18 +1,20 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { describe, it } from "node:test";
+
+import type { ToolContent } from "../src/enrich.ts";
 import {
 	enrichSearchToolResult,
 	getContainers,
 	parseBashSearchOutput,
 	parseNativeGrepOutput,
-} from "../src/index.mjs";
+} from "../src/index.ts";
 
 const repoRoot = process.cwd();
 const fixtureProject = path.resolve(repoRoot, "tools/pi/context-grep/test/fixtures/project");
 const fixtureSource = path.resolve(fixtureProject, "src/search-target.ts");
 
-function textContent(text) {
+function textContent(text: string): ToolContent[] {
 	return [{ type: "text", text }];
 }
 
@@ -30,8 +32,8 @@ describe("parseNativeGrepOutput", () => {
 
 		assert.ok(result);
 		assert.equal(result.hits.length, 1);
-		assert.equal(result.hits[0].filePath, fixtureSource);
-		assert.equal(result.hits[0].lineNumber, 18);
+		assert.equal(result.hits[0]!.filePath, fixtureSource);
+		assert.equal(result.hits[0]!.lineNumber, 18);
 	});
 });
 
@@ -48,8 +50,8 @@ describe("parseBashSearchOutput", () => {
 
 		assert.ok(result);
 		assert.equal(result.hits.length, 2);
-		assert.equal(result.hits[0].filePath, fixtureSource);
-		assert.equal(result.hits[1].lineNumber, 23);
+		assert.equal(result.hits[0]!.filePath, fixtureSource);
+		assert.equal(result.hits[1]!.lineNumber, 23);
 	});
 
 	it("parses single-file grep -n output by inferring the file from the command", () => {
@@ -61,7 +63,7 @@ describe("parseBashSearchOutput", () => {
 
 		assert.ok(result);
 		assert.equal(result.singleFile, path.resolve(repoRoot, "service/src/config.ts"));
-		assert.equal(result.hits[0].lineNumber, 20);
+		assert.equal(result.hits[0]!.lineNumber, 20);
 	});
 
 	it("skips path-list style output such as grep -l", () => {
@@ -90,7 +92,9 @@ describe("getContainers", () => {
 
 describe("enrichSearchToolResult", () => {
 	it("appends bounded AST context for supported bash search results", async () => {
-		const sessionState = { availability: "unknown" };
+		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
+			availability: "unknown",
+		};
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,
@@ -106,14 +110,21 @@ describe("enrichSearchToolResult", () => {
 		});
 
 		assert.ok(result);
-		assert.equal(result.length, 2);
-		assert.match(result[1].text, /── AST context \(2 containers, deduplicated\)/);
-		assert.match(result[1].text, /search-target\.ts:18-20 \[fn helper\]/);
-		assert.match(result[1].text, /search-target\.ts:22-24 \[fn handleThing\]/);
+		// Original content + navigation map + AST context
+		assert.ok(result.length >= 2);
+		const astPart = result.find(
+			(part) => "text" in part && (part.text as string).includes("── AST context"),
+		);
+		assert.ok(astPart && "text" in astPart);
+		assert.match(astPart.text as string, /── AST context \(2 containers, deduplicated\)/);
+		assert.match(astPart.text as string, /search-target\.ts:18-20 \[fn helper\]/);
+		assert.match(astPart.text as string, /search-target\.ts:22-24 \[fn handleThing\]/);
 	});
 
 	it("uses a real bproxy source file for single-file grep validation", async () => {
-		const sessionState = { availability: "unknown" };
+		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
+			availability: "unknown",
+		};
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,
@@ -126,11 +137,15 @@ describe("enrichSearchToolResult", () => {
 		});
 
 		assert.ok(result);
-		assert.match(result[1].text, /service\/src\/config\.ts:20-\d+ \[fn loadBaseConfig\]/);
+		const block = result[1];
+		assert.ok(block && "text" in block);
+		assert.match(block.text as string, /service\/src\/config\.ts:20-\d+ \[fn loadBaseConfig\]/);
 	});
 
 	it("does not enrich unsupported log searches", async () => {
-		const sessionState = { availability: "unknown" };
+		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
+			availability: "unknown",
+		};
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,

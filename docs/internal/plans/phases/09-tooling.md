@@ -350,11 +350,9 @@ Current state: Option B is implemented. Core source is validated by `pnpm test:p
 
 - [x] Add fixtures for native Pi grep output (`file:line:` plus `file-line-` context rows).
 - [x] Add fixtures for bash `rg -n` output.
-- [ ] Add fixtures for bash `grep -rn` output.
+- [x] Add fixtures for bash `grep -rn` output.
 - [x] Add fixtures for single-file `grep -n` output with file inferred from command.
 - [x] Add negative fixtures for `grep -l`, path lists, no matches, unsupported file extensions, and truncated non-code logs.
-
-Current gap: `grep -rn` is supported by the same `file:line:text` parser path, but the dedicated fixture is not present yet.
 
 ### 3. AST container mapping
 
@@ -375,19 +373,27 @@ Current gap: `grep -rn` is supported by the same `file:line:text` parser path, b
 - [x] Preserve original result content and details.
 - [x] Fail closed to original output on any internal error.
 
-### 5. Navigation-map iteration
+### 5. Iteration 2 readiness hardening
 
-- [ ] Preserve matched line text in parsed hits.
-- [ ] Add path-kind classification for production, tests, docs, config, generated, and fixtures.
-- [ ] Add hit-kind classification for definitions, references, assertions, diagnostics, docs, and config.
-- [ ] Add deterministic task-focus inference from command/output signals.
-- [ ] Add top-level/file-level entries for imports, exports, constants, and non-code files.
-- [ ] Generate bounded lane-based navigation map before AST context.
-- [ ] Generate bounded suggested reads with reason strings.
-- [ ] Tighten bash search detection to avoid heredoc/script-analysis false positives.
-- [ ] Add fixtures from the June 20 session replay: Sonar test sort, lifecycle type re-export, skills docs `-s` without `-n`, ownerHash/randomBytes broad query, and heredoc/script-analysis false positive.
+These tasks must happen before adding larger navigation-map output. The current implementation is a useful base, but false positives and sparse replay coverage would make iteration 2 noisy if left unfixed.
 
-### 6. Pi extension entrypoint
+- [x] Tighten bash search detection to avoid heredoc/script-analysis false positives.
+- [x] Add a dedicated negative fixture for inline Node/Python/heredoc commands whose script text contains `grep`/`rg` but whose executed shell command is not a direct search command.
+- [x] Add a dedicated `grep -rn` parser fixture, even though it currently shares the `file:line:text` parser path.
+- [x] Preserve matched line text in parsed hits so downstream ranking can inspect the actual matched source line.
+- [x] Add replay fixtures from the June 20 session before changing ranking: Sonar test sort, lifecycle type re-export, skills docs `-s` without `-n`, ownerHash/randomBytes broad query, and heredoc/script-analysis false positive.
+- [x] Keep `pnpm test:pi-tooling`, `typecheck:pi-shim`, and `lint:pi-shim` passing after each hardening step.
+
+### 6. Navigation-map iteration
+
+- [x] Add path-kind classification for production, tests, docs, config, generated, and fixtures.
+- [x] Add hit-kind classification for definitions, references, assertions, diagnostics, docs, and config.
+- [x] Add deterministic task-focus inference from command/output signals.
+- [x] Add top-level/file-level entries for imports, exports, constants, and non-code files.
+- [x] Generate bounded lane-based navigation map before AST context.
+- [x] Generate bounded suggested reads with reason strings.
+
+### 7. Pi extension entrypoint
 
 - [x] Register one `tool_result` handler.
 - [x] Use `isGrepToolResult(event)` for native grep.
@@ -399,7 +405,7 @@ Current gap: `grep -rn` is supported by the same `file:line:text` parser path, b
 
 Current state: Pi loads `.pi/extensions/context-grep/index.ts`; the earlier parse failure was fixed and validated with an explicit Pi startup smoke test.
 
-### 7. Back-reference follow-up (optional after base validation)
+### 8. Back-reference follow-up (optional after base validation)
 
 - [ ] Implement bounded `rg --json --fixed-strings` caller lookup.
 - [ ] Filter definition lines, imports, comments-only rows, and tests.
@@ -407,7 +413,7 @@ Current state: Pi loads `.pi/extensions/context-grep/index.ts`; the earlier pars
 - [ ] Add compact `Called from:` formatting.
 - [ ] Add fixtures for Python and TypeScript definitions.
 
-### 8. Real-session validation
+### 9. Real-session validation
 
 - [x] Replay representative outputs from the June 19/20 bproxy session log.
 - [ ] Replay representative outputs from the current bproxy session log after navigation-map implementation.
@@ -415,7 +421,7 @@ Current state: Pi loads `.pi/extensions/context-grep/index.ts`; the earlier pars
 - [x] Validate a real bproxy search such as `rg "Session" service/src -n`.
 - [ ] Validate native Pi grep manually if the model can be induced to call it, or with a controlled test extension/tool invocation.
 - [x] Confirm unsupported log/json searches do not produce noisy enrichment.
-- [ ] Confirm heredoc/script-analysis commands are not enriched accidentally.
+- [x] Confirm heredoc/script-analysis commands are not enriched accidentally.
 - [x] Confirm missing `ast-grep` degrades to original output.
 
 ---

@@ -19,9 +19,10 @@
 		"check-versions": "node scripts/check-versions.js",
 		"check": "pnpm typecheck && pnpm format && pnpm lint && pnpm arch && pnpm deadcode && node scripts/check-versions.js",
 		"typecheck:pi-shim": "tsc -p .pi/extensions/context-grep/tsconfig.json --noEmit",
+		"typecheck:pi-tooling": "tsc -p tools/pi/context-grep/tsconfig.json --noEmit",
 		"lint:pi-shim": "eslint .pi/extensions/context-grep/index.ts --no-ignore",
 		"test": "pnpm -r test && pnpm test:pi-tooling",
-		"test:pi-tooling": "node --test tools/pi/context-grep/test/*.test.mjs",
+		"test:pi-tooling": "tsx --test tools/pi/context-grep/test/*.test.ts",
 		"docs:dev": "pnpm --filter views dev",
 		"docs:build": "rm -rf views/public/views/auto && mkdir -p views/public/views/auto && cp docs/public/views/auto/*.svg views/public/views/auto/ && pnpm --filter views build && bash views/scripts/assert-no-md-links.sh && bash views/scripts/assert-component-svgs.sh",
 		"views:audit": "pnpm --filter views run audit",
@@ -32,6 +33,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
+		"@types/node": "^26.0.0",
 		"@typescript-eslint/eslint-plugin": "^8.59.3",
 		"@typescript-eslint/parser": "^8.59.3",
 		"dependency-cruiser": "^17.4.0",
@@ -40,6 +42,7 @@
 		"husky": "^9.1.7",
 		"knip": "^6.13.1",
 		"lint-staged": "^17.0.7",
+		"tsx": "^4.21.0",
 		"typescript": "^6.0.3"
 	}
 }

@@ -7,5 +7,5 @@
 		"allowImportingTsExtensions": true,
 		"types": ["node"]
 	},
-	"include": ["index.ts", "types/**/*.d.ts", "../../../tools/pi/context-grep/src/**/*.ts"]
+	"include": ["src/**/*.ts", "test/**/*.ts"]
 }

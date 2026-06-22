@@ -6,7 +6,19 @@ const execFileAsync = promisify(execFile);
 const AST_GREP_COMMAND = "ast-grep";
 const AST_GREP_FILE_TIMEOUT_MS = 5_000;
 
-const LANGUAGE_RULES = {
+export interface AstContainer {
+	kind: string;
+	label: string;
+	startLine: number;
+	endLine: number;
+	snippet: string;
+}
+
+interface LanguageRule {
+	kinds: string[];
+}
+
+const LANGUAGE_RULES: Record<string, LanguageRule> = {
 	".ts": {
 		kinds: [
 			"function_declaration",
@@ -43,27 +55,43 @@ const LANGUAGE_RULES = {
 			"variable_declarator",
 		],
 	},
+	".mjs": {
+		kinds: [
+			"function_declaration",
+			"method_definition",
+			"class_declaration",
+			"variable_declarator",
+		],
+	},
+	".cjs": {
+		kinds: [
+			"function_declaration",
+			"method_definition",
+			"class_declaration",
+			"variable_declarator",
+		],
+	},
 	".py": { kinds: ["function_definition", "class_definition"] },
 	".rs": { kinds: ["function_item", "impl_item", "struct_item", "enum_item", "trait_item"] },
 	".go": { kinds: ["function_declaration", "method_declaration", "type_declaration"] },
 };
 
-function supportedRule(filePath) {
+function supportedRule(filePath: string): LanguageRule | null {
 	return LANGUAGE_RULES[path.extname(filePath).toLowerCase()] ?? null;
 }
 
-function normalizeNewlines(text) {
+function normalizeNewlines(text: string): string {
 	return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-function combinedSignal(signal, timeoutMs) {
+function combinedSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
 	const timeoutSignal = AbortSignal.timeout(timeoutMs);
 	return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 }
 
-function labelForContainer(kind, snippet) {
+function labelForContainer(kind: string, snippet: string): string {
 	const line = normalizeNewlines(snippet).split("\n", 1)[0] ?? "";
-	const regexByKind = {
+	const regexByKind: Record<string, RegExp> = {
 		function_declaration: /function\s+([A-Za-z_$][\w$]*)/,
 		method_definition: /^\s*(?:async\s+)?([A-Za-z_$#][\w$#]*)\s*\(/,
 		class_declaration: /class\s+([A-Za-z_$][\w$]*)/,
@@ -80,7 +108,7 @@ function labelForContainer(kind, snippet) {
 		method_declaration: /func\s+\([^)]*\)\s+([A-Za-z_][\w]*)/,
 		type_declaration: /type\s+([A-Za-z_][\w]*)/,
 	};
-	const tagByKind = {
+	const tagByKind: Record<string, string> = {
 		function_declaration: "fn",
 		method_definition: "method",
 		class_declaration: "class",
@@ -103,7 +131,16 @@ function labelForContainer(kind, snippet) {
 	return name ? `${label} ${name}` : label;
 }
 
-function normalizeContainer(kind, entry) {
+interface AstGrepMatch {
+	lines?: string;
+	text?: string;
+	range?: {
+		start?: { line?: number };
+		end?: { line?: number };
+	};
+}
+
+function normalizeContainer(kind: string, entry: AstGrepMatch): AstContainer | null {
 	const snippet = entry.lines ?? entry.text ?? "";
 	if (kind === "variable_declarator" && !/(=>|function\s*\()/.test(snippet)) {
 		return null;
@@ -117,7 +154,11 @@ function normalizeContainer(kind, entry) {
 	};
 }
 
-async function runAstGrep(kind, filePath, signal) {
+async function runAstGrep(
+	kind: string,
+	filePath: string,
+	signal: AbortSignal | undefined,
+): Promise<AstGrepMatch[]> {
 	try {
 		const { stdout } = await execFileAsync(
 			AST_GREP_COMMAND,
@@ -126,12 +167,13 @@ async function runAstGrep(kind, filePath, signal) {
 		);
 		const parsed = JSON.parse(stdout);
 		return Array.isArray(parsed) ? parsed : [];
-	} catch (error) {
-		if (error && typeof error === "object" && error.name === "AbortError") {
+	} catch (error: unknown) {
+		if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
 			throw error;
 		}
-		const stdout = typeof error?.stdout === "string" ? error.stdout : "";
-		if (error?.code === 1 && stdout.trim()) {
+		const err = error as { stdout?: string; code?: number };
+		const stdout = typeof err?.stdout === "string" ? err.stdout : "";
+		if (err?.code === 1 && stdout.trim()) {
 			const parsed = JSON.parse(stdout);
 			return Array.isArray(parsed) ? parsed : [];
 		}
@@ -139,11 +181,14 @@ async function runAstGrep(kind, filePath, signal) {
 	}
 }
 
-export function isSupportedFile(filePath) {
+export function isSupportedFile(filePath: string): boolean {
 	return supportedRule(filePath) !== null;
 }
 
-export async function ensureAstGrepAvailable(state, signal) {
+export async function ensureAstGrepAvailable(
+	state: { availability: "unknown" | "ready" | "unavailable" },
+	signal?: AbortSignal,
+): Promise<boolean> {
 	if (state.availability === "ready") return true;
 	if (state.availability === "unavailable") return false;
 	try {
@@ -153,8 +198,8 @@ export async function ensureAstGrepAvailable(state, signal) {
 		});
 		state.availability = "ready";
 		return true;
-	} catch (error) {
-		if (error && typeof error === "object" && error.name === "AbortError") {
+	} catch (error: unknown) {
+		if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
 			throw error;
 		}
 		state.availability = "unavailable";
@@ -162,10 +207,13 @@ export async function ensureAstGrepAvailable(state, signal) {
 	}
 }
 
-export async function getContainers(filePath, signal) {
+export async function getContainers(
+	filePath: string,
+	signal?: AbortSignal,
+): Promise<AstContainer[]> {
 	const rule = supportedRule(filePath);
 	if (!rule) return [];
-	const containers = [];
+	const containers: AstContainer[] = [];
 	for (const kind of rule.kinds) {
 		const matches = await runAstGrep(kind, filePath, signal);
 		for (const match of matches) {
