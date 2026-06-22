@@ -194,17 +194,23 @@ Lane B's plan (produced without extension enrichment, via more grep cycles that 
 
 Lane A's plan mentioned none of these. The session 02 agents faithfully implemented their respective specifications — Lane B did more because its plan said to do more.
 
-The cascade:
+The cascade (updated after session 03 investigation):
 
 ```
 Session 01 (planning):
-  Extension → fewer grep cycles → less incidental code exposure
-  No extension → more grep cycles → saw protocol-shape, action-contract, ExitPlan patterns
-  → Lane B plan included more touchpoints
+  Extension enrichment showed paths like "extension/src/background/browser-actions.ts:118-142"
+  → Lane A agent internalized full package-rooted paths
+  → Lane A plan written with full paths: cli/src/commands/links.ts, extension/src/content/actions/links.ts
+  → Lane A plan included fewer touchpoints (less incidental code exposure)
 
-Session 02 (implementation):
-  Lane A implements leaner plan → 19 unique files read → 16 edits → 8 verify cycles
-  Lane B implements fuller plan → 23 unique files read → 22 edits → 14 verify cycles
+  No enrichment in Lane B
+  → Lane B agent used shorter path references from docs
+  → Lane B plan written with bare filenames: commands/links.ts, schemas.ts, content/actions/links.ts
+  → Lane B plan included more touchpoints (more code exposure → more comprehensive spec)
+
+Session 02–03 (implementation):
+  Lane A reads plan with full paths → searches from package dirs (shared/src, cli/src/) → fewer finds
+  Lane B reads plan with bare names → doesn't know which package → searches from "." → more finds
 ```
 
 Decomposed by phase within the main implementation turn:
@@ -216,6 +222,30 @@ Decomposed by phase within the main implementation turn:
 | VERIFY | 8 turns | 14 turns | Per-package test runs + `pnpm format:fix` cycle |
 
 This is the most interesting finding: **the extension's efficiency gain during planning had a second-order narrowing effect on implementation scope.** Faster planning ≠ better planning if speed comes at the cost of structural exposure. The agent that struggled more during exploration produced a more thorough specification.
+
+### Path specificity propagation (confirmed in session 03)
+
+Session 03 revealed a second propagation mechanism beyond scope. The plan files carry **structural knowledge** in their path references:
+
+- **Lane A plan** uses full package-rooted paths: `cli/src/commands/links.ts`, `extension/src/content/actions/links.ts`
+- **Lane B plan** uses bare filenames: `commands/links.ts`, `content/actions/links.ts`, `schemas.ts`
+
+This directly causes different file-discovery behavior:
+
+| Session | Lane A find roots | Lane B find roots |
+|---------|------------------|------------------|
+| 02 | `shared/src`, `cli/src/commands/tab`, `service/src`, `extension/src` | `extension/src`, `.`, `service/src` |
+| 03 | `shared/src`, `extension/src` (2 finds total) | `.` with exclusions (8 out of 10 finds from root) |
+
+Lane A's model reads `cli/src/commands/links.ts` in the plan and knows to search within `cli/src/`. Lane B's model reads `commands/links.ts` and must search from `.` to locate it. This explains the persistent exploration gap (13 vs 34 turns in session 03) even when the extension's real-time enrichment is minimal (only 2/6 greps enriched).
+
+**The causal chain:**
+1. Extension enrichment in session 01 showed full paths in AST context blocks
+2. Planning agent wrote those full paths into the plan document
+3. Implementation agents in sessions 02–03 read the plan and inherited the path knowledge
+4. Path knowledge → targeted searches from package dirs → fewer find commands → fewer exploration turns
+
+This is a **one-time investment**: the extension's session-01 contribution is permanently encoded in the plan file. Even if the extension were disabled for sessions 02–03, the plan would still carry the structural knowledge forward.
 
 ### Conclusion for session 02
 
@@ -309,3 +339,18 @@ The plans converged for this feature — both specified similar touchpoints for 
 The exploration-phase gap is consistent: Lane B always explores more. When the extension fires (even partially), it reduces the search overhead. The effect scales with how much of the task requires understanding existing code structure.
 
 Session 02's wall-clock anomaly (Lane A slower) was operator-interaction timing; sessions 01 and 03 show the expected pattern of similar or slightly faster wall clock for Lane A despite fewer turns.
+
+### Cost structure difference
+
+Session 03 revealed that Lane A's fewer-turns approach is actually **more expensive** ($1.93 vs $1.31):
+
+| Component | Lane A | Lane B |
+|-----------|--------|--------|
+| Cache write | $0.72 | $0.25 |
+| Cache read | $0.91 | $0.76 |
+| Output | $0.27 | $0.28 |
+| Avg cache/turn | 44K tokens | 26K tokens |
+
+Lane A reads whole files (full-path confidence from plan) → larger context → higher cache costs. Lane B uses grep→partial-read with offset/limit (uncertain paths) → smaller context per turn → cheaper per turn despite more turns.
+
+The extension optimizes for **time and cognitive efficiency** (fewer round-trips, less fragmented exploration), not for **cost**. In API-cost terms, the targeted-search pattern is more economical.
