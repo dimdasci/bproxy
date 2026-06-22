@@ -559,9 +559,9 @@ The remaining failures were grep-with-no-output (searching for patterns that did
 | Protocol change | Added `after` + `maxLength` to `ActionParams['text']` | None — CLI-only post-processing |
 | Where slicing happens | In the browser, before data crosses the wire | In the CLI, after receiving full text |
 
-Wait — Lane B didn't implement `text --after` at all in this session! The session was consumed by review findings (missing tests for offset/capped) and the protocol version refactor. Feature 5 remains unimplemented in Lane B.
+Wait — Lane B DID implement `text --after` in this session (as CLI-local post-processing per its plan), but the work is **uncommitted**. The version refactor consumed the session's commit cycle — the operator said "commit" after the refactor, and the `text --after` changes plus documentation updates remain in the working tree (14 modified files unstaged).
 
-**Lane A** implemented `text --after` as a protocol-level change (extension does the slicing), which contradicts Lane B's plan design (CLI-local). Lane A's approach sends less data over the wire (only post-marker text), while Lane B's design would send full text then slice locally.
+**Lane A** implemented `text --after` as a protocol-level change (extension does the slicing), which differs from Lane B's CLI-local approach. Lane A's approach sends less data over the wire (only post-marker text); Lane B sends full text then slices locally in the CLI.
 
 ### Extension hypothesis reinforcement
 
@@ -576,7 +576,7 @@ The 105 grep calls with 0 enrichments in Lane B (vs 10 greps with 3 enrichments 
 | tab.activate | ✅ | ✅ |
 | links --href-contains | ✅ | ✅ |
 | links --offset + truncation | ✅ (simpler) | ✅ (richer) |
-| text --after | ✅ (extension-level) | ❌ not yet implemented |
+| text --after | ✅ (extension-level) | ✅ implemented but uncommitted (CLI-local) |
 | Protocol version bump | N/A (no breaking changes) | ✅ |
 | PROTOCOL_VERSION centralization | N/A | ✅ |
 
