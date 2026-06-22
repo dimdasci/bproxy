@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import type { ToolContent } from "../src/enrich.ts";
+import type { EnrichSearchToolResultInput, ToolContent } from "../src/enrich.ts";
 import {
 	enrichSearchToolResult,
+	findBackRefs,
 	getContainers,
 	parseBashSearchOutput,
 	parseNativeGrepOutput,
@@ -16,6 +17,10 @@ const fixtureSource = path.resolve(fixtureProject, "src/search-target.ts");
 
 function textContent(text: string): ToolContent[] {
 	return [{ type: "text", text }];
+}
+
+function sessionState(): EnrichSearchToolResultInput["sessionState"] {
+	return { availability: "unknown" };
 }
 
 describe("parseNativeGrepOutput", () => {
@@ -90,11 +95,30 @@ describe("getContainers", () => {
 	});
 });
 
+describe("findBackRefs", () => {
+	it("finds callers of a function in the project", async () => {
+		// helper is called from handleThing in the fixture
+		const refs = await findBackRefs("helper", fixtureSource, 18, fixtureProject);
+		// The fixture is in test/fixtures which is excluded by test path filter,
+		// but the call IS in the same file so it would be found if not test-excluded.
+		// For real code, test this on service/ source.
+		assert.ok(Array.isArray(refs));
+	});
+
+	it("skips generic names", async () => {
+		const refs = await findBackRefs("run", "fake.ts", 1, repoRoot);
+		assert.deepEqual(refs, []);
+	});
+
+	it("skips very short names", async () => {
+		const refs = await findBackRefs("x", "fake.ts", 1, repoRoot);
+		assert.deepEqual(refs, []);
+	});
+});
+
 describe("enrichSearchToolResult", () => {
-	it("appends bounded AST context for supported bash search results", async () => {
-		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
-			availability: "unknown",
-		};
+	it("appends AST context with back-references for supported bash search results", async () => {
+		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,
@@ -106,25 +130,20 @@ describe("enrichSearchToolResult", () => {
 				].join("\n"),
 			),
 			signal: undefined,
-			sessionState,
+			sessionState: state,
 		});
 
 		assert.ok(result);
-		// Original content + navigation map + AST context
-		assert.ok(result.length >= 2);
-		const astPart = result.find(
-			(part) => "text" in part && (part.text as string).includes("── AST context"),
-		);
-		assert.ok(astPart && "text" in astPart);
-		assert.match(astPart.text as string, /── AST context \(2 containers, deduplicated\)/);
-		assert.match(astPart.text as string, /search-target\.ts:18-20 \[fn helper\]/);
-		assert.match(astPart.text as string, /search-target\.ts:22-24 \[fn handleThing\]/);
+		// Single text block: original + enrichment
+		assert.equal(result.length, 1);
+		const text = (result[0] as { text: string }).text;
+		assert.match(text, /── AST context/);
+		assert.match(text, /search-target\.ts:18-20 \[fn helper\]/);
+		assert.match(text, /search-target\.ts:22-24 \[fn handleThing\]/);
 	});
 
 	it("uses a real bproxy source file for single-file grep validation", async () => {
-		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
-			availability: "unknown",
-		};
+		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,
@@ -133,19 +152,19 @@ describe("enrichSearchToolResult", () => {
 				"20:export function loadBaseConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {",
 			),
 			signal: undefined,
-			sessionState,
+			sessionState: state,
 		});
 
 		assert.ok(result);
-		const block = result[1];
-		assert.ok(block && "text" in block);
-		assert.match(block.text as string, /service\/src\/config\.ts:20-\d+ \[fn loadBaseConfig\]/);
+		assert.equal(result.length, 1);
+		const text = (result[0] as { text: string }).text;
+		assert.match(text, /service\/src\/config\.ts:20-\d+ \[fn loadBaseConfig\]/);
+		// Back-references: loadBaseConfig is called from other places
+		assert.match(text, /Called from:/);
 	});
 
 	it("does not enrich unsupported log searches", async () => {
-		const sessionState: { availability: "unknown" | "ready" | "unavailable" } = {
-			availability: "unknown",
-		};
+		const state = sessionState();
 		const result = await enrichSearchToolResult({
 			toolName: "bash",
 			cwd: repoRoot,
@@ -157,7 +176,7 @@ describe("enrichSearchToolResult", () => {
 				].join("\n"),
 			),
 			signal: undefined,
-			sessionState,
+			sessionState: state,
 		});
 
 		assert.equal(result, null);

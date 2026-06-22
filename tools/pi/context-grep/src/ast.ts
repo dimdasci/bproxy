@@ -12,6 +12,7 @@ export interface AstContainer {
 	startLine: number;
 	endLine: number;
 	snippet: string;
+	firstLine: string;
 }
 
 interface LanguageRule {
@@ -145,12 +146,14 @@ function normalizeContainer(kind: string, entry: AstGrepMatch): AstContainer | n
 	if (kind === "variable_declarator" && !/(=>|function\s*\()/.test(snippet)) {
 		return null;
 	}
+	const normalized = normalizeNewlines(snippet);
 	return {
 		kind,
 		label: labelForContainer(kind, snippet),
 		startLine: Number(entry.range?.start?.line) + 1,
 		endLine: Number(entry.range?.end?.line) + 1,
-		snippet: normalizeNewlines(snippet),
+		snippet: normalized,
+		firstLine: normalized.split("\n", 1)[0] ?? "",
 	};
 }
 
@@ -221,9 +224,32 @@ export async function getContainers(
 			if (container) containers.push(container);
 		}
 	}
+	// Sort smallest-span first for "most specific enclosing" lookup
 	containers.sort((left, right) => {
-		if (left.startLine !== right.startLine) return left.startLine - right.startLine;
-		return left.endLine - left.startLine - (right.endLine - right.startLine);
+		const leftSpan = left.endLine - left.startLine;
+		const rightSpan = right.endLine - right.startLine;
+		return leftSpan - rightSpan;
 	});
 	return containers;
+}
+
+/**
+ * Find the smallest enclosing container for a given line number.
+ * Containers must be pre-sorted smallest-span first.
+ */
+export function findEnclosing(lineNumber: number, containers: AstContainer[]): AstContainer | null {
+	for (const c of containers) {
+		if (c.startLine <= lineNumber && lineNumber <= c.endLine) {
+			return c;
+		}
+	}
+	return null;
+}
+
+/**
+ * Extract the function/class name from a container label.
+ */
+export function extractName(label: string): string {
+	const parts = label.split(" ");
+	return parts[1] ?? parts[0] ?? "";
 }
