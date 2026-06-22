@@ -19,6 +19,7 @@ export default defineCommand({
 			type: "string",
 			description: "Filter links by substring match on absolute href",
 		},
+		offset: { type: "string", description: "Number of matching links to skip (pagination)" },
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
@@ -42,6 +43,16 @@ export default defineCommand({
 		}
 		if (typeof args["href-contains"] === "string") {
 			params.hrefContains = args["href-contains"];
+		}
+		if (typeof args.offset === "string") {
+			const offset = Number.parseInt(args.offset, 10);
+			if (Number.isNaN(offset) || offset < 0) {
+				executeExitPlan(
+					exitUsageError(`Invalid offset: ${args.offset}. Must be a non-negative integer.`),
+				);
+				return;
+			}
+			params.offset = offset;
 		}
 
 		const plan = await sendAction("links", params, globals);

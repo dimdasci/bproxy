@@ -11,29 +11,52 @@ export interface LinkActionDeps {
 
 const DEFAULT_LINK_LIMIT = 100;
 const MAX_LINK_LIMIT = 500;
+const MAX_COLLECTION_CAP = 2000;
 const NOISE_TAGS = new Set(["script", "style", "noscript", "template"]);
 const DEFAULT_BASE_URI = "https://example.test/";
+
+export type LinksResult = {
+	links: ActionResult["links"]["links"];
+	total: number;
+	capped?: boolean;
+};
 
 export function handleLinks(
 	request: ContentRpcRequest<"links">,
 	deps: LinkActionDeps = {},
-): ActionResult["links"]["links"] {
+): LinksResult {
 	const document = getDocument(deps);
 	const root = resolveReadRoot(request.params.selector, document);
 	const visibleOnly = request.params.visibleOnly === true;
 	const limit = normalizeLimit(request.params.limit);
+	const offset = normalizeOffset(request.params.offset);
 	const hrefContains = request.params.hrefContains;
-	const links: ActionResult["links"]["links"] = [];
+
+	// Phase 1: collect all matching links up to MAX_COLLECTION_CAP
+	const collected: ActionResult["links"]["links"] = [];
+	let capped = false;
 
 	for (const element of walkComposedElements(root, { includeRoot: true })) {
-		if (links.length >= limit) break;
+		if (collected.length >= MAX_COLLECTION_CAP) {
+			capped = true;
+			break;
+		}
 		const link = toLinkInfo(element, document, visibleOnly);
 		if (!link) continue;
 		if (hrefContains !== undefined && !link.href.includes(hrefContains)) continue;
-		links.push(link);
+		collected.push(link);
 	}
 
-	return links;
+	const total = collected.length;
+
+	// Phase 2: slice by offset and limit
+	const sliced = collected.slice(offset, offset + limit);
+
+	const result: LinksResult = { links: sliced, total };
+	if (capped) {
+		result.capped = true;
+	}
+	return result;
 }
 
 function toLinkInfo(
@@ -159,4 +182,9 @@ function isNoiseTag(element: Element): boolean {
 function normalizeLimit(limit: number | undefined): number {
 	if (typeof limit !== "number" || !Number.isFinite(limit)) return DEFAULT_LINK_LIMIT;
 	return Math.min(MAX_LINK_LIMIT, Math.max(1, Math.floor(limit)));
+}
+
+function normalizeOffset(offset: number | undefined): number {
+	if (typeof offset !== "number" || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
 }

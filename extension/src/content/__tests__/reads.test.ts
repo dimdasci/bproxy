@@ -86,19 +86,20 @@ describe("read actions", () => {
 		Object.assign(page, { baseURI: "https://example.test/search?q=bproxy" });
 		Object.assign(page.defaultView, { innerWidth: 1280, innerHeight: 800 });
 
-		const links = handleLinks(
+		const result = handleLinks(
 			request("links", { selector: "#search", visibleOnly: true, limit: 4 }),
 			withDocument(page),
 		);
 
-		expect(links).toHaveLength(4);
-		expect(links.map((link) => link.href)).toEqual([
+		expect(result.links).toHaveLength(4);
+		expect(result.links.map((link) => link.href)).toEqual([
 			"https://example.test/result-1",
 			"https://example.test/result-2",
 			"https://example.test/result-1",
 			"https://example.test/shadow",
 		]);
-		const firstLink = links[0];
+		expect(result.total).toBeGreaterThanOrEqual(4);
+		const firstLink = result.links[0];
 		expect(firstLink).toMatchObject({
 			text: "Result One",
 			title: "First result",
@@ -106,22 +107,22 @@ describe("read actions", () => {
 			targetAttr: "_blank",
 			visible: true,
 		});
-		expect(links[3]).toMatchObject({
+		expect(result.links[3]).toMatchObject({
 			target: { route: { hosts: [{ selector: "#shadow-host" }] } },
 			text: "Shadow result",
 			visible: true,
 		});
 		expect(
-			resolveElementTarget(links[3]!.target as ElementTarget, {
+			resolveElementTarget(result.links[3]!.target as ElementTarget, {
 				document: page as unknown as Document,
 			}),
 		).toBe(shadowLink);
-		const allLinks = handleLinks(
+		const allResult = handleLinks(
 			request("links", { selector: "#search", limit: 10 }),
 			withDocument(page),
 		);
-		expect(allLinks.map((link) => link.href)).toContain("https://example.test/hidden");
-		expect(allLinks.map((link) => link.href)).toContain("https://example.test/offscreen");
+		expect(allResult.links.map((link) => link.href)).toContain("https://example.test/hidden");
+		expect(allResult.links.map((link) => link.href)).toContain("https://example.test/offscreen");
 	});
 
 	it("links --href-contains filters by substring match on absolute href", () => {
@@ -146,31 +147,86 @@ describe("read actions", () => {
 			request("links", { hrefContains: "/in/" }),
 			withDocument(page),
 		);
-		expect(profileLinks).toHaveLength(2);
-		expect(profileLinks.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+		expect(profileLinks.links).toHaveLength(2);
+		expect(profileLinks.links.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+		expect(profileLinks.total).toBe(2);
 
 		// No match returns empty
 		const noMatch = handleLinks(
 			request("links", { hrefContains: "/nonexistent/" }),
 			withDocument(page),
 		);
-		expect(noMatch).toHaveLength(0);
+		expect(noMatch.links).toHaveLength(0);
+		expect(noMatch.total).toBe(0);
 
 		// Empty string matches everything
 		const allLinks = handleLinks(request("links", { hrefContains: "" }), withDocument(page));
-		expect(allLinks).toHaveLength(4);
+		expect(allLinks.links).toHaveLength(4);
+		expect(allLinks.total).toBe(4);
 
 		// undefined (omitted) means no filter
 		const noFilter = handleLinks(request("links", {}), withDocument(page));
-		expect(noFilter).toHaveLength(4);
+		expect(noFilter.links).toHaveLength(4);
+		expect(noFilter.total).toBe(4);
 
 		// Combined with limit: filters first, then caps
 		const limited = handleLinks(
 			request("links", { hrefContains: "linkedin.com", limit: 2 }),
 			withDocument(page),
 		);
-		expect(limited).toHaveLength(2);
-		expect(limited.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+		expect(limited.links).toHaveLength(2);
+		expect(limited.links.map((l) => l.text)).toEqual(["Alice", "Bob"]);
+		expect(limited.total).toBe(3); // 3 match linkedin.com, but only 2 returned due to limit
+	});
+
+	it("links --offset paginates through matching links", () => {
+		const page = doc(
+			el("html", {
+				children: [
+					el("body", {
+						children: Array.from({ length: 10 }, (_, i) =>
+							el("a", {
+								attrs: { href: `https://example.com/page/${i}` },
+								text: `Link ${i}`,
+							}),
+						),
+					}),
+				],
+			}),
+		);
+		Object.assign(page, { baseURI: "https://example.com/" });
+
+		// First page: offset 0, limit 3
+		const page1 = handleLinks(request("links", { offset: 0, limit: 3 }), withDocument(page));
+		expect(page1.links).toHaveLength(3);
+		expect(page1.total).toBe(10);
+		expect(page1.links.map((l) => l.text)).toEqual(["Link 0", "Link 1", "Link 2"]);
+
+		// Second page: offset 3, limit 3
+		const page2 = handleLinks(request("links", { offset: 3, limit: 3 }), withDocument(page));
+		expect(page2.links).toHaveLength(3);
+		expect(page2.total).toBe(10);
+		expect(page2.links.map((l) => l.text)).toEqual(["Link 3", "Link 4", "Link 5"]);
+
+		// Last partial page: offset 9, limit 3
+		const lastPage = handleLinks(request("links", { offset: 9, limit: 3 }), withDocument(page));
+		expect(lastPage.links).toHaveLength(1);
+		expect(lastPage.total).toBe(10);
+		expect(lastPage.links.map((l) => l.text)).toEqual(["Link 9"]);
+
+		// Offset beyond total: empty result
+		const beyondEnd = handleLinks(request("links", { offset: 20, limit: 5 }), withDocument(page));
+		expect(beyondEnd.links).toHaveLength(0);
+		expect(beyondEnd.total).toBe(10);
+
+		// Offset with hrefContains
+		const filtered = handleLinks(
+			request("links", { hrefContains: "/page/", offset: 5, limit: 3 }),
+			withDocument(page),
+		);
+		expect(filtered.links).toHaveLength(3);
+		expect(filtered.total).toBe(10);
+		expect(filtered.links.map((l) => l.text)).toEqual(["Link 5", "Link 6", "Link 7"]);
 	});
 
 	it("images returns only visible images within the requested scope", () => {

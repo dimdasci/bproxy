@@ -24,7 +24,13 @@ type _SessionCloseParams = Expect<Equals<ActionParams["session.close"], Record<s
 type _LinksParams = Expect<
 	Equals<
 		ActionParams["links"],
-		{ selector?: string; visibleOnly?: boolean; limit?: number; hrefContains?: string }
+		{
+			selector?: string;
+			visibleOnly?: boolean;
+			limit?: number;
+			hrefContains?: string;
+			offset?: number;
+		}
 	>
 >;
 type _ClickParams = Expect<Equals<ActionParams["click"], { target: ClientElementTarget }>>;

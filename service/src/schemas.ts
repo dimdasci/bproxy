@@ -79,6 +79,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 			visibleOnly: z.boolean().optional(),
 			limit: z.number().int().optional(),
 			hrefContains: z.string().optional(),
+			offset: z.number().int().min(0).optional(),
 		})
 		.strict(),
 	images: z.object({ selector: z.string().optional() }).strict(),

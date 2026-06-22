@@ -37,6 +37,7 @@ describe("createContentRpcHost", () => {
 								visible: true,
 							},
 						],
+						total: 1,
 					}) satisfies ActionResult["links"],
 			},
 			getPageState: () => PAGE,
@@ -63,6 +64,7 @@ describe("createContentRpcHost", () => {
 						visible: true,
 					},
 				],
+				total: 1,
 			},
 			page: PAGE,
 		});

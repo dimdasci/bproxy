@@ -94,6 +94,17 @@ describe("links command", () => {
 			params: { hrefContains: "/in/" },
 		});
 	});
+
+	it("sends links action with offset for pagination", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("links", { offset: 50, limit: 25 }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: { offset: 50, limit: 25 },
+		});
+	});
 });
 
 describe("images command", () => {

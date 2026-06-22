@@ -132,7 +132,13 @@ export interface DaemonRequestTrace {
 export interface ActionParams {
 	navigate: { url: string };
 	text: { selector?: string };
-	links: { selector?: string; visibleOnly?: boolean; limit?: number; hrefContains?: string };
+	links: {
+		selector?: string;
+		visibleOnly?: boolean;
+		limit?: number;
+		hrefContains?: string;
+		offset?: number;
+	};
 	images: { selector?: string };
 	elements: { form?: boolean };
 	outline: Record<string, never>;
@@ -182,7 +188,7 @@ export interface ActionParams {
 export interface ActionResult {
 	navigate: { url: string; title: string; loadTime: number };
 	text: { text: string };
-	links: { links: Array<LinkInfo> };
+	links: { links: Array<LinkInfo>; total: number; capped?: boolean };
 	images: { images: Array<{ src: string; alt: string; width: number; height: number }> };
 	elements: { elements: Array<ElementInfo> };
 	outline: { landmarks: Array<Landmark>; headings: Array<Heading> };

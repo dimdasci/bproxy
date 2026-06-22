@@ -253,8 +253,8 @@ Tasks are ordered by dependency and value:
 
 1. **Feature 1 (tab.activate)** ✅ — Done. Unblocks all other features by eliminating the `TAB_NOT_VISIBLE` error class in agent workflows.
 2. **Feature 2 (links --href-contains)** ✅ — Done. Substring filter on absolute href, applied before limit cap.
-3. **Feature 3A (truncation fix)** — investigate and fix. May be done in parallel with Feature 2.
-4. **Feature 3B (links --offset)** — depends on Feature 2 being complete (same params/result types modified). Builds on the `handleLinks` refactoring needed for offset.
+3. **Feature 3A (truncation fix)** ✅ — Done. `executeExitPlan` uses synchronous `writeFileSync(1, ...)` for stdout, preventing pipe-buffer truncation on large payloads (>64KB).
+4. **Feature 3B (links --offset)** ✅ — Done. Collect-then-slice refactoring with `MAX_COLLECTION_CAP` (2000), `total`, `capped`, and offset-based pagination.
 5. **Feature 5 (text --after)** — CLI-only, zero dependencies on other features. Can be done last or in parallel.
 
 ---

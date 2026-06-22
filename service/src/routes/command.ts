@@ -48,16 +48,17 @@ function decorateReadHandles(
 		) as ElementInfo[];
 		return { ...response, data: { ...(response.data as object), elements } };
 	}
+	const linksData = response.data as { links: LinkInfo[]; total: number; capped?: boolean };
 	const links = deps.elementHandles.mint(
 		cmd.session,
 		bound.tab,
 		bound.chromeTabId,
 		"links",
-		(response.data as { links: LinkInfo[] }).links,
+		linksData.links,
 		response.page.url,
 		pageEpoch,
 	) as LinkInfo[];
-	return { ...response, data: { ...(response.data as object), links } };
+	return { ...response, data: { ...linksData, links } };
 }
 
 function filterDebugLogEntries(
