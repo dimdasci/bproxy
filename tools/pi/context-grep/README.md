@@ -1,25 +1,21 @@
 # context-grep tooling
 
-Repo-local Pi search enrichment.
+Repo-local Pi search enrichment — AST context + back-references for grep results.
 
-## Layout choice
+## Architecture
 
-This repo uses **Option B** from the Phase 9 plan:
+Based on the proven codeindex-exploration experiment design:
+- Parse grep output → find enclosing AST containers → find callers → format single block
+- No navigation maps, no suggested reads, no lane classification (these were tested and removed — they increased turns)
 
-- checked source: `tools/pi/context-grep/`
-- tiny Pi shim: `.pi/extensions/context-grep/index.ts`
+## Layout
 
-Why:
+**Option B** from Phase 9 plan:
 
-- keeps Pi runtime wiring small
-- keeps parser/AST logic testable without loading Pi itself
-- avoids pulling this repo into a new TypeScript workspace package just for Pi-only tooling
+- Checked source: `tools/pi/context-grep/`
+- Pi shim: `.pi/extensions/context-grep/index.ts`
 
-## Validation model
-
-This tooling is intentionally kept out of the product workspaces (`cli`, `service`, `extension`, `shared`).
-It does **not** participate in `pnpm check`.
-Validation is instead explicit and local:
+## Validation
 
 ```bash
 pnpm test:pi-tooling       # run tests (via tsx)
@@ -27,36 +23,39 @@ pnpm typecheck:pi-tooling  # typecheck source + tests
 pnpm typecheck:pi-shim     # typecheck the Pi extension shim
 ```
 
-The test suite covers:
-
-- native Pi `grep` row parsing
-- bash `rg -n` parsing
-- bash `grep -rn`/single-file `grep -n` handling
-- negative/path-list/unsupported-extension cases
-- heredoc/script-analysis false-positive rejection
-- lineText preservation in parsed hits
-- path-kind and hit-kind classification
-- task-focus inference
-- navigation-map generation with lanes and bounds
-- TypeScript container-kind validation via real `ast-grep`
-- one real bproxy source-file enrichment check (`service/src/config.ts`)
-- replay fixtures from June 20 session patterns
+Extension source is excluded from product gates (`pnpm check`).
 
 ## Runtime expectations
 
-- `ast-grep` must be on `PATH`
-- Pi must trust the project to load `.pi/extensions/context-grep/`
-- `/reload` picks up code changes in the shim and source
+- `ast-grep` on PATH
+- `rg` on PATH (for back-references)
+- Pi must trust the project
+- `/reload` picks up changes
 
 ## Files
 
-- `src/parse.ts` — bounded grep/bash parsing + path inference
-- `src/ast.ts` — `ast-grep` availability + container extraction
-- `src/enrich.ts` — hit→container mapping and output formatting
-- `src/navigate.ts` — navigation-map generation (lanes, focus, suggested reads)
-- `src/index.ts` — barrel exports
-- `test/` — fixtures and node:test coverage (run with tsx)
+```
+src/
+  parse.ts      — grep/rg output parsing + command detection (safety layer)
+  ast.ts        — ast-grep container extraction + availability check
+  backrefs.ts   — caller lookup via rg --json --fixed-strings
+  enrich.ts     — enrichment pipeline: parse → containers → back-refs → format
+  index.ts      — barrel exports
+test/
+  context-grep.test.ts   — parser, AST, back-refs, enrichment tests
+  iteration2.test.ts     — hardening tests (heredoc rejection, lineText)
+  fixtures/              — TypeScript fixtures for ast-grep validation
+```
 
 ## Supported languages
 
 `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`
+
+## Measured impact
+
+| Task type | Turns (no ext → with ext) | Effect |
+|---|---|---|
+| Investigation (trace call chains) | 36 → 20 (−44%) | Strong positive |
+| Audit (comprehensive review) | 17 → 18 (neutral) | No harm |
+
+The extension acts as a passive guardrail: agents see call chains automatically, reducing uninformed edits.
