@@ -27,6 +27,7 @@ export type Action =
 	| "tab.unpin"
 	| "tab.open"
 	| "tab.close"
+	| "tab.activate"
 	| "session.create"
 	| "session.list"
 	| "session.bind"
@@ -164,6 +165,7 @@ export interface ActionParams {
 	"tab.unpin": { tab?: TabHandle };
 	"tab.open": { url: string };
 	"tab.close": { tab?: TabHandle };
+	"tab.activate": { tab?: TabHandle };
 	"session.create": { label?: string };
 	"session.list": Record<string, never>;
 	"session.bind": { tab: TabHandle; pacing?: PacingMode };
@@ -219,6 +221,7 @@ export interface ActionResult {
 		ownerHash: string;
 	};
 	"tab.close": { tab: TabHandle; closed: true };
+	"tab.activate": { tab: TabHandle; activated: true };
 	"session.create": { session: SessionId; label?: string; tmpDir: string; ownerHash: string };
 	"session.list": { sessions: Array<SessionInfo> };
 	"session.bind": { session: SessionId; tab: TabHandle };
@@ -278,6 +281,7 @@ export interface ForwardedActionParams {
 	"tab.unpin": ActionParams["tab.unpin"];
 	"tab.open": ActionParams["tab.open"];
 	"tab.close": ActionParams["tab.close"];
+	"tab.activate": ActionParams["tab.activate"];
 	"session.create": ActionParams["session.create"];
 	"session.list": ActionParams["session.list"];
 	"session.bind": ActionParams["session.bind"];

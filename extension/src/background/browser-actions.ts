@@ -22,10 +22,15 @@ export interface BrowserTabsSeam {
 	captureVisibleTab(windowId?: number, options?: { format?: "png" | "jpeg" }): Promise<string>;
 }
 
+export interface BrowserWindowsSeam {
+	update(windowId: number, updateInfo: Record<string, unknown>): Promise<unknown>;
+}
+
 export interface BrowserActionHandlerDeps {
 	mainWorld: MainWorldExecutor;
 	tabRuntime: Pick<TabRuntime, "resolveTargetTab" | "waitForLoad">;
 	tabs: BrowserTabsSeam;
+	windows?: BrowserWindowsSeam;
 	now?: () => number;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
@@ -53,6 +58,7 @@ const ROUTED_BROWSER_ACTIONS: BrowserActionMap = {
 	"tab.close": handleTabClose,
 	"tab.pin": handleTabPin,
 	"tab.unpin": handleTabUnpin,
+	"tab.activate": handleTabActivate,
 };
 
 export function createBrowserActionHandler(deps: BrowserActionHandlerDeps): BrowserActionHandler {
@@ -178,6 +184,18 @@ async function handleTabUnpin(
 	const tabId = requireTargetTabId(request, request.action);
 	const updated = await resolveTabResult(deps, tabId, deps.tabs.update(tabId, { pinned: false }));
 	return { data: {}, page: pageStateFromTab(updated) };
+}
+
+async function handleTabActivate(
+	deps: BrowserActionHandlerDeps,
+	request: BproxyForwardedRequest<"tab.activate">,
+): Promise<ExecutedAction> {
+	const tabId = requireTargetTabId(request, request.action);
+	const updated = await resolveTabResult(deps, tabId, deps.tabs.update(tabId, { active: true }));
+	if (typeof updated.windowId === "number" && deps.windows) {
+		await deps.windows.update(updated.windowId, { focused: true });
+	}
+	return { data: { activated: true }, page: pageStateFromTab(updated) };
 }
 
 async function buildRequireHumanError(

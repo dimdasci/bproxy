@@ -56,6 +56,10 @@ type _TabPinResultUsesLogicalHandle = Expect<
 type _TabCloseResultUsesLogicalHandle = Expect<
 	Equals<ActionResult["tab.close"], { tab: TabHandle; closed: true }>
 >;
+type _TabActivateParams = Expect<Equals<ActionParams["tab.activate"], { tab?: TabHandle }>>;
+type _TabActivateResult = Expect<
+	Equals<ActionResult["tab.activate"], { tab: TabHandle; activated: true }>
+>;
 type _SessionInfoUsesLogicalBinding = Expect<
 	Equals<SessionInfo["tab"], TabHandle | null> & Equals<SessionInfo["id"], SessionId>
 >;

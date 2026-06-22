@@ -8,6 +8,7 @@ export default defineCommand({
 		unpin: () => import("./tab/unpin.js").then((m) => m.default),
 		open: () => import("./tab/open.js").then((m) => m.default),
 		close: () => import("./tab/close.js").then((m) => m.default),
+		activate: () => import("./tab/activate.js").then((m) => m.default),
 	},
 	run() {},
 });

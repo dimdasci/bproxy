@@ -223,7 +223,7 @@ describe("action contract coverage — GAP A", () => {
 			expect(built.sessions.list()).toHaveLength(before);
 		});
 
-		for (const action of ["tab.pin", "tab.unpin", "tab.close"] as const) {
+		for (const action of ["tab.pin", "tab.unpin", "tab.close", "tab.activate"] as const) {
 			it(`${action}: returns TAB_NOT_FOUND without a selected tab even before WS forwarding`, async () => {
 				const res = await postCommand(makeCmd(action));
 				expect(res.status).toBe(200);

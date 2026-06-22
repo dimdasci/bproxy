@@ -134,6 +134,7 @@ describe("action coverage", () => {
 		"tab.unpin": "commands/tab/unpin.ts",
 		"tab.open": "commands/tab/open.ts",
 		"tab.close": "commands/tab/close.ts",
+		"tab.activate": "commands/tab/activate.ts",
 		"session.create": "commands/session/create.ts",
 		"session.list": "commands/session/list.ts",
 		"session.bind": "commands/session/bind.ts",

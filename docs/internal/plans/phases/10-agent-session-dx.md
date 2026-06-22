@@ -1,6 +1,6 @@
 ---
 title: "Phase 10: Agent session DX improvements"
-status: planned
+status: in-progress
 date: 2026-06-22
 issue: "#21"
 ---
@@ -251,7 +251,7 @@ The `text` action's protocol result type (`ActionResult['text']`) is `{ text: st
 
 Tasks are ordered by dependency and value:
 
-1. **Feature 1 (tab.activate)** — unblocks all other features by eliminating the `TAB_NOT_VISIBLE` error class in agent workflows. Self-contained, low risk.
+1. **Feature 1 (tab.activate)** ✅ — Done. Unblocks all other features by eliminating the `TAB_NOT_VISIBLE` error class in agent workflows.
 2. **Feature 2 (links --href-contains)** — highest agent-reported value per implementation cost. No dependencies.
 3. **Feature 3A (truncation fix)** — investigate and fix. May be done in parallel with Feature 2.
 4. **Feature 3B (links --offset)** — depends on Feature 2 being complete (same params/result types modified). Builds on the `handleLinks` refactoring needed for offset.

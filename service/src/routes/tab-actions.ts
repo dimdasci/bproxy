@@ -13,7 +13,8 @@ export function isTabMediated(action: BproxyRequest["action"]): boolean {
 		action === "tab.list" ||
 		action === "tab.pin" ||
 		action === "tab.unpin" ||
-		action === "tab.close"
+		action === "tab.close" ||
+		action === "tab.activate"
 	);
 }
 
@@ -120,6 +121,7 @@ async function handleBoundTabAction(
 ): Promise<BproxyResponse> {
 	const resolved = resolveSessionTab(cmd, deps, (cmd.params as { tab?: string }).tab);
 	if ("ok" in resolved) return resolved;
+	if (cmd.action === "tab.activate") return await handleTabActivate(cmd, deps, resolved);
 	if (cmd.action === "tab.pin") return await handleTabPin(cmd, deps, resolved);
 	if (cmd.action === "tab.unpin") return await handleTabUnpin(cmd, deps, resolved);
 	return await handleTabClose(cmd, deps, resolved);
@@ -162,6 +164,16 @@ function resolveRequestedTab(
 				: `Tab '${requestedTab}' was not found in session '${cmd.session}'`,
 		details: { session: cmd.session, tab: requestedTab },
 	});
+}
+
+async function handleTabActivate(
+	cmd: BproxyRequest,
+	deps: CommandRouteDeps,
+	resolved: ResolvedTab,
+): Promise<BproxyResponse> {
+	const activated = await dispatchAndPause(cmd, deps, { targetTabId: resolved.chromeTabId });
+	if (!activated.ok) return activated;
+	return success(cmd, { tab: resolved.tab, activated: true }, activated.page);
 }
 
 async function handleTabPin(

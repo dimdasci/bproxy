@@ -274,6 +274,49 @@ describe("createBrowserActionHandler", () => {
 		expect(closed).toMatchObject({ data: {} });
 	});
 
+	it("tab.activate foregrounds tab and focuses window", async () => {
+		const windowsUpdate = vi.fn(async () => ({}));
+		const h = createHarness({
+			update: async (tabId: number, updateProperties: Record<string, unknown>) =>
+				tab({
+					id: tabId,
+					active: updateProperties["active"] === true,
+					windowId: 7,
+				}),
+		});
+		// Inject windows seam
+		(h.handler as unknown as { deps: { windows: { update: typeof windowsUpdate } } }).deps;
+		const handlerWithWindows = createBrowserActionHandler({
+			mainWorld: h.mainWorld,
+			tabRuntime: { resolveTargetTab: h.resolveTargetTab, waitForLoad: h.waitForLoad },
+			tabs: {
+				update: h.update,
+				create: h.create,
+				remove: h.remove,
+				captureVisibleTab: h.captureVisibleTab,
+			},
+			windows: { update: windowsUpdate },
+			now: () => h.now.value,
+		});
+
+		const result = await handlerWithWindows.handleBrowserAction(tabActivateRequest());
+
+		expect(h.update).toHaveBeenCalledWith(42, { active: true });
+		expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+		expect(result).toMatchObject({ data: { activated: true } });
+	});
+
+	it("tab.activate succeeds without windows seam (no window focus)", async () => {
+		const h = createHarness({
+			update: async (tabId: number) => tab({ id: tabId, active: true, windowId: 7 }),
+		});
+
+		const result = await h.handler.handleBrowserAction(tabActivateRequest());
+
+		expect(h.update).toHaveBeenCalledWith(42, { active: true });
+		expect(result).toMatchObject({ data: { activated: true } });
+	});
+
 	it("propagates TAB_NOT_FOUND on tab actions that resolve a missing tab", async () => {
 		const missing: BproxyError = {
 			code: "TAB_NOT_FOUND",
@@ -438,6 +481,21 @@ function requireHumanRequest(
 		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
+		target: overrides.target ?? { tabId: 42 },
+	};
+}
+
+function tabActivateRequest(
+	overrides: Partial<BproxyForwardedRequest<"tab.activate">> = {},
+): BproxyForwardedRequest<"tab.activate"> {
+	return {
+		protocol_version: 1,
+		id: overrides.id ?? "req-activate",
+		action: "tab.activate",
+		params: overrides.params ?? {},
+		session: overrides.session ?? TEST_SESSION,
+		deadline: overrides.deadline ?? 10_000,
+		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
 	};
 }
