@@ -107,7 +107,7 @@ Figure 5. Data-flow diagram with trust boundaries — the three dashed-red enclo
 | Polling / DOM settle | High-signal instrumentation or bundle hygiene regressions | No `MutationObserver`; jittered polling only; Task 16 scans the production artifact to keep `MutationObserver` out of shipped output |
 | Screenshot escalation | `chrome.debugger` would widen capability and show a user-visible Chrome banner | Normal screenshots use `captureVisibleTab`; debugger screenshots remain gated behind `DEBUGGER_DISABLED`, with no `debugger` permission in the manifest today |
 | Web-accessible resources | Deterministic extension-resource probing by pages or scanners | `web_accessible_resources` is absent by default; build hook strips WXT's empty array stub so the manifest stays default-deny (ADR-016) |
-| Hidden-tab destructive actions | Clicking, hovering, or writing to a background tab may produce misleading state or bot-signal issues | Content polling checks `document.visibilityState` and destructive actions bail with `TAB_NOT_VISIBLE` unless future protocol metadata explicitly opts into user-initiated hidden-tab behavior |
+| Hidden-tab destructive actions | Clicking, hovering, or writing to a background tab may produce misleading state or bot-signal issues | Content polling checks `document.visibilityState`; destructive actions bail with `TAB_NOT_VISIBLE`; agents must explicitly run `tab activate` before retrying. No hidden auto-activation or fallback chain. |
 | Navigation push over WS | Top-level navigation events carry Chrome tab ids | Tab ids stay inside the daemon↔extension boundary only; they are used for page-epoch tracking and are never exposed to CLI stdout, agent-visible responses, or public handle strings |
 
 ## Still out of scope

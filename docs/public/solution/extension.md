@@ -243,7 +243,7 @@ Handled through `src/content/**` and routed via background/content RPC.
 
 | Action | Notes |
 |---|---|
-| `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, and can filter to visible/in-viewport anchors |
+| `text`, `links`, `images`, `elements`, `outline`, `dom` | Read-only DOM extraction; `links` returns structured URLs, traverses open shadow roots, can filter to visible/in-viewport anchors, can filter absolute hrefs by substring, and supports offset pagination |
 | `inspect` | Computed-style and layout inspection for specific selectors (rect, display, descendants, scroll info) |
 | `snapshot` | Accessible DOM tree serialization (text-based, depth-limited, optional interactive-only mode) |
 | `scroll`, `wait` | Jittered polling only; no `MutationObserver`. `scroll` targets only the viewport/document by default or an explicit agent-supplied `ElementTarget`; it never infers scroll containers. |
@@ -253,6 +253,15 @@ Handled through `src/content/**` and routed via background/content RPC.
 | `fill(method="paste")` | Dispatches `beforeinput`/`input` with `inputType: "insertFromPaste"` plus `change`; no synthetic key events |
 | `fill-form` | Multi-field isolated-world writes with hidden-field guard and read-back verification |
 | `select` | Trigger + poll + option click + verification |
+
+`links` collection semantics:
+
+- normalize each anchor href to an absolute URL before filtering;
+- apply `hrefContains` as a case-sensitive substring check on the normalized href;
+- apply `visibleOnly` before counting;
+- collect matching links up to `MAX_COLLECTION_CAP` (2000), set `capped:true` if hit;
+- return `total` as the count of collected matching links before `offset`/`limit` slicing;
+- slice with `offset` then `limit` (returned limit is capped at 500).
 
 The browser action handler receives separate seams for tab and window APIs (`BrowserTabsSeam` and `BrowserWindowsSeam`) so tests can fake activation/focus behavior without mixing concerns.
 

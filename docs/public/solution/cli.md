@@ -50,12 +50,14 @@ cli/
     │   ├── wait.ts           # wait --strategy --target [--timeout]
     │   ├── require-human.ts  # require-human --reason [--for-attach]
     │   ├── status.ts         # top-level status (alias for debug.status)
+    │   ├── doctor.ts         # doctor [--home]
     │   ├── service/
-    │   │   ├── index.ts      # subCommands: start, stop, status, restart
+    │   │   ├── index.ts      # subCommands: start, stop, status, restart, install, uninstall
     │   │   ├── start.ts      # service start [--port] [--home]
     │   │   ├── stop.ts       # service stop [--home]
     │   │   ├── status.ts     # service status [--home] (token-free)
-    │   │   └── restart.ts    # service restart [--port] [--home]
+    │   │   ├── restart.ts    # service restart [--port] [--home]
+    │   │   └── install.ts    # service install|uninstall [--home]
     │   ├── session/
     │   │   ├── create.ts     # session create [--label]
     │   │   ├── list.ts       # session list
@@ -91,7 +93,7 @@ Every leaf command defines these via `globalArgs` spread:
 | `--home` | | string | `~/.bproxy` | Override `BPROXY_HOME` state directory |
 | `--verbose` | `-v` | boolean | `false` | Write structured diagnostics to stderr |
 
-`--nick` is required on every protocol-backed command, including `debug.*`, `session.*`, `tab.*`, and the top-level `status` alias. Service lifecycle commands (`service start|stop|status|restart`) are the only CLI surface that does not require it.
+`--nick` is required on every protocol-backed command, including `debug.*`, `session.*`, `tab.*`, and the top-level `status` alias. Service lifecycle commands (`service start|stop|status|restart|install|uninstall`) and `doctor` do not require a user nick.
 
 ## Exit Codes
 
@@ -194,6 +196,18 @@ or `{"running":false,"version":"0.8.0","protocolVersion":2}`.
 ### `bproxy service restart [--port N] [--home DIR]`
 
 Composition: stop then start. Produces the same JSON as start.
+
+### `bproxy service install [--home DIR]`
+
+Registers a login service using launchd on macOS or systemd user services on Linux. Prints `{ installed: true, ... }` on success.
+
+### `bproxy service uninstall`
+
+Removes the launchd/systemd registration. Prints `{ uninstalled: true }` on success.
+
+## Doctor Command
+
+`bproxy doctor [--home DIR]` validates the local operational chain: Node version, CLI/service binary resolution, daemon liveness, protocol version agreement, extension WS connectivity, state directory health, and auto-start registration status. It emits one JSON report and exits `0` only when every check is ok. It does not require a user `--nick`; the daemon probe uses an internal diagnostic nick.
 
 ## Session Commands
 

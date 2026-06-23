@@ -348,11 +348,12 @@ Commands targeting the same tab are serialized (queue, not parallel). Prevents r
 `src/element-handles.ts` owns short-lived daemon-side aliases for read→act workflows.
 
 - `elements` mints `el1`, `el2`, ... and `links` mints `ln1`, `ln2`, ...
+- link handles are minted only for the returned `links` slice; `--offset 50 --limit 50` still returns handles `ln1` through `ln50`
 - handles are scoped to `{session, logical tab, page}`
 - page identity uses a daemon-maintained navigation epoch plus the minted page URL
 - resolution happens before forwarding, so the extension still receives only explicit `ElementTarget` params
 - bounds are enforced in memory only: TTL 120s, per-scope cap 200, global cap 1000
-- fresh reads replace prior handles for the same `{session, tab, sourceAction}` scope
+- fresh reads replace prior handles for the same `{session, tab, sourceAction}` scope; changing `links` filter/offset invalidates prior `lnN` handles for that page
 - session close and explicit tab close invalidate affected handles; WS disconnect clears epoch knowledge so later resolutions fail closed as stale until a fresh navigation is observed
 
 ## Pacing Engine
@@ -632,7 +633,7 @@ Logs are plain JSON lines in `~/.bproxy/logs/YYYY-MM-DD.log`. Grep by `id`:
 grep '01HZX9C2K8' ~/.bproxy/logs/2026-05-08.log
 ```
 
-Or use `bproxy debug last` which returns the last N request traces from the daemon's in-memory ring buffer (capacity 200). Each trace records `{ id, action, session, receivedAt, elapsedMs, ok, errorCode? }`. The ring buffer is populated on every command response and survives across requests but resets on daemon restart.
+Or use `bproxy debug last -n <nick>` which returns the last N request traces from the daemon's in-memory ring buffer (capacity 200), scoped to that nick's live sessions. Each trace records `{ id, action, session, receivedAt, elapsedMs, ok, errorCode? }`. The ring buffer is populated on every command response and survives across requests but resets on daemon restart.
 
 ## Testing
 
