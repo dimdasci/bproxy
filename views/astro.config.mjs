@@ -127,7 +127,10 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: "Overview",
-					items: [{ label: "Introduction", link: "/" }],
+					items: [
+						{ label: "Introduction", link: "/" },
+						{ label: "Privacy Policy", link: "/privacy/" },
+					],
 				},
 				{
 					label: "Guide",

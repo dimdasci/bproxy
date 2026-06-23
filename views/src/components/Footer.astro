@@ -7,20 +7,29 @@ const version = pkg.version;
 
 <DefaultFooter />
 
-<p class="bproxy-site-meta">
-	bproxy v{version} ·
-	<a href="https://github.com/dimdasci/bproxy/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
-		MIT License
-	</a>
-	· © Dim Kharitonov
-</p>
+<footer class="bproxy-site-meta">
+	<p>
+		<a href="https://github.com/dimdasci/bproxy" target="_blank" rel="noopener noreferrer">bproxy</a> v{version} ·
+		<a href="https://github.com/dimdasci/bproxy/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
+			MIT License
+		</a>
+		· © Dim Kharitonov
+	</p>
+</footer>
 
 <style>
 	.bproxy-site-meta {
-		margin: 0 auto 1.5rem;
+		margin-top: 2rem;
+		padding-top: 1.5rem;
+		padding-bottom: 1.5rem;
+		border-top: 1px solid var(--sl-color-gray-6);
+		text-align: center;
+	}
+
+	.bproxy-site-meta p {
+		margin: 0;
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
-		text-align: center;
 	}
 
 	.bproxy-site-meta a {

@@ -2,8 +2,6 @@
 title: Privacy Policy
 ---
 
-## bproxy Extension Privacy Policy
-
 The bproxy Chrome extension does not collect, store, or transmit any user data.
 
 **What the extension does:**
