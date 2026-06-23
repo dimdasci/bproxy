@@ -646,3 +646,46 @@ The `text --after` implementations reveal an inverted quality pattern from sessi
 | text --after | Extension (protocol expansion, no feedback) | CLI-local (no protocol change, `markerFound`) | B |
 
 Lane A consistently produces implementations that are simpler and faster to build but leave the *consumer* (the agent) without the information it needs. Lane B consistently provides richer feedback at the cost of more implementation work. This maps directly to the planning difference: Lane A's plan was written quickly with less structural exposure, so it didn't reason deeply about what agents need from each feature.
+
+---
+
+## Closing: aggregate metrics through session 04 (comparable scope)
+
+Through session 04, both lanes implemented the same 3 features (tab.activate, links --href-contains, links --offset/truncation) plus planning. Session 05 is excluded from totals due to operator-requested scope divergence (protocol version refactor in Lane B).
+
+| Metric | Lane A (ext) | Lane B (no ext) | Delta |
+|--------|-------------|-----------------|-------|
+| **Turns** | 209 | 284 | B +36% |
+| **Tool calls** | 226 | 300 | B +33% |
+| **Cost** | $12.00 | $12.24 | **~same (+2%)** |
+| **Wall clock** | 81.7 min | 73.3 min | **A 11% slower** |
+
+Per-session breakdown:
+
+| Session | A turns | B turns | A cost | B cost | A time | B time |
+|---------|---------|---------|--------|--------|--------|--------|
+| 01 planning | 36 | 46 | $2.28 | $2.58 | 19.9m | 21.7m |
+| 02 tab.activate | 56 | 78 | $3.36 | $3.82 | 30.5m | 20.5m |
+| 03 links filter | 41 | 59 | $1.93 | $1.31 | 12.4m | 11.6m |
+| 04 offset+trunc | 76 | 101 | $4.43 | $4.53 | 19.0m | 19.5m |
+
+### The efficiency illusion
+
+The extension saves 36% of turns and 33% of tool calls. On the surface this looks like a clear win. But:
+
+- **Cost is identical.** Fewer turns × larger context per turn = same total spend. The extension doesn't save money.
+- **Wall clock is not faster.** Lane A was actually 11% slower overall (driven by session 02's operator-timing anomaly). At best, wall clock is neutral.
+- **Quality is worse.** Lane A produced architecturally inferior implementations across every feature — blind pagination, unfixed truncation bug, ADR-017 violation, no agent feedback metadata.
+
+The "efficiency" measured in turns is an illusion. The extension reduces the *quantity* of exploration but also reduces its *quality*. The model's post-trained exploration loop exists for a reason: it's how the agent discovers things it didn't know to look for. Shortcutting that loop saves turns but produces shallower understanding.
+
+### Verdict
+
+For this project and this model (Claude Opus), the context-grep extension is net-negative for multi-session implementation work:
+- It doesn't save cost
+- It doesn't save wall clock
+- It produces plans that miss important code paths
+- Those plans propagate forward as inferior implementations
+- The implementations leave agents (the end users) without the information they need
+
+The extension may still have value for one-shot investigation tasks (its original validation context), but for sustained feature development across planning and implementation sessions, letting the model explore naturally produces better outcomes at the same cost.
