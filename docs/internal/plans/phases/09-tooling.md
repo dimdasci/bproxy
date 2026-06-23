@@ -238,3 +238,15 @@ The extension serves as a **passive guardrail**: every time the agent searches f
 | Semantic index/search | Deferred; separate product/tooling question |
 | Recursive call graph | Rejected; too large and noisy |
 | Selector repair / browser strategy | Out of scope; unrelated to search tooling |
+
+---
+
+## Post-mortem: extension removed after A/B test
+
+**Date:** 2026-06-22  
+**Decision:** Extension removed in PR #25.  
+**Analysis:** [docs/internal/journal/2026-06-22-context-grep-extension-ab-test.md](../journal/2026-06-22-context-grep-extension-ab-test.md)
+
+A controlled A/B test (5 sessions per lane, same model, same task — issue #21 implementation) revealed that the extension reduces turns (−36%) but not cost (+2%) or wall clock, while producing architecturally inferior implementations. The enrichment shortcircuits the model's post-trained exploration loop, resulting in narrower plans that miss important code paths. Those plans propagate forward as shallower implementations that leave agent-consumers without needed feedback (no `total` in pagination, unfixed truncation bug, ADR-017 violations).
+
+The extension retains value for one-shot investigation tasks (its original validation context) but is net-negative for sustained multi-session implementation work on this codebase.
