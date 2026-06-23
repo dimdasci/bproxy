@@ -3,80 +3,230 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>bproxy pairing</title>
+		<title>bproxy</title>
 		<script type="module" src="./main.ts"></script>
 		<style>
+			:root {
+				--c-text: #1a1a1a;
+				--c-muted: #555;
+				--c-ok: #167a30;
+				--c-error: #a4262c;
+				--c-bg: #fff;
+				--space-xs: 4px;
+				--space-sm: 8px;
+				--space-md: 12px;
+				--space-lg: 16px;
+			}
+
 			body {
-				font-family: system-ui, sans-serif;
+				box-sizing: border-box;
 				margin: 0;
-				padding: 12px 16px;
-				min-width: 260px;
+				width: 380px;
+				min-width: 340px;
+				max-width: 380px;
+				padding: calc(var(--space-lg) * 2);
+				background: var(--c-bg);
+				color: var(--c-text);
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 13px;
+				line-height: 20px;
 			}
+
+			h1,
+			p {
+				margin: 0;
+			}
+
 			h1 {
-				font-size: 14px;
-				margin: 0 0 8px;
+				display: flex;
+				align-items: center;
+				gap: var(--space-sm);
+				font-size: 16px;
+				line-height: 24px;
+				font-weight: 600;
 			}
+
+			.subtitle,
+			.help,
+			footer {
+				color: var(--c-muted);
+			}
+
+			.subtitle {
+				margin-top: var(--space-xs);
+			}
+
+			.connection-status {
+				display: flex;
+				align-items: center;
+				gap: var(--space-sm);
+				margin-top: calc(var(--space-md) * 2);
+				color: var(--c-text);
+			}
+
+			.section {
+				margin-top: calc(var(--space-md) * 2);
+				padding-top: calc(var(--space-md) * 2);
+				border-top: 1px solid #ddd;
+			}
+
 			form {
 				display: flex;
 				flex-direction: column;
-				gap: 8px;
+				gap: var(--space-sm);
 			}
-			section {
-				margin-top: 12px;
-				padding-top: 12px;
-				border-top: 1px solid #e2e2e2;
+
+			label,
+			input,
+			button,
+			output,
+			code,
+			footer {
+				font: inherit;
+				line-height: 20px;
 			}
+
 			label {
-				font-size: 12px;
-				color: #555;
+				color: var(--c-text);
 			}
-			label.inline {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				color: #111;
-			}
+
 			input[type="text"] {
-				font: inherit;
-				padding: 6px 8px;
-				border: 1px solid #ccc;
+				padding: var(--space-sm);
+				border: 1px solid #ddd;
 				border-radius: 4px;
+				color: var(--c-text);
+				background: var(--c-bg);
 			}
+
 			button {
-				font: inherit;
-				padding: 6px 8px;
-				border: 1px solid #888;
+				padding: var(--space-sm);
+				border: 1px solid var(--c-muted);
 				border-radius: 4px;
-				background: #f4f4f4;
+				background: transparent;
+				color: var(--c-text);
 				cursor: pointer;
 			}
+
 			button:disabled {
 				opacity: 0.6;
 				cursor: progress;
 			}
+
+			.help {
+				margin-top: calc(var(--space-md) * 2);
+			}
+
+			code {
+				font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			}
+
 			#status {
-				font-size: 12px;
-				margin-top: 8px;
-				min-height: 1.2em;
+				display: block;
+				margin-top: var(--space-sm);
+				min-height: 20px;
 			}
+
+			#status:empty {
+				min-height: 0;
+			}
+
 			#status[data-state="success"] {
-				color: #167a30;
+				color: var(--c-ok);
 			}
+
 			#status[data-state="error"] {
-				color: #a4262c;
+				color: var(--c-error);
 			}
-			#status[data-state="pending"] {
-				color: #555;
+
+			#status[data-state="pending"],
+			#status[data-state="idle"] {
+				color: var(--c-muted);
+			}
+
+			footer p + p {
+				margin-top: var(--space-xs);
+			}
+
+			a {
+				color: inherit;
+				text-decoration: underline;
+			}
+
+			.credits {
+				display: flex;
+				align-items: center;
+				gap: var(--space-sm);
+			}
+
+			.github-link {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
 			}
 		</style>
 	</head>
 	<body>
-		<h1>bproxy pairing</h1>
-		<form id="pair-form" autocomplete="off">
-			<label for="code">Pairing code</label>
-			<input id="code" name="code" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" required />
-			<button id="submit" type="submit">Pair</button>
-		</form>
-		<output id="status" data-state="idle" aria-live="polite"></output>
+		<header>
+			<h1>
+				<svg
+					aria-hidden="true"
+					xmlns="http://www.w3.org/2000/svg"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z" />
+					<path d="M17 21v-2" />
+					<path d="M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10" />
+					<path d="M21 21v-2" />
+					<path d="M3 5V3" />
+					<path d="M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z" />
+					<path d="M7 5V3" />
+				</svg>
+				<span>bproxy</span>
+			</h1>
+			<p class="subtitle">Human-in-the-loop browser bridge for AI agents.</p>
+			<p id="connection-status" class="connection-status"></p>
+		</header>
+
+		<section class="section">
+			<form id="pair-form" autocomplete="off">
+				<label for="code">Pairing code</label>
+				<input id="code" name="code" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" required />
+				<button id="submit" type="submit">Pair extension</button>
+			</form>
+			<p class="help">Run <code>bproxy service start</code> and paste the one-time code shown by the daemon.</p>
+			<output id="status" data-state="idle" aria-live="polite"></output>
+		</section>
+
+		<footer class="section">
+			<p id="version-info"></p>
+			<p>
+				<a href="https://dimdasci.github.io/bproxy/" target="_blank" rel="noreferrer">Documentation</a>
+				·
+				<a href="https://dimdasci.github.io/bproxy/privacy/" target="_blank" rel="noreferrer">Privacy</a>
+				·
+				<a href="https://github.com/dimdasci/bproxy/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>
+			</p>
+			<p class="credits">
+				<span>Created by Dim Kharitonov</span>
+				<a
+					class="github-link"
+					href="https://github.com/dimdasci/bproxy"
+					target="_blank"
+					rel="noreferrer"
+					aria-label="bproxy on GitHub"
+				>
+					<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M12 .297a12 12 0 0 0-3.797 23.387c.6.111.82-.261.82-.577v-2.234c-3.338.726-4.042-1.609-4.042-1.609-.546-1.387-1.333-1.757-1.333-1.757-1.089-.745.083-.73.083-.73 1.205.084 1.839 1.237 1.839 1.237 1.07 1.833 2.807 1.303 3.492.996.108-.775.419-1.304.762-1.604-2.665-.303-5.466-1.332-5.466-5.931 0-1.311.469-2.382 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23a11.5 11.5 0 0 1 6.008 0c2.291-1.552 3.297-1.23 3.297-1.23.654 1.652.243 2.873.119 3.176.77.839 1.234 1.91 1.234 3.221 0 4.61-2.805 5.625-5.479 5.921.431.371.815 1.102.815 2.222v3.293c0 .319.216.694.825.576A12.003 12.003 0 0 0 12 .297" />
+					</svg>
+				</a>
+			</p>
+		</footer>
 	</body>
 </html>

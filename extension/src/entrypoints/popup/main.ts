@@ -1,4 +1,5 @@
-import { bootstrapItem } from "../../background/storage";
+import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
+import { bootstrapItem, type PairingBootstrap } from "../../background/storage";
 import { type PairingErrorCode, type PairingResult, runPairing } from "./pairing";
 
 // Thin DOM wiring for the popup. Real flow logic lives in small helpers:
@@ -23,6 +24,17 @@ const STATUS_FRIENDLY: Record<PairingErrorCode, string> = {
 	PAIR_NOTIFY_FAILED: "Paired, but failed to wake the background worker. Try reopening the popup.",
 };
 
+export interface ConnectionStatusViewModel {
+	text: string;
+	tone: "muted" | "ok";
+	submitLabel: string;
+}
+
+interface PopupInitDeps {
+	storage: { getValue(): Promise<PairingBootstrap | null> };
+	now: () => number;
+}
+
 function $<T extends HTMLElement>(id: string): T {
 	const el = document.getElementById(id);
 	if (!el) throw new Error(`#${id} not found in popup DOM`);
@@ -30,14 +42,84 @@ function $<T extends HTMLElement>(id: string): T {
 }
 
 function setStatus(state: "idle" | "pending" | "success" | "error", text: string): void {
-	const status = $<HTMLDivElement>("status");
+	const status = $<HTMLOutputElement>("status");
 	status.dataset["state"] = state;
 	status.textContent = text;
 }
 
+export function formatVersionInfo(
+	version: unknown = VERSION,
+	protocolVersion: unknown = PROTOCOL_VERSION,
+): string {
+	const versionText = typeof version === "string" ? version : "";
+	const protocolText =
+		typeof protocolVersion === "number" || typeof protocolVersion === "string"
+			? String(protocolVersion)
+			: "";
+	const extensionPart = `Extension ${versionText}`.trimEnd();
+	const protocolPart = `Protocol ${protocolText}`.trimEnd();
+	return `${extensionPart} · ${protocolPart}`;
+}
+
+export function getConnectionStatusViewModel(
+	bootstrap: PairingBootstrap | null,
+	now: number,
+): ConnectionStatusViewModel {
+	if (
+		bootstrap &&
+		typeof bootstrap.extensionToken === "string" &&
+		bootstrap.extensionToken.length > 0 &&
+		typeof bootstrap.expiresAt === "number" &&
+		bootstrap.expiresAt > now
+	) {
+		return {
+			text: "Paired with local daemon",
+			tone: "ok",
+			submitLabel: "Re-pair with new code",
+		};
+	}
+	return {
+		text: "Not paired",
+		tone: "muted",
+		submitLabel: "Pair extension",
+	};
+}
+
+function renderVersionInfo(text: string): void {
+	$<HTMLSpanElement>("version-info").textContent = text;
+}
+
+function createStatusDot(tone: ConnectionStatusViewModel["tone"]): SVGSVGElement {
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("width", "8");
+	svg.setAttribute("height", "8");
+	svg.setAttribute("viewBox", "0 0 8 8");
+
+	const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+	circle.setAttribute("cx", "4");
+	circle.setAttribute("cy", "4");
+	circle.setAttribute("r", "4");
+	circle.setAttribute("fill", tone === "ok" ? "var(--c-ok)" : "var(--c-muted)");
+	svg.append(circle);
+
+	return svg;
+}
+
+function renderConnectionStatus(model: ConnectionStatusViewModel): void {
+	const status = $<HTMLParagraphElement>("connection-status");
+	status.replaceChildren(createStatusDot(model.tone), document.createTextNode(model.text));
+	$<HTMLButtonElement>("submit").textContent = model.submitLabel;
+}
+
 function renderResult(result: PairingResult): void {
 	if (result.ok) {
-		setStatus("success", "Paired. You can close this popup.");
+		renderConnectionStatus({
+			text: "Paired with local daemon",
+			tone: "ok",
+			submitLabel: "Re-pair with new code",
+		});
+		setStatus("success", "Paired with local daemon. You can close this popup.");
 		return;
 	}
 	const friendly = STATUS_FRIENDLY[result.code];
@@ -75,9 +157,23 @@ async function onSubmit(ev: SubmitEvent): Promise<void> {
 	}
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-	$<HTMLFormElement>("pair-form").addEventListener("submit", (ev) => {
-		void onSubmit(ev);
+export async function initializePopup(
+	deps: PopupInitDeps = {
+		storage: bootstrapItem,
+		now: () => Date.now(),
+	},
+): Promise<void> {
+	renderVersionInfo(formatVersionInfo());
+	const bootstrap = await deps.storage.getValue().catch(() => null);
+	renderConnectionStatus(getConnectionStatusViewModel(bootstrap, deps.now()));
+	setStatus("idle", "");
+}
+
+if (typeof document !== "undefined") {
+	document.addEventListener("DOMContentLoaded", () => {
+		$<HTMLFormElement>("pair-form").addEventListener("submit", (ev) => {
+			void onSubmit(ev);
+		});
+		void initializePopup();
 	});
-	setStatus("idle", "Enter the one-time code issued by the daemon.");
-});
+}
