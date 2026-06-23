@@ -1,0 +1,33 @@
+---
+import DefaultFooter from "@astrojs/starlight/components/Footer.astro";
+import pkg from "../../package.json";
+
+const version = pkg.version;
+---
+
+<DefaultFooter />
+
+<p class="bproxy-site-meta">
+	bproxy v{version} ·
+	<a href="https://github.com/dimdasci/bproxy/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
+		MIT License
+	</a>
+	· © Dim Kharitonov
+</p>
+
+<style>
+	.bproxy-site-meta {
+		margin: 0 auto 1.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		text-align: center;
+	}
+
+	.bproxy-site-meta a {
+		color: inherit;
+	}
+
+	.bproxy-site-meta a:hover {
+		color: var(--sl-color-white);
+	}
+</style>

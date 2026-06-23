@@ -144,6 +144,7 @@ export default defineConfig({
 				},
 			],
 			components: {
+				Footer: "./src/components/Footer.astro",
 				PageFrame: "./src/components/PageFrame.astro",
 			},
 			customCss: ["./src/styles/custom.css"],
