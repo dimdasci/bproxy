@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"version": "0.9.0",
-	"description": "Browser proxy for code agents.",
+	"description": "Human-in-the-loop browser proxy for AI agents.",
 	"license": "MIT",
 	"packageManager": "pnpm@9.15.0",
 	"scripts": {
