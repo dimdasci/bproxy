@@ -18,7 +18,8 @@ shared/
     ├── actions.ts            # action names, per-action params and results
     ├── handles.ts            # daemon-owned element handle aliases at the CLI/daemon boundary
     ├── errors.ts             # error codes, categories, structured error shape
-    └── sessions.ts           # nick/session/tab identifiers, validation helpers, pacing mode
+    ├── sessions.ts           # nick/session/tab identifiers, validation helpers, pacing mode
+    └── version.ts            # VERSION and PROTOCOL_VERSION constants
 ```
 
 ## Protocol Envelope
@@ -28,9 +29,10 @@ shared/
 import type { Action, ActionParams, ActionResult, ForwardedActionParams } from './actions';
 import type { BproxyError } from './errors';
 import type { Nick, SessionId } from './sessions';
+import type { PROTOCOL_VERSION } from './version';
 
 export interface BproxyRequest<A extends Action = Action> {
-  protocol_version: 1;
+  protocol_version: typeof PROTOCOL_VERSION;
   id: string;
   action: A;
   nick: Nick;
@@ -55,7 +57,7 @@ export type BproxyForwardedRequest<A extends Action = Action> = Omit<BproxyReque
 };
 
 export interface BproxySuccessResponse<A extends Action = Action> {
-  protocol_version: 1;
+  protocol_version: typeof PROTOCOL_VERSION;
   id: string;
   ok: true;
   data: ActionResult[A];
@@ -64,7 +66,7 @@ export interface BproxySuccessResponse<A extends Action = Action> {
 }
 
 export interface BproxyErrorResponse {
-  protocol_version: 1;
+  protocol_version: typeof PROTOCOL_VERSION;
   id: string;
   ok: false;
   error: BproxyError;
@@ -105,7 +107,7 @@ export type Action =
   | 'select'
   | 'wait'
   | 'require-human'
-  | 'tab.list' | 'tab.pin' | 'tab.unpin' | 'tab.open' | 'tab.close'
+  | 'tab.list' | 'tab.pin' | 'tab.unpin' | 'tab.open' | 'tab.close' | 'tab.activate'
   | 'session.create' | 'session.list' | 'session.bind'
   | 'session.unbind' | 'session.resume' | 'session.close'
   | 'debug.log' | 'debug.last' | 'debug.status';
@@ -134,7 +136,7 @@ export type ClientElementTarget = ElementTarget | ElementHandleRef;
 export interface ActionParams {
   navigate: { url: string };
   text: { selector?: string };
-  links: { selector?: string; visibleOnly?: boolean; limit?: number };
+  links: { selector?: string; visibleOnly?: boolean; limit?: number; hrefContains?: string; offset?: number };
   images: { selector?: string };
   elements: { form?: boolean };
   outline: Record<string, never>;
@@ -167,6 +169,7 @@ export interface ActionParams {
   'tab.unpin': { tab?: TabHandle };
   'tab.open': { url: string };
   'tab.close': { tab?: TabHandle };
+  'tab.activate': { tab?: TabHandle };
   'session.create': { label?: string };
   'session.list': Record<string, never>;
   'session.bind': { tab: TabHandle; pacing?: PacingMode };
@@ -182,7 +185,7 @@ export interface ActionParams {
 export interface ActionResult {
   navigate: { url: string; title: string; loadTime: number };
   text: { text: string };
-  links: { links: Array<LinkInfo> };
+  links: { links: Array<LinkInfo>; total: number; capped?: boolean };
   images: { images: Array<{ src: string; alt: string; width: number; height: number }> };
   elements: { elements: Array<ElementInfo> };
   outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
@@ -212,6 +215,7 @@ export interface ActionResult {
   'tab.unpin': { tab: TabHandle; pinned: false };
   'tab.open': { session: SessionId; tab: TabHandle; bound: boolean; url: string; tmpDir: string; ownerHash: string };
   'tab.close': { tab: TabHandle; closed: true };
+  'tab.activate': { tab: TabHandle; activated: true };
   'session.create': { session: SessionId; label?: string; tmpDir: string; ownerHash: string };
   'session.list': { sessions: Array<SessionInfo> };
   'session.bind': { session: SessionId; tab: TabHandle };

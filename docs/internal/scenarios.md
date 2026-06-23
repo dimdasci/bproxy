@@ -11,8 +11,8 @@ The framing assumption across all scenarios: **the user is in front of the brows
 For fast localhost validation before running the real-site transcripts, use
 `extension/scripts/smoke/workflow.ts`. It mirrors the Scenario 1 command shape
 against the local fixture server: wait for a paired extension, `tab open`,
-`text`, `links`, `navigate`, `text`, then `session close`. Real Google,
-LinkedIn, and form-flow transcripts still belong in journal entries because
+`text`, `links`, `navigate`, `text`, then `session close`. Real Google transcripts,
+feed-snapshot transcripts, and form-flow transcripts still belong in journal entries because
 those runs depend on live accounts, consent, and site conditions.
 
 ---
@@ -86,15 +86,15 @@ Google search is URL-driven for everything. Reads happen against a server-render
 
 ---
 
-## Scenario 2 — LinkedIn daily feed snapshot
+## Scenario 2 — Authenticated feed snapshot
 
-The agent opens a dedicated LinkedIn feed tab with `bproxy tab open --url https://www.linkedin.com/feed/`, receives a generated session id such as `p7k2qm` bound to logical tab `t1`, and then works only inside that session. The user is signed in (or resolves login/consent in that tab if needed). The task is to capture today's feed: who posted what, with truncated bodies and permalinks, ready for the user to digest.
+The agent opens a dedicated feed tab with `bproxy tab open --url https://app.example.test/feed/`, receives a generated session id such as `p7k2qm` bound to logical tab `t1`, and then works only inside that session. The user is signed in (or resolves login/consent in that tab if needed). The task is to capture today's feed: who posted what, with truncated bodies and permalinks, ready for the user to digest.
 
-### Why LinkedIn is harder than Google
+### Why this is harder than Google
 
-1. **It's a SPA with lazy-loaded feed.** No `?start=20` equivalent. Posts load only when scroll position approaches them — LinkedIn's page uses an IntersectionObserver to fire Voyager API requests as the user scrolls. **No scroll, no posts.**
+1. **It's a SPA with lazy-loaded feed.** No `?start=20` equivalent. Posts load only when scroll position approaches them — the page uses an IntersectionObserver to fire internal feed API requests as the user scrolls. **No scroll, no posts.**
 2. **The feed truncates post bodies.** Long posts show ~3 lines + "see more." Full text isn't in the DOM until either the user clicks "see more" or navigates to the post's permalink page.
-3. **LinkedIn's bot detection watches scroll behaviour.** Scroll velocity, pause patterns, reverse-scroll moments, and tab visibility (`document.hidden`) are part of their signal. A perfectly-paced programmatic scroll has a different signature than a human's even when slow.
+3. **The site's bot detection watches scroll behaviour.** Scroll velocity, pause patterns, reverse-scroll moments, and tab visibility (`document.hidden`) are part of its signal. A perfectly-paced programmatic scroll has a different signature than a human's even when slow.
 
 ### Agent flow
 
@@ -111,15 +111,15 @@ The agent opens a dedicated LinkedIn feed tab with `bproxy tab open --url https:
 9. on any interstitial: HUMAN_REQUIRED → stop
 ```
 
-Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand via popup click or permalink visit—the LinkedIn "see more" button opens a shadow-DOM modal (`#interop-outlet`, validated in PoC 3).
+Note step 8: **the agent's job is to prepare a digest, not to read every full body upfront.** Truncated bodies are usually enough for the user to decide "do I care." Full body retrieval becomes on-demand via popup click or permalink visit—the site's "see more" button opens a shadow-DOM modal (`#interop-outlet`, validated in PoC 3).
 
 ### Phase 5 command transcript
 
 ```bash
-bproxy tab open --url https://www.linkedin.com/feed/
-# -> { ok: true, data: { session: "p7k2qm", tab: "t1", bound: true, url: "https://www.linkedin.com/feed/" } }
+bproxy tab open --url https://app.example.test/feed/
+# -> { ok: true, data: { session: "p7k2qm", tab: "t1", bound: true, url: "https://app.example.test/feed/" } }
 
-# user resolves login / consent in the visible tab if LinkedIn requires it
+# user resolves login / consent in the visible tab if the site requires it
 
 bproxy scroll -s p7k2qm --by viewport --direction down
 # If moved=false, inspect the page and retry with an explicit target, for example:
@@ -167,7 +167,7 @@ The remaining detection risk is **scroll fingerprinting**. There is no perfect m
 
 ### Tab-focus subtlety
 
-LinkedIn's lazy-loader checks `document.visibilityState`. A backgrounded tab will not lazy-load. The snapshot must run while the tab is foregrounded. For a daily flow this is natural — the user can leave the tab visible — but the extension should not silently activate the tab. If the tab is not visible when a `scroll` command arrives, return a structured `TAB_NOT_VISIBLE` error rather than steal focus.
+The feed page's lazy-loader checks `document.visibilityState`. A backgrounded tab will not lazy-load. The snapshot must run while the tab is foregrounded. For a daily flow this is natural — the user can leave the tab visible — but the extension should not silently activate the tab. If the tab is not visible when a `scroll` command arrives, return a structured `TAB_NOT_VISIBLE` error rather than steal focus.
 
 ### Escape hatches if pure read mode hits limits
 
@@ -177,12 +177,12 @@ In rough order of preference, kept on the shelf for incremental escalation as re
 
 **2. `chrome.debugger` for trusted scroll.** `Input.dispatchScrollEvent` via CDP produces `isTrusted: true` scroll, lifting the scroll-fingerprint risk. Cost: yellow Chrome banner for the duration of the snapshot. Probably an acceptable opt-in for a daily flow the user kicked off intentionally.
 
-**3. Voyager API direct call.** LinkedIn's own page calls `https://www.linkedin.com/voyager/api/feed/...` with the user's session cookies. From an ISOLATED-world content script the same `fetch('/voyager/...')` works (same-origin, same cookies, CSRF token from the rendered page).
+**3. Site-internal feed API direct call.** The page's own frontend calls an internal feed API with the user's session cookies. From an ISOLATED-world content script the same same-origin fetch pattern would work with the page's existing auth context.
 
 - Pros: zero scroll, zero clicks, zero rendering. Returns full post bodies, no truncation. Fastest possible execution.
-- Cons: LinkedIn's terms of service prohibit scraping; the legal posture for personal aggregation against your own logged-in account is a different question than scraping at scale, but it is not risk-free. Internal API is undocumented and changes without notice.
+- Cons: a site's terms of service may prohibit scraping; the legal posture for personal aggregation against your own logged-in account is a different question than scraping at scale, but it is not risk-free. Internal APIs are undocumented and change without notice.
 
-This is genuinely the cleanest technical solution and a real legal grey zone. Phase 4 does **not** ship a domain-policy command for this; any future `linkedin.com` API opt-in would need an explicit out-of-scope command and warning copy. Off by default.
+This is genuinely the cleanest technical solution and a real legal grey zone. Phase 4 does **not** ship a domain-policy command for this; any future site-specific API opt-in would need an explicit out-of-scope command and warning copy. Off by default.
 
 ### Recommended posture
 
@@ -203,7 +203,7 @@ Application forms have the heaviest bot detection on the web — invisible reCAP
 - Any CAPTCHA challenge fires on submit, not during fill — the user encounters it naturally.
 - The agent never has to "look human enough to pass scoring." It has to "produce values the user can review and ship."
 
-This is the same pattern as the LinkedIn digest: agent prepares, user reviews and acts.
+This is the same pattern as the feed digest: agent prepares, user reviews and acts.
 
 ### Agent flow
 
@@ -237,7 +237,7 @@ bproxy session close -s c6v3n4
 Real humans do not type their CV into application forms. The actual mix:
 
 - **Personal info** (name, email, phone, address): Chrome autofill or paste from a saved info doc. Never typed.
-- **Resume content** (work history, education, skills): pasted from CV / LinkedIn / Google Doc.
+- **Resume content** (work history, education, skills): pasted from CV / notes doc / Google Doc.
 - **Cover letter**: pasted from a template, sometimes edited.
 - **Custom questions** ("why this company?"): pasted from a reusable answers file, occasionally typed when composing fresh.
 - **Yes/No, dropdowns, dates**: clicked.

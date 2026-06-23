@@ -1,4 +1,5 @@
 import type { BproxyError, BproxyRequest, BproxyResponse, PageState } from "@bproxy/shared";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 
 function pageOk(): PageState {
 	return { url: "", title: "", state: "ready", busy: false };
@@ -10,7 +11,7 @@ export function success(
 	page: PageState = pageOk(),
 ): BproxyResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: cmd.id,
 		ok: true,
 		data,
@@ -21,7 +22,7 @@ export function success(
 
 export function failure(cmd: BproxyRequest, error: BproxyError): BproxyResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: cmd.id,
 		ok: false,
 		error,

@@ -1,4 +1,4 @@
-# Scroll container investigation — LinkedIn feed
+# Scroll container investigation — authenticated feed
 
 > **Course correction (2026-06-12):** This investigation is now considered a documented deviation from the intended bproxy path. The useful finding is not “teach bproxy to infer the right scroll container”; it is that page-structure investigation and scroll-target choice belong to the agent, with normal browser debugging tools available when needed. bproxy should expose explicit scroll actuator primitives and honest movement/no-op reporting, not generalized page-layout heuristics.
 
@@ -8,13 +8,13 @@ Status: superseded by course correction on 2026-06-12
 ## Context
 
 Following the scroll false-success bug documented in
-`2026-05-30-linkedin-scroll-and-eval-gaps.md`, this session investigated why
-`window.scrollBy()` has no effect on LinkedIn and what the correct approach to
+`the 2026-05-30 scroll/eval findings note`, this session investigated why
+`window.scrollBy()` has no effect on the target site and what the correct approach to
 finding the real scroll container is.
 
-## Finding 1 — `window.scrollBy()` is never the right target on LinkedIn
+## Finding 1 — `window.scrollBy()` is never the right target on the authenticated feed page
 
-LinkedIn's feed page does not scroll at the window/viewport level.
+the target site's feed page does not scroll at the window/viewport level.
 `window.scrollY` stays at 0 regardless of how many times `window.scrollBy()` is
 called. The actual scroll container is a `<main id="workspace">` element deep in
 the React tree.
@@ -28,7 +28,7 @@ Confirmed via `dev-browser --connect http://localhost:9222` + `page.evaluate()`:
   clientHeight: 1020
 ```
 
-This is not a LinkedIn quirk — it is the standard pattern for any React SPA that
+This is not a the target site quirk — it is the standard pattern for any React SPA that
 uses a persistent nav/sidebar layout: `overflow: hidden` on `<html>` and
 `<body>`, a full-height scrollable `<main>` or equivalent container div.
 
@@ -39,7 +39,7 @@ at the center of the viewport. Walking up its ancestor chain with
 `getComputedStyle(el).overflowY` and `el.scrollHeight > el.clientHeight` finds
 the real scroll container.
 
-On LinkedIn this walk went through 15 ancestors (IMG → FIGURE → A → … → MAIN)
+On the target site this walk went through 15 ancestors (IMG → FIGURE → A → … → MAIN)
 before finding `<main id="workspace">`.
 
 This approach is correct because:
@@ -56,7 +56,7 @@ hits the wrong container first on pages with multiple scrollable regions.
 ## Finding 3 — pages can have multiple scroll containers
 
 `elementFromPoint` returns one point, which belongs to one scroll container. On
-LinkedIn there are at least: the main feed (`<main id="workspace">`), the
+the target site there are at least: the main feed (`<main id="workspace">`), the
 messaging panel, comment threads inside posts. If the center point lands inside
 one of the smaller containers, the ancestor walk returns that container instead of
 the main feed.
@@ -74,7 +74,7 @@ The `scroll` action API should expose this as an optional `--container` (or
 ## Finding 4 — backgrounded tab prevents React from rendering the feed
 
 When the tab opened by `tab open` is not the active foreground tab in Chrome,
-LinkedIn's JavaScript does not render feed posts. `text` returned only 268 chars
+the target site's JavaScript does not render feed posts. `text` returned only 268 chars
 (skip-navigation links) even after 8 seconds, while a screenshot of the already-
 loaded tab in the same Chrome window showed a full feed. The content script and
 the screenshot were targeting different tabs.

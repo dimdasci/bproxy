@@ -1,9 +1,10 @@
-import type {
-	BproxyErrorResponse,
-	BproxyRequest,
-	BproxyResponse,
-	SessionId,
-	TabHandle,
+import {
+	type BproxyErrorResponse,
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+	type SessionId,
+	type TabHandle,
 } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CapturedLogger } from "../logger";
@@ -34,7 +35,7 @@ function nextCommandId(): string {
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? nextCommandId(),
 		action: overrides.action ?? "text",
 		nick: overrides.nick ?? TEST_NICK,
@@ -280,7 +281,7 @@ describe("lifecycle log events for session-local and tab-mediated actions", () =
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			const resp = {
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: req.id,
 				ok: true,
 				data: { tabId: 100, url: "https://example.com" },
@@ -316,7 +317,7 @@ describe("lifecycle log events for session-local and tab-mediated actions", () =
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			const resp = {
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: req.id,
 				ok: true,
 				data: { tab: "t1", closed: true },

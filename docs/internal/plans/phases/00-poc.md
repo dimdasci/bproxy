@@ -4,7 +4,7 @@ title: Phase 0 — PoC
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** De-risk three load-bearing technical assumptions in the bproxy design — MV3 SW WebSocket lifecycle, CLI → extension pairing transport, and a write technique for hostile rich-text editors (LinkedIn post composer) — and capture findings as journal memos and (where appropriate, and only after the relevant PoC closes) ADR amendments.
+**Goal:** De-risk three load-bearing technical assumptions in the bproxy design — MV3 SW WebSocket lifecycle, CLI → extension pairing transport, and a write technique for hostile rich-text editors (production post composer) — and capture findings as journal memos and (where appropriate, and only after the relevant PoC closes) ADR amendments.
 
 **Architecture:** Three independent throwaway PoCs under `poc/<name>/`, each answering one question with the smallest possible code. PoCs are standalone Node projects (their own `package.json`), never imported by production packages, but committed for reference. Each closes with a journal memo (question / method / finding / implication / verdict).
 
@@ -755,7 +755,7 @@ EOF
 
 ---
 
-## Task 3: PoC 3 — Write technique for hostile rich-text editors (LinkedIn post composer)
+## Task 3: PoC 3 — Write technique for hostile rich-text editors (production post composer)
 
 **Files:**
 - Update: `poc/paste-fill/README.md`
@@ -767,7 +767,7 @@ EOF
 - Update: `poc/paste-fill/extension/popup.js`
 - Append to: `docs/journal/2026-05-08-poc-paste-fill.md`
 
-**Question:** Can the bproxy extension write text into LinkedIn's post composer (Lexical-backed contenteditable, hosted inside an open shadow root, with the editor's paste handler gating on `isTrusted`) by:
+**Question:** Can the bproxy extension write text into a production site's post composer (Lexical-backed contenteditable, hosted inside an open shadow root, with the editor's paste handler gating on `isTrusted`) by:
 
 1. Locating the editor element via a shadow-piercing recursive walker rooted at `document`.
 2. Walking React fibers (`__reactFiber$*` / `__reactProps$*`) up from that element to obtain the Lexical editor instance.
@@ -779,13 +779,13 @@ EOF
 
 **Constraint (binding) — no decision-doc edits in this task:** Do **not** modify `docs/decisions.md` (ADRs), `docs/architecture.md`, or `docs/solution/*` as part of PoC 3. ADR-007 and adjacent decision records are revisited as a separate task only **after** this PoC closes with a verdict. The journal memo for PoC 3 closes with a verdict; ADR work is downstream of the verdict, not inside this task.
 
-**Target:** LinkedIn feed at `https://www.linkedin.com/feed/`. Post composer modal opened by clicking "Start a post".
+**Target:** feed page at `https://app.example.test/feed/`. Post composer modal opened by clicking "Start a post".
 
 **Timebox:** 2 days. If a definitive answer isn't reached, mark the PoC inconclusive and decide next step.
 
 **Execution mode for this PoC (required): Dev Browser connected to real Chrome**
 
-Use this workflow to inspect LinkedIn DOM and run popup-driven extension actions against a persistent logged-in Chrome profile:
+Use this workflow to inspect the target-site DOM and run popup-driven extension actions against a persistent logged-in Chrome profile:
 
 1. Quit Chrome fully.
 2. Start Chrome with remote debugging and persistent profile:
@@ -794,7 +794,7 @@ Use this workflow to inspect LinkedIn DOM and run popup-driven extension actions
      --remote-debugging-port=9222 \
      --user-data-dir="$HOME/context/personal/chrome-devtools-profile"
    ```
-3. Open `https://www.linkedin.com/feed/` and sign in (once). Reuse this same profile path in later sessions.
+3. Open `https://app.example.test/feed/` and sign in (once). Reuse this same profile path in later sessions.
 4. Verify CDP is reachable:
    ```bash
    curl -sS http://127.0.0.1:9222/json/version
@@ -806,7 +806,7 @@ Use this workflow to inspect LinkedIn DOM and run popup-driven extension actions
    console.log(JSON.stringify(tabs, null, 2));
    EOF
    ```
-6. Attach to the LinkedIn tab by `id` from `listPages()` when you need scripted DOM/fiber reconnaissance:
+6. Attach to the target-site tab by `id` from `listPages()` when you need scripted DOM/fiber reconnaissance:
    ```bash
    dev-browser --connect <<'EOF'
    const page = await browser.getPage("<TAB_ID_FROM_LIST>");
@@ -829,7 +829,7 @@ The composer lives inside an open shadow root (`div#interop-outlet.theme--light`
 
 - [x] **Step 3: Resolve editor runtime handle (Quill, not Lexical/fiber).**
 
-The plan originally targeted React-fiber traversal to a Lexical editor instance. Live LinkedIn surface revealed **Quill**: the editor container is `.editor-content.ql-container` with a `__quill` runtime handle. Implemented `findQuillInRoot(root)`: first tries direct query for `.editor-content.ql-container, .ql-container, .editor-content` checking `.__quill`, then falls back to star-scan of all elements in the scoped root. Progressive wait with short pauses (50–400ms) handles async runtime mount. Execution in `MAIN` world (`chrome.scripting.executeScript(..., { world: 'MAIN' })`) is required — isolated world cannot see page-owned runtime handles.
+The plan originally targeted React-fiber traversal to a Lexical editor instance. Live production surface revealed **Quill**: the editor container is `.editor-content.ql-container` with a `__quill` runtime handle. Implemented `findQuillInRoot(root)`: first tries direct query for `.editor-content.ql-container, .ql-container, .editor-content` checking `.__quill`, then falls back to star-scan of all elements in the scoped root. Progressive wait with short pauses (50–400ms) handles async runtime mount. Execution in `MAIN` world (`chrome.scripting.executeScript(..., { world: 'MAIN' })`) is required — isolated world cannot see page-owned runtime handles.
 
 - [x] **Step 4: Write via Quill runtime API.**
 
@@ -843,24 +843,24 @@ Separate `pageTaskRead()` function locates the Quill handle through the same sha
 
 `pageTaskSnapshot()` uses a recursive `walk(root, hostLabel, out)` that descends into every `node.shadowRoot`, attributing each element to its shadow host. The snapshot includes `hasQuill` flag per element for runtime-handle visibility. Replaced the old content-script-based snapshot which was light-DOM only.
 
-- [x] **Step 7: Validate end-to-end against the live LinkedIn composer.**
+- [x] **Step 7: Validate end-to-end against the live production composer.**
 
 In Chrome:
 
 1. `chrome://extensions` → enable Developer mode → Load unpacked → select `poc/paste-fill/extension/`.
-2. Open `https://www.linkedin.com/feed/`.
+2. Open `https://app.example.test/feed/`.
 3. Click the extension icon to open the popup.
 4. Click "Open composer" — verify the modal appears (Step 1 fix is exercised).
 5. Click "Fill composer" with a known test value.
 6. Click "Check current composer text" — value reads back equal to the input.
 7. Manually type one extra character at the end of the composer. The composer must preserve `<inserted><typed-char>`, not reset.
-8. Walk LinkedIn's own preview / post-confirmation flow far enough to verify the content is treated as legitimate. **Do not submit.**
+8. Walk the site's own preview / post-confirmation flow far enough to verify the content is treated as legitimate. **Do not submit.**
 
-Record observed behaviour in scratch notes for Step 8: which selector landed the editor element, which fiber-key path exposed the instance, which API call mutated state, and any LinkedIn-specific quirks (placeholder behaviour, validation re-runs, dev warnings in console).
+Record observed behaviour in scratch notes for Step 8: which selector landed the editor element, which fiber-key path exposed the instance, which API call mutated state, and any site-specific quirks (placeholder behaviour, validation re-runs, dev warnings in console).
 
 - [x] **Step 8: Append the verdict section to the journal memo.**
 
-Journal rewritten as compact retrospective covering the full investigation arc (Phases A–E), wrong turns, and confirmed conclusions. Verdict: ⚠️ **Modifies** the strict Lexical/fiber framing — runtime API approach confirmed on LinkedIn via Quill handle, not React fiber walk. Key architectural constraints documented: MAIN world required for runtime-handle access; DOM discovery should be progressive and intent-scoped.
+Journal rewritten as compact retrospective covering the full investigation arc (Phases A–E), wrong turns, and confirmed conclusions. Verdict: ⚠️ **Modifies** the strict Lexical/fiber framing — runtime API approach confirmed on the production site via Quill handle, not React fiber walk. Key architectural constraints documented: MAIN world required for runtime-handle access; DOM discovery should be progressive and intent-scoped.
 
 `docs/decisions.md`, `docs/architecture.md`, and `docs/solution/*` not edited — ADR work is downstream.
 
@@ -869,7 +869,7 @@ Journal rewritten as compact retrospective covering the full investigation arc (
 ```bash
 git add poc/paste-fill docs/journal/2026-05-08-poc-paste-fill.md
 git commit -m "$(cat <<'EOF'
-poc: validate fiber-walk write on LinkedIn post composer
+poc: validate fiber-walk write on production post composer
 
 PoC 3 from docs/plans/phases/00-poc.md. Findings in
 docs/journal/2026-05-08-poc-paste-fill.md.

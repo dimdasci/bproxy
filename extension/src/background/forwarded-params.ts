@@ -30,6 +30,7 @@ export function paramsValidForAction<A extends ForwardedAction>(
 		"tab.unpin": isOptionalTabHandleParams,
 		"tab.open": isNavigateParams,
 		"tab.close": isOptionalTabHandleParams,
+		"tab.activate": isOptionalTabHandleParams,
 		"debug.log": isDebugLogParams,
 	};
 	return validators[action](value);

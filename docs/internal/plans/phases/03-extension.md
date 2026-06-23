@@ -473,7 +473,7 @@ WXT should be configured with `srcDir: "src"` so entrypoints live under `extensi
 
 - CLI command UX and argument parsing. Phase 4 owns `bproxy` commands.
 - Agent-side fill-method selection guidance beyond keeping `docs/skills/fill-method-selection.md` references accurate. The extension must not implement method selection.
-- Real-site scenario validation against Google/LinkedIn/application forms. Phase 5 owns external scenario hardening.
+- Real-site scenario validation against Google/authenticated feed sites/application forms. Phase 5 owns external scenario hardening.
 - Closed shadow-root support.
 - Network shims or stealth patches.
 - Public docs deployment.

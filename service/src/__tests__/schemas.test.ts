@@ -1,4 +1,4 @@
-import type { BproxyRequest } from "@bproxy/shared";
+import { type BproxyRequest, PROTOCOL_VERSION } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import { ACTION_PARAM_SCHEMAS, ACTIONS, parseRequest } from "../schemas";
 
@@ -6,7 +6,7 @@ const SESSION = "m4q8z2" as BproxyRequest["session"];
 
 function parse(action: string, params: unknown) {
 	return parseRequest({
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: `schema-${action}`,
 		action,
 		nick: "halbot",
@@ -32,6 +32,18 @@ describe("request schemas", () => {
 		expect(parse("links", { selector: "#search", visibleOnly: true, limit: 10 }).success).toBe(
 			true,
 		);
+	});
+
+	it("accepts links params with offset and hrefContains", () => {
+		expect(parse("links", { hrefContains: "/in/", offset: 50, limit: 25 }).success).toBe(true);
+	});
+
+	it("rejects links params with negative offset", () => {
+		expect(parse("links", { offset: -1 }).success).toBe(false);
+	});
+
+	it("rejects links params with non-integer offset", () => {
+		expect(parse("links", { offset: 3.5 }).success).toBe(false);
 	});
 
 	it("accepts scroll params with an explicit element target", () => {
@@ -62,7 +74,7 @@ describe("request schemas", () => {
 	it("accepts tab.open with an empty session placeholder for fresh bootstrap", () => {
 		expect(
 			parseRequest({
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: "schema-tab-open-empty-session",
 				action: "tab.open",
 				nick: "halbot",

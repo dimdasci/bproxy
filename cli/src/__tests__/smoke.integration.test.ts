@@ -20,6 +20,7 @@ import { existsSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { PROTOCOL_VERSION } from "../types.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────
@@ -207,7 +208,7 @@ describe("CLI integration smoke", () => {
 
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
 		expect(parsed["ok"]).toBe(true);
-		expect(parsed["protocol_version"]).toBe(1);
+		expect(parsed["protocol_version"]).toBe(PROTOCOL_VERSION);
 		const data = parsed["data"] as Record<string, unknown>;
 		expect(Array.isArray(data["sessions"])).toBe(true);
 	});
@@ -258,7 +259,7 @@ describe("CLI integration smoke", () => {
 
 		const parsed = parseJson(result.stdout) as Record<string, unknown>;
 		expect(parsed["ok"]).toBe(true);
-		expect(parsed["protocol_version"]).toBe(1);
+		expect(parsed["protocol_version"]).toBe(PROTOCOL_VERSION);
 		const data = parsed["data"] as Record<string, unknown>;
 		expect(Array.isArray(data["requests"])).toBe(true);
 	});
@@ -313,11 +314,11 @@ describe("CLI integration smoke", () => {
 		// Set up WS to respond to forwarded requests
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as Record<string, unknown>;
-			if (req["protocol_version"] !== 1) return;
+			if (req["protocol_version"] !== PROTOCOL_VERSION) return;
 			if (req["action"] === "tab.open") {
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req["id"],
 						ok: true,
 						data: { tabId: 99, url: "https://example.com" },
@@ -334,7 +335,7 @@ describe("CLI integration smoke", () => {
 			}
 			ws.send(
 				JSON.stringify({
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req["id"],
 					ok: true,
 					data: { text: "mock-response-text" },

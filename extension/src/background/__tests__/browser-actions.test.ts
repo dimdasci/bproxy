@@ -1,4 +1,10 @@
-import type { BproxyError, BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
+import {
+	type BproxyError,
+	type BproxyForwardedRequest,
+	type PageState,
+	PROTOCOL_VERSION,
+	type SessionId,
+} from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserActionHandler } from "../browser-actions";
 import type { TabLike } from "../tabs";
@@ -32,6 +38,7 @@ interface HarnessOverrides {
 	create?: (createProperties: Record<string, unknown>) => Promise<TabLike>;
 	remove?: (tabId: number) => Promise<void>;
 	captureVisibleTab?: (windowId?: number, options?: { format?: "png" | "jpeg" }) => Promise<string>;
+	windowsUpdate?: (windowId: number, updateInfo: Record<string, unknown>) => Promise<unknown>;
 	isDebuggerScreenshotEnabled?: () => boolean | Promise<boolean>;
 	captureDebuggerScreenshot?: (
 		tab: TargetTab,
@@ -43,10 +50,12 @@ function createHarness(overrides: HarnessOverrides = {}) {
 	const mainWorld = createMainWorldSeam();
 	const tabRuntime = createTabRuntimeSeam(overrides, now);
 	const tabs = createTabsSeam(overrides);
+	const windows = createWindowsSeam(overrides);
 	const handler = createBrowserActionHandler({
 		mainWorld,
 		tabRuntime,
 		tabs,
+		windows: windows.windows,
 		now: () => now.value,
 		isDebuggerScreenshotEnabled: overrides.isDebuggerScreenshotEnabled,
 		captureDebuggerScreenshot: overrides.captureDebuggerScreenshot,
@@ -56,6 +65,7 @@ function createHarness(overrides: HarnessOverrides = {}) {
 		mainWorld,
 		...tabRuntime,
 		...tabs,
+		...windows,
 		handler,
 	};
 }
@@ -100,6 +110,11 @@ function createTabsSeam(overrides: HarnessOverrides) {
 		remove,
 		captureVisibleTab,
 	};
+}
+
+function createWindowsSeam(overrides: HarnessOverrides) {
+	const windowsUpdate = vi.fn(overrides.windowsUpdate ?? (async () => ({})));
+	return { windowsUpdate, windows: { update: windowsUpdate } };
 }
 
 function createUpdateResult(target: TargetTab) {
@@ -274,6 +289,38 @@ describe("createBrowserActionHandler", () => {
 		expect(closed).toMatchObject({ data: {} });
 	});
 
+	it("tab.activate foregrounds tab and focuses window", async () => {
+		const h = createHarness({
+			update: async (tabId: number, updateProperties: Record<string, unknown>) =>
+				tab({
+					id: tabId,
+					active: updateProperties["active"] === true,
+					windowId: 7,
+				}),
+		});
+
+		const result = await h.handler.handleBrowserAction(tabActivateRequest());
+
+		expect(h.update).toHaveBeenCalledWith(42, { active: true });
+		expect(h.windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+		expect(result).toMatchObject({ data: { activated: true } });
+	});
+
+	it("tab.activate fails closed when Chrome omits windowId", async () => {
+		const h = createHarness({
+			update: async (tabId: number) => {
+				const updated = tab({ id: tabId, active: true });
+				return { ...updated, windowId: undefined };
+			},
+		});
+
+		await expect(h.handler.handleBrowserAction(tabActivateRequest())).rejects.toMatchObject({
+			code: "SCRIPT_ERROR",
+			message: "Target tab 42 has no windowId for activation",
+		});
+		expect(h.windowsUpdate).not.toHaveBeenCalled();
+	});
+
 	it("propagates TAB_NOT_FOUND on tab actions that resolve a missing tab", async () => {
 		const missing: BproxyError = {
 			code: "TAB_NOT_FOUND",
@@ -321,7 +368,7 @@ function fillRequest(
 	overrides: Partial<BproxyForwardedRequest<"fill">> = {},
 ): BproxyForwardedRequest<"fill"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-fill",
 		action: "fill",
 		params: overrides.params ?? {
@@ -341,7 +388,7 @@ function navigateRequest(
 	overrides: Partial<BproxyForwardedRequest<"navigate">> = {},
 ): BproxyForwardedRequest<"navigate"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-nav",
 		action: "navigate",
 		params: overrides.params ?? { url: "https://example.test/" },
@@ -356,7 +403,7 @@ function screenshotRequest(
 	overrides: Partial<BproxyForwardedRequest<"screenshot">> = {},
 ): BproxyForwardedRequest<"screenshot"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-shot",
 		action: "screenshot",
 		params: overrides.params ?? {},
@@ -371,7 +418,7 @@ function tabOpenRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.open">> = {},
 ): BproxyForwardedRequest<"tab.open"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-open",
 		action: "tab.open",
 		params: overrides.params ?? { url: "https://opened.test/" },
@@ -386,7 +433,7 @@ function tabCloseRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.close">> = {},
 ): BproxyForwardedRequest<"tab.close"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-close",
 		action: "tab.close",
 		params: overrides.params ?? {},
@@ -401,7 +448,7 @@ function tabPinRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.pin">> = {},
 ): BproxyForwardedRequest<"tab.pin"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-pin",
 		action: "tab.pin",
 		params: overrides.params ?? {},
@@ -416,7 +463,7 @@ function tabUnpinRequest(
 	overrides: Partial<BproxyForwardedRequest<"tab.unpin">> = {},
 ): BproxyForwardedRequest<"tab.unpin"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-unpin",
 		action: "tab.unpin",
 		params: overrides.params ?? {},
@@ -431,13 +478,28 @@ function requireHumanRequest(
 	overrides: Partial<BproxyForwardedRequest<"require-human">> = {},
 ): BproxyForwardedRequest<"require-human"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-human",
 		action: "require-human",
 		params: overrides.params ?? { reason: "Need manual step" },
 		session: overrides.session ?? TEST_SESSION,
 		deadline: overrides.deadline ?? 10_000,
 		destructive: overrides.destructive ?? false,
+		target: overrides.target ?? { tabId: 42 },
+	};
+}
+
+function tabActivateRequest(
+	overrides: Partial<BproxyForwardedRequest<"tab.activate">> = {},
+): BproxyForwardedRequest<"tab.activate"> {
+	return {
+		protocol_version: PROTOCOL_VERSION,
+		id: overrides.id ?? "req-activate",
+		action: "tab.activate",
+		params: overrides.params ?? {},
+		session: overrides.session ?? TEST_SESSION,
+		deadline: overrides.deadline ?? 10_000,
+		destructive: overrides.destructive ?? true,
 		target: overrides.target ?? { tabId: 42 },
 	};
 }

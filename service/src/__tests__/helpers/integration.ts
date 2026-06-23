@@ -5,7 +5,13 @@
  * server lifecycle, makeCmd, postCommand) across action-contract, round-trip,
  * observability, nick-scoping, safety-ordering, etc.
  */
-import type { BproxyRequest, BproxyResponse, Nick, SessionId } from "@bproxy/shared";
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	type Nick,
+	PROTOCOL_VERSION,
+	type SessionId,
+} from "@bproxy/shared";
 import WebSocket from "ws";
 import { buildCapturedLogger, type CapturedLogger } from "../../logger";
 import { type BuildServerOptions, type BuiltServer, buildServer } from "../../server";
@@ -91,7 +97,7 @@ export function makeCmd(
 	overrides: Partial<BproxyRequest> = {},
 ): BproxyRequest {
 	const defaults: BproxyRequest = {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: `${opts.idPrefix ?? "test"}-${crypto.randomUUID().slice(0, 8)}`,
 		action: opts.defaultAction ?? "session.list",
 		nick: TEST_NICK,

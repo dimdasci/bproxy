@@ -1,4 +1,9 @@
-import type { BproxyForwardedRequest, PageState, SessionId } from "@bproxy/shared";
+import {
+	type BproxyForwardedRequest,
+	type PageState,
+	PROTOCOL_VERSION,
+	type SessionId,
+} from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeStorageItem } from "../../test/fakes/storage";
 import { createContentInjector } from "../injection";
@@ -16,7 +21,7 @@ function makeRequest(
 	overrides: Partial<BproxyForwardedRequest<"text">> = {},
 ): BproxyForwardedRequest<"text"> {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id: overrides.id ?? "req-1",
 		action: overrides.action ?? "text",
 		params: overrides.params ?? { selector: "main" },

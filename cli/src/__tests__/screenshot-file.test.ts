@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
 import { writeScreenshotFile } from "../screenshot-file.js";
 import type { BproxyResponse } from "../types.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 // A tiny 1x1 red PNG encoded in base64
@@ -102,7 +103,7 @@ function setupHome(): string {
 
 function screenshotResponse(id: string) {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data: { base64: INT_TINY_PNG, format: "png" },

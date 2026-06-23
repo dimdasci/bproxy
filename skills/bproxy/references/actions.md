@@ -1,54 +1,59 @@
 # Actions Reference
 
-All commands require `-n <nick>` (agent nickname, 6 chars, e.g. `halbot`).
-All browser commands require `-s <session>` except where noted.
+All protocol commands require `-n <nick>` (6 chars, `/^[a-z][a-z0-9]{5}$/`).
+Browser/session-bound commands require `-s <session>` except noted.
+Stdout: exactly one JSON object.
 
 ## Read (non-destructive)
 
-| Action | Syntax | Key params | Returns |
-|--------|--------|------------|---------|
-| `text` | `text -n <nick> -s <id> [--selector css]` | selector (default: body) | `{ text }` |
-| `links` | `links -n <nick> -s <id> [--selector] [--limit N]` | selector?, limit? | `{ links: [{ text, href, handle?, ... }] }` |
-| `images` | `images -n <nick> -s <id> [--selector]` | selector? | `{ images: [{ src, alt, width, height }] }` |
-| `elements` | `elements -n <nick> -s <id> [--form]` | form? | `{ elements: [{ tag, type?, label?, value?, handle?, selector, runtimeHandle?, ... }] }` |
-| `outline` | `outline -n <nick> -s <id>` | — | `{ landmarks, headings }` |
-| `dom` | `dom -n <nick> -s <id> [--selector] [--depth N]` | selector?, depth (default:3) | `{ html }` |
-| `inspect` | `inspect -n <nick> -s <id> --selector [--properties] [--limit]` | selector, properties?, limit? | `{ elements: [{ rect, scroll, styles }] }` |
-| `snapshot` | `snapshot -n <nick> -s <id> [--selector] [--max-depth] [--interactive-only]` | selector?, maxDepth?, interactiveOnly? | `{ tree }` |
-| `screenshot` | `screenshot -n <nick> -s <id> [--activate] [--output-dir] [--debugger]` | activate?, outputDir? | `{ format, file, size }` |
+| Action | Syntax | Returns / notes |
+|--------|--------|-----------------|
+| `text` | `text -n <nick> -s <id> [--selector css] [--after S] [--limit-chars N]` | `{ text, markerFound?, markerOffset? }`. `--after`/`--limit-chars` are CLI-local output transforms. |
+| `links` | `links -n <nick> -s <id> [--selector css] [--visible-only] [--limit N] [--href-contains S] [--offset N]` | `{ links:[{ text, href, handle?, ... }], total, capped? }`. Hrefs normalized absolute. Filter is case-sensitive substring before limit; offset paginates matches. |
+| `images` | `images -n <nick> -s <id> [--selector css]` | `{ images:[{ src, alt, width, height }] }` |
+| `elements` | `elements -n <nick> -s <id> [--form]` | `{ elements:[{ tag, type?, label?, value?, handle?, selector, runtimeHandle?, ... }] }` |
+| `outline` | `outline -n <nick> -s <id>` | `{ landmarks, headings }` |
+| `dom` | `dom -n <nick> -s <id> [--selector css] [--depth N]` | `{ html }` |
+| `inspect` | `inspect -n <nick> -s <id> --selector css [--properties p1,p2] [--limit N]` | `{ elements, total }` with rect/styles/scroll info |
+| `snapshot` | `snapshot -n <nick> -s <id> [--selector css] [--max-depth N] [--interactive-only]` | `{ tree, nodeCount }` |
+| `screenshot` | `screenshot -n <nick> -s <id> [--activate] [--output-dir dir] [--debugger]` | CLI writes file, returns `{ format, file, size }` |
 
-## Write (destructive)
+## Act (destructive unless `wait`)
 
-| Action | Syntax | Key params | Returns |
-|--------|--------|------------|---------|
-| `navigate` | `navigate -n <nick> -s <id> --url <url>` | url | `{ url, title, loadTime }` |
-| `click` | `click -n <nick> -s <id> --element/--selector` | target | `{ clicked, disappeared, stable }` |
-| `hover` | `hover -n <nick> -s <id> --element/--selector` | target | `{ hovered, stable, elapsed }` |
-| `scroll` | `scroll -n <nick> -s <id> [--element] [--direction] [--by]` | target?, direction?, by? | `{ moved, before, after, scrolledPx }` |
-| `fill` | `fill -n <nick> -s <id> --element --value --method --world` | target, value, method, world | `{ filled, verifiedValue }` |
-| `fill-form` | `fill-form -n <nick> -s <id> --json '{fields:[...]}'` | fields[] | `{ results[] }` |
-| `select` | `select -n <nick> -s <id> --element --option-text` | trigger, optionText | `{ selected, optionText }` |
-| `wait` | `wait -n <nick> -s <id> --strategy --target [--timeout]` | strategy (selector/url/navigation), target | `{ matched, elapsed }` |
-| `require-human` | `require-human -n <nick> -s <id> --reason "..."` | reason | pauses session |
+| Action | Syntax | Returns / notes |
+|--------|--------|-----------------|
+| `navigate` | `navigate -n <nick> -s <id> --url <url>` | `{ url, title, loadTime }` |
+| `click` | `click -n <nick> -s <id> --element elN\|lnN` or `--selector css` | `{ clicked, disappeared, stable }` |
+| `hover` | `hover -n <nick> -s <id> --element elN\|lnN` or `--selector css` | `{ hovered, stable, elapsed }` |
+| `scroll` | `scroll -n <nick> -s <id> [--element elN\|lnN] [--direction up\|down] [--by N]` | `{ moved, before, after, scrolledPx, stable }`. No container inference. |
+| `fill` | `fill -n <nick> -s <id> --element elN --value V --method direct\|paste\|runtime-api --world isolated\|main` | `{ filled, verifiedValue }` |
+| `fill-form` | `fill-form -n <nick> -s <id> --json '{"fields":[...]}'` | `{ results:[...] }` |
+| `select` | `select -n <nick> -s <id> --element elN --option-text T` | `{ selected, optionText }` |
+| `wait` | `wait -n <nick> -s <id> --strategy selector\|url\|navigation --target T [--timeout ms]` | `{ matched, elapsed }`; non-destructive |
+| `require-human` | `require-human -n <nick> -s <id> --reason "..."` | pauses session until `session resume` |
 
-## Tab/Session
+Targets: `--element` preferred. Use `--route-json` for open shadow roots. Selectors must be unambiguous.
+
+## Tab/session
 
 | Action | Syntax | Notes |
 |--------|--------|-------|
-| `tab open` | `tab open -n <nick> --url <url> [-s]` | Auto-creates session if `-s` omitted. Returns `{ session, tab, tmpDir, ownerHash }` |
-| `tab close` | `tab close -n <nick> -s <id> [--tab tN]` | |
-| `tab list` | `tab list -n <nick> -s <id>` | Session-scoped, daemon-local |
-| `tab pin` | `tab pin -n <nick> -s <id> [--tab tN]` | |
-| `session create` | `session create -n <nick> [--label]` | Returns `{ session, tmpDir, ownerHash }`. No `-s` needed. |
-| `session list` | `session list -n <nick>` | Returns only sessions owned by this nick. No `-s` needed. |
-| `session bind` | `session bind -n <nick> -s <id> --tab tN [--pacing human\|fast]` | Switch active tab |
-| `session resume` | `session resume -n <nick> -s <id>` | Clear paused state |
-| `session close` | `session close -n <nick> -s <id>` | Closes all tabs, destroys session |
+| `tab open` | `tab open -n <nick> --url <url> [-s <id>]` | If `-s` omitted, auto-creates session. Returns `{ session, tab, tmpDir, ownerHash }`. |
+| `tab list` | `tab list -n <nick> -s <id>` | Session-scoped, daemon-local. |
+| `tab activate` | `tab activate -n <nick> -s <id> [--tab tN]` | Foregrounds tab and focuses window. Destructive. |
+| `tab close` | `tab close -n <nick> -s <id> [--tab tN]` | Closes tab. |
+| `tab pin` | `tab pin -n <nick> -s <id> [--tab tN]` | Pins tab. |
+| `tab unpin` | `tab unpin -n <nick> -s <id> [--tab tN]` | Unpins tab. |
+| `session create` | `session create -n <nick> [--label text]` | No `-s`. Returns `{ session, tmpDir, ownerHash }`. |
+| `session list` | `session list -n <nick>` | No `-s`. Only your nick's sessions. |
+| `session bind` | `session bind -n <nick> -s <id> --tab tN [--pacing human\|fast]` | Changes bound tab / pacing. |
+| `session resume` | `session resume -n <nick> -s <id>` | Clears paused state. |
+| `session close` | `session close -n <nick> -s <id>` | Closes all session tabs, deletes session/tmpDir. |
 
 ## Debug
 
 | Action | Syntax | Notes |
 |--------|--------|-------|
-| `debug status` | `debug status -n <nick>` | Daemon/WS/session state (nick-scoped). No `-s` needed. |
-| `debug last` | `debug last -n <nick> [--count N]` | Daemon ring buffer, nick-scoped. No `-s` needed. |
-| `debug log` | `debug log -n <nick> -s <id> [--id] [--limit]` | Extension ring buffer, nick-scoped |
+| `debug status` / `status` | `debug status -n <nick>` | No `-s`. Nick-scoped daemon/WS/session state. |
+| `debug last` | `debug last -n <nick> [--count N]` | No `-s`. Nick-scoped daemon ring buffer. |
+| `debug log` | `debug log -n <nick> -s <id> [--id ID] [--limit N]` | Extension ring buffer for live nick-scoped session. |

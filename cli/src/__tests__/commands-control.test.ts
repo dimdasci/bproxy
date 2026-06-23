@@ -12,6 +12,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, type SendOptions, sendAction } from "../client.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import {
 	createMockFetch,
 	makeGlobals,
@@ -24,7 +25,7 @@ import { createTestStateDir } from "./helpers/test-state-dir.js";
 
 function errorResponse(id: string, code: string, message = "error") {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: false,
 		error: { code, message },

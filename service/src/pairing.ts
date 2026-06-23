@@ -1,9 +1,10 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 
 export interface PairingBootstrap {
 	extensionToken: string;
 	wsUrl: string;
-	protocolVersion: 1;
+	protocolVersion: typeof PROTOCOL_VERSION;
 	issuedAt: number;
 	expiresAt: number;
 	nonce: string;
@@ -54,7 +55,7 @@ function defaultBootstrap(): Omit<PairingBootstrap, "issuedAt" | "expiresAt" | "
 	return {
 		extensionToken: randomBytes(32).toString("base64url"),
 		wsUrl: "ws://127.0.0.1:9615/ws",
-		protocolVersion: 1,
+		protocolVersion: PROTOCOL_VERSION,
 	};
 }
 

@@ -105,7 +105,7 @@ The shared contract between all three components. Every message uses the same JS
 
 ```json
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "id": "01HZX9C2K8R7Q3VG9MNPYJVZ4D",
   "action": "fill",
   "nick": "halbot",
@@ -120,7 +120,7 @@ Responses:
 
 ```json
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "id": "01HZX9C2K8R7Q3VG9MNPYJVZ4D",
   "ok": true,
   "data": { "filled": true },
@@ -181,7 +181,7 @@ Errors use a single RFC 9457-aligned envelope:
 | `select`     | Custom-dropdown helper: click trigger, wait for menu, click option.                  |
 | `wait`       | Strategies: `selector` / `url` / `navigation`. DOM polling.                          |
 | `require-human` | Surfaces interstitial to user. Blocks until `session resume`.                     |
-| `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.*` forwarded). |
+| `tab` / `session` | Lifecycle and configuration verbs (`session.*` daemon-local; `tab.list` daemon-local; `tab.open` / `tab.close` / `tab.pin` / `tab.unpin` / `tab.activate` forwarded). |
 | `debug.log`  | Extension ring buffer (last N requests, queryable by `id`).                      |
 | `debug.last` | Daemon trace ring buffer (capacity 200, in-memory).                              |
 | `debug.status` | Full system state (daemon, WS clients, sessions, tab ownership, paused).       |

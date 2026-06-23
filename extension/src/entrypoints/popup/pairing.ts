@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@bproxy/shared";
 import type { PairingBootstrap } from "../../background/storage";
 import type { StorageItem } from "../../background/storage-item";
 
@@ -54,7 +55,7 @@ type ValidateErr = { ok: false; code: PairingErrorCode; message?: string };
  *
  *   1. POST `{ code }` to `/pair/claim`.
  *   2. Validate the daemon's success envelope (`{ ok, data }`) and the
- *      bootstrap payload (loopback `wsUrl`, `protocolVersion === 1`,
+ *      bootstrap payload (loopback `wsUrl`, `protocolVersion === 2`,
  *      future `expiresAt`, non-empty nonce/token).
  *      Daemon pairing failures, including rate limiting, pass through by code.
  *   3. Persist via the typed `bootstrapItem` storage seam.
@@ -154,11 +155,11 @@ function validateShape(d: Record<string, unknown>): ValidateOk | ValidateErr {
 		return { ok: false, code: "INVALID_PAYLOAD_SHAPE", message: "wsUrl missing" };
 	}
 	const protocolVersion = d["protocolVersion"];
-	if (protocolVersion !== 1) {
+	if (protocolVersion !== PROTOCOL_VERSION) {
 		return {
 			ok: false,
 			code: "UNSUPPORTED_PROTOCOL_VERSION",
-			message: `expected 1, got ${String(protocolVersion)}`,
+			message: `expected ${PROTOCOL_VERSION}, got ${String(protocolVersion)}`,
 		};
 	}
 	const issuedAt = d["issuedAt"];
@@ -176,7 +177,7 @@ function validateShape(d: Record<string, unknown>): ValidateOk | ValidateErr {
 
 	return {
 		ok: true,
-		value: { extensionToken, wsUrl, protocolVersion: 1, issuedAt, expiresAt, nonce },
+		value: { extensionToken, wsUrl, protocolVersion: PROTOCOL_VERSION, issuedAt, expiresAt, nonce },
 	};
 }
 

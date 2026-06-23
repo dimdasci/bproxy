@@ -1,4 +1,9 @@
-import type { BproxyForwardedRequest, BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import {
+	type BproxyForwardedRequest,
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+} from "@bproxy/shared";
 import { describe, expect, it, vi } from "vitest";
 import { type ClientsRegistry, createClients } from "../clients";
 import { createDispatch, type DispatchDeps } from "../dispatch";
@@ -12,7 +17,7 @@ const SESSION_B = "bbbbbb" as BproxyRequest["session"];
 
 function req(id: string, session = DEFAULT_SESSION): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		action: "text",
 		nick: "halbot" as BproxyRequest["nick"],
@@ -25,7 +30,7 @@ function req(id: string, session = DEFAULT_SESSION): BproxyRequest {
 
 function ok(id: string): BproxyResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data: { text: "x" },
@@ -111,7 +116,7 @@ describe("dispatch", () => {
 		expect(onForwarded).toHaveBeenCalledWith({ id: forwarded.id, wsClient: "c1", tab: null });
 		expect(forwarded.target).toEqual({ tabId: null });
 		pending.resolveById(forwarded.id, {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: forwarded.id,
 			ok: true,
 			data: { tabId: 42, url: "https://google.com" },

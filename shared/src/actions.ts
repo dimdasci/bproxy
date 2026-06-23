@@ -27,6 +27,7 @@ export type Action =
 	| "tab.unpin"
 	| "tab.open"
 	| "tab.close"
+	| "tab.activate"
 	| "session.create"
 	| "session.list"
 	| "session.bind"
@@ -131,7 +132,13 @@ export interface DaemonRequestTrace {
 export interface ActionParams {
 	navigate: { url: string };
 	text: { selector?: string };
-	links: { selector?: string; visibleOnly?: boolean; limit?: number };
+	links: {
+		selector?: string;
+		visibleOnly?: boolean;
+		limit?: number;
+		hrefContains?: string;
+		offset?: number;
+	};
 	images: { selector?: string };
 	elements: { form?: boolean };
 	outline: Record<string, never>;
@@ -164,6 +171,7 @@ export interface ActionParams {
 	"tab.unpin": { tab?: TabHandle };
 	"tab.open": { url: string };
 	"tab.close": { tab?: TabHandle };
+	"tab.activate": { tab?: TabHandle };
 	"session.create": { label?: string };
 	"session.list": Record<string, never>;
 	"session.bind": { tab: TabHandle; pacing?: PacingMode };
@@ -180,7 +188,7 @@ export interface ActionParams {
 export interface ActionResult {
 	navigate: { url: string; title: string; loadTime: number };
 	text: { text: string };
-	links: { links: Array<LinkInfo> };
+	links: { links: Array<LinkInfo>; total: number; capped?: boolean };
 	images: { images: Array<{ src: string; alt: string; width: number; height: number }> };
 	elements: { elements: Array<ElementInfo> };
 	outline: { landmarks: Array<Landmark>; headings: Array<Heading> };
@@ -219,6 +227,7 @@ export interface ActionResult {
 		ownerHash: string;
 	};
 	"tab.close": { tab: TabHandle; closed: true };
+	"tab.activate": { tab: TabHandle; activated: true };
 	"session.create": { session: SessionId; label?: string; tmpDir: string; ownerHash: string };
 	"session.list": { sessions: Array<SessionInfo> };
 	"session.bind": { session: SessionId; tab: TabHandle };
@@ -278,6 +287,7 @@ export interface ForwardedActionParams {
 	"tab.unpin": ActionParams["tab.unpin"];
 	"tab.open": ActionParams["tab.open"];
 	"tab.close": ActionParams["tab.close"];
+	"tab.activate": ActionParams["tab.activate"];
 	"session.create": ActionParams["session.create"];
 	"session.list": ActionParams["session.list"];
 	"session.bind": ActionParams["session.bind"];

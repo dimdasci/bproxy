@@ -1,13 +1,13 @@
-# LinkedIn Scenario 2 findings — scroll false-success and missing eval enable path
+# Scenario 2 findings — scroll false-success and missing eval enable path
 
-> Update 2026-05-31: the missing eval enable path from this note has now been addressed via an extension popup Eval mode control. Follow-up debugging and the current LinkedIn MAIN-world `result: null` finding are recorded in [`2026-05-31-linkedin-eval-mode-and-main-world-null-result.md`](./2026-05-31-linkedin-eval-mode-and-main-world-null-result.md).
+> Update 2026-05-31: the missing eval enable path from this note has now been addressed via an extension popup Eval mode control. Follow-up debugging and the current MAIN-world `result: null` finding are recorded in the 2026-05-31 follow-up eval note.
 
 Date: 2026-05-30
 Status: proposed
 
 ## Context
 
-During Phase 5 Scenario 2 validation against a real LinkedIn feed tab, the browser loaded successfully and `screenshot` confirmed a normal signed-in feed view in the foreground.
+During Phase 5 Scenario 2 validation against a real target-site feed tab, the browser loaded successfully and `screenshot` confirmed a normal signed-in feed view in the foreground.
 
 Session used in the run:
 - session: `va52vh`
@@ -33,8 +33,8 @@ Both responses were:
     "stable": true
   },
   "page": {
-    "url": "https://www.linkedin.com/feed/",
-    "title": "Feed | LinkedIn",
+    "url": "https://app.example.test/feed/",
+    "title": "Feed | Example App",
     "state": "ready",
     "busy": false
   }
@@ -44,7 +44,7 @@ Both responses were:
 Observed real behavior:
 - the viewport did **not** move;
 - the operator visually confirmed the page stayed in the same place;
-- LinkedIn only showed a small "New publications" badge/update signal;
+- The site only showed a small "New publications" badge/update signal;
 - the command still returned `ok: true` and `stable: true`.
 
 Interpretation:
@@ -55,7 +55,7 @@ Interpretation:
 Expected hardening direction:
 - require evidence of actual movement before reporting success;
 - distinguish "scroll request accepted but no movement happened" from a real successful scroll;
-- add a regression test for the LinkedIn-shaped case where `window.scrollBy(...)` plus DOM polling yields `stable: true` but `scrollY` remains unchanged.
+- add a regression test for the target-site-shaped case where `window.scrollBy(...)` plus DOM polling yields `stable: true` but `scrollY` remains unchanged.
 
 ## Finding 2 — `eval` exists at the CLI but has no supported enable path
 
@@ -87,5 +87,5 @@ This is not a hidden workaround issue; it is an intentionally deferred control-p
 
 ## Follow-up classification
 
-- **Phase 5 in-scope blocker:** `scroll` false-success on LinkedIn Scenario 2.
-- **Historical control-plane gap (now addressed on 2026-05-31):** this note originally recorded that no shipped eval-enable path existed. That is no longer true; see [`2026-05-31-linkedin-eval-mode-and-main-world-null-result.md`](./2026-05-31-linkedin-eval-mode-and-main-world-null-result.md) for the shipped popup control and the remaining real-site runtime finding.
+- **Phase 5 in-scope blocker:** `scroll` false-success on target-site Scenario 2.
+- **Historical control-plane gap (now addressed on 2026-05-31):** this note originally recorded that no shipped eval-enable path existed. That is no longer true; see the 2026-05-31 follow-up eval note for the shipped popup control and the remaining real-site runtime finding.

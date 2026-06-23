@@ -5,6 +5,7 @@ import {
 	type ElementInfo,
 	isValidNick,
 	type LinkInfo,
+	PROTOCOL_VERSION,
 	type SessionId,
 	type TraceEntry,
 } from "@bproxy/shared";
@@ -48,16 +49,17 @@ function decorateReadHandles(
 		) as ElementInfo[];
 		return { ...response, data: { ...(response.data as object), elements } };
 	}
+	const linksData = response.data as { links: LinkInfo[]; total: number; capped?: boolean };
 	const links = deps.elementHandles.mint(
 		cmd.session,
 		bound.tab,
 		bound.chromeTabId,
 		"links",
-		(response.data as { links: LinkInfo[] }).links,
+		linksData.links,
 		response.page.url,
 		pageEpoch,
 	) as LinkInfo[];
-	return { ...response, data: { ...(response.data as object), links } };
+	return { ...response, data: { ...linksData, links } };
 }
 
 function filterDebugLogEntries(
@@ -145,7 +147,7 @@ export function commandRoute(deps: CommandRouteDeps) {
 				return await finalizeResponse(
 					cmd,
 					deps,
-					{ protocol_version: 1, id: cmd.id, ok: false, error: safetyError },
+					{ protocol_version: PROTOCOL_VERSION, id: cmd.id, ok: false, error: safetyError },
 					receivedAt,
 				);
 			}

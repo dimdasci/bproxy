@@ -5,6 +5,7 @@ import type {
 	ActionResult,
 	DaemonRequestTrace,
 	ForwardedActionParams,
+	LinkInfo,
 	TraceEntry,
 } from "./actions";
 import type { ErrorCode } from "./errors";
@@ -22,9 +23,21 @@ type Expect<T extends true> = T;
 type _SessionCreateParams = Expect<Equals<ActionParams["session.create"], { label?: string }>>;
 type _SessionCloseParams = Expect<Equals<ActionParams["session.close"], Record<string, never>>>;
 type _LinksParams = Expect<
-	Equals<ActionParams["links"], { selector?: string; visibleOnly?: boolean; limit?: number }>
+	Equals<
+		ActionParams["links"],
+		{
+			selector?: string;
+			visibleOnly?: boolean;
+			limit?: number;
+			hrefContains?: string;
+			offset?: number;
+		}
+	>
 >;
 type _ClickParams = Expect<Equals<ActionParams["click"], { target: ClientElementTarget }>>;
+type _LinksResult = Expect<
+	Equals<ActionResult["links"], { links: Array<LinkInfo>; total: number; capped?: boolean }>
+>;
 type _HoverParams = Expect<Equals<ActionParams["hover"], { target: ClientElementTarget }>>;
 type _ForwardedClickParams = Expect<
 	Equals<ForwardedActionParams["click"], { target: ElementTarget }>
@@ -55,6 +68,10 @@ type _TabPinResultUsesLogicalHandle = Expect<
 >;
 type _TabCloseResultUsesLogicalHandle = Expect<
 	Equals<ActionResult["tab.close"], { tab: TabHandle; closed: true }>
+>;
+type _TabActivateParams = Expect<Equals<ActionParams["tab.activate"], { tab?: TabHandle }>>;
+type _TabActivateResult = Expect<
+	Equals<ActionResult["tab.activate"], { tab: TabHandle; activated: true }>
 >;
 type _SessionInfoUsesLogicalBinding = Expect<
 	Equals<SessionInfo["tab"], TabHandle | null> & Equals<SessionInfo["id"], SessionId>

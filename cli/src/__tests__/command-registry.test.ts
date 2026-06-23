@@ -14,6 +14,7 @@ const DESTRUCTIVE: Action[] = [
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"tab.activate",
 	"session.create",
 	"session.bind",
 	"session.unbind",
