@@ -2,9 +2,13 @@
 title: bproxy
 ---
 
+<img src="./assets/bproxy-hero.png" alt="bproxy hero illustration: three robot agents on the left connect through a terminal and a shield to a stack of browser tabs on the right, all framed inside a computer monitor. Caption reads 'bproxy: paired browsing for humans and agents.'" width="900">
+
 ## Why this exists
 
-Most of my work is information research, analysis, and synthesis. Agents are good at the routine part — collecting data, transforming it, distilling patterns — but they need browser access to do it, and the services I use (Google, authenticated feed sites, Medium) actively detect automation.
+Most of my work is information research, analysis, and synthesis. Agents are good at the routine part — collecting data, transforming it, distilling patterns — but they need browser access to do it. Many services detect automation and use their terms of service to restrict it.
+
+I think "automation" is overloaded. At the extreme, I am already sitting at a laptop, using an operating system and a browser to access a service — is that not automation too? I am not trying to scrape service content at scale. I want to automate the copy-paste and routine navigation that are a natural part of desktop research.
 
 I have two options:
 

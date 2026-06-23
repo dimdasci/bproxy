@@ -24,7 +24,8 @@ export default defineConfig({
 	}),
 	manifest: {
 		name: "bproxy",
-		description: "Browser proxy companion extension for bproxy daemon.",
+		description:
+			"Companion extension for bproxy. Connects Chrome to a local bproxy daemon for explicit human-in-the-loop browser actions.",
 		permissions: ["tabs", "scripting", "webNavigation", "alarms", "storage"],
 		host_permissions: ["<all_urls>"],
 		action: {

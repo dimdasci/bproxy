@@ -1,7 +1,7 @@
 {
 	"name": "@dimdasci/bproxy",
 	"version": "VERSION_PLACEHOLDER",
-	"description": "Browser proxy for code agents — control your real Chrome from CLI.",
+	"description": "Human-in-the-loop browser proxy for AI agents — use your real Chrome session via a localhost daemon and extension.",
 	"license": "MIT",
 	"homepage": "https://dimdasci.github.io/bproxy/",
 	"bugs": {

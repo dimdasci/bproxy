@@ -230,14 +230,17 @@ describe("read actions", () => {
 	});
 
 	it("links returns capped: true when page has more than MAX_COLLECTION_CAP links", () => {
-		// MAX_COLLECTION_CAP is 2000 — create 2001 links to trigger the cap
+		// MAX_COLLECTION_CAP is 2000 — create 2001 links to trigger the cap.
+		// Each element gets a unique id so createStableSelector resolves on the
+		// first candidate (#id), avoiding O(n²) path-selector probing in the
+		// fake querySelectorAll implementation.
 		const page = doc(
 			el("html", {
 				children: [
 					el("body", {
 						children: Array.from({ length: 2001 }, (_, i) =>
 							el("a", {
-								attrs: { href: `https://example.com/${i}` },
+								attrs: { id: `lk${i}`, href: `https://example.com/${i}` },
 								text: `L${i}`,
 							}),
 						),
