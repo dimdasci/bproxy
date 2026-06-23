@@ -1,4 +1,9 @@
-import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+	type TabHandle,
+} from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BuiltServer } from "../server";
 import {
@@ -20,7 +25,7 @@ const T1 = "t1" as TabHandle;
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id:
 			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action: overrides.action ?? "text",
@@ -81,7 +86,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				forwardedTarget = req.target?.tabId ?? null;
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: { tabId: 42, url: "https://google.com" },
@@ -132,7 +137,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				openedUrls.push((req.params as { url: string }).url);
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: { tabId: nextTabId++, url: (req.params as { url: string }).url },
@@ -192,7 +197,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				const resp: BproxyResponse = {
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: { text: "Hello from extension" },
@@ -242,7 +247,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				commandCount += 1;
 				const resp = {
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: { count: commandCount },
@@ -285,7 +290,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				if (req.action === "tab.close") {
 					closedTargets.push(req.target?.tabId ?? -1);
 					const resp = {
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: { tab: T1, closed: true },
@@ -330,7 +335,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				if (next === true) {
 					ws.send(
 						JSON.stringify({
-							protocol_version: 1,
+							protocol_version: PROTOCOL_VERSION,
 							id: req.id,
 							ok: true,
 							data: { tab: T1, closed: true },
@@ -342,7 +347,7 @@ describe("end-to-end workflows — Phase 5 task 3", () => {
 				}
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: false,
 						error: {

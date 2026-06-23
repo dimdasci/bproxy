@@ -1,4 +1,4 @@
-import { type Action, type BproxyRequest, HANDLE_PATTERN } from "@bproxy/shared";
+import { type Action, type BproxyRequest, HANDLE_PATTERN, PROTOCOL_VERSION } from "@bproxy/shared";
 import { z } from "zod";
 import { TAB_HANDLE_PATTERN } from "./sessions";
 
@@ -29,6 +29,7 @@ export const ACTIONS = [
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"tab.activate",
 	"session.create",
 	"session.list",
 	"session.bind",
@@ -77,6 +78,8 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 			selector: z.string().optional(),
 			visibleOnly: z.boolean().optional(),
 			limit: z.number().int().optional(),
+			hrefContains: z.string().optional(),
+			offset: z.number().int().min(0).optional(),
 		})
 		.strict(),
 	images: z.object({ selector: z.string().optional() }).strict(),
@@ -148,6 +151,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 	"tab.unpin": z.object({ tab: tabHandle.optional() }).strict(),
 	"tab.open": z.object({ url: z.string() }).strict(),
 	"tab.close": z.object({ tab: tabHandle.optional() }).strict(),
+	"tab.activate": z.object({ tab: tabHandle.optional() }).strict(),
 	"session.create": z.object({ label: z.string().optional() }).strict(),
 	"session.list": z.object({}).strict(),
 	"session.bind": z.object({ tab: tabHandle, pacing: pacingMode.optional() }).strict(),
@@ -160,7 +164,7 @@ export const ACTION_PARAM_SCHEMAS: Record<Action, z.ZodTypeAny> = {
 };
 
 const ENVELOPE_BASE = z.object({
-	protocol_version: z.literal(1),
+	protocol_version: z.literal(PROTOCOL_VERSION),
 	id: z.string().min(1),
 	action: z.string(),
 	nick: z.string(),

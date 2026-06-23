@@ -1,4 +1,9 @@
-import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+	type TabHandle,
+} from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CapturedLogger } from "../logger";
 import { computeOwnerHash } from "../owner-hash";
@@ -143,7 +148,7 @@ describe("nick scoping", () => {
 			if (req.action !== "debug.log") return;
 			ws.send(
 				JSON.stringify({
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: {
@@ -232,7 +237,7 @@ describe("nick scoping", () => {
 			forwardedHasNick = Object.hasOwn(req, "nick");
 			ws.send(
 				JSON.stringify({
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req["id"],
 					ok: true,
 					data: { tabId: 42, url: "https://example.com" },

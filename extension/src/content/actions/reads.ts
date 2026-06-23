@@ -52,7 +52,7 @@ const MAX_DOM_DEPTH = 6;
 export function createReadHandlers(deps: ReadActionDeps = {}): ReadActionHandlers {
 	return {
 		text: (request) => ({ text: handleText(request, deps) }),
-		links: (request) => ({ links: handleLinks(request, deps) }),
+		links: (request) => handleLinks(request, deps),
 		images: (request) => ({ images: handleImages(request, deps) }),
 		elements: (request) => ({ elements: handleElements(request, deps) }),
 		outline: (_request) => handleOutline(deps),

@@ -1,4 +1,5 @@
 import type { BproxyResponse } from "./types.js";
+import { PROTOCOL_VERSION } from "./types.js";
 
 interface ValidationOk {
 	ok: true;
@@ -31,7 +32,7 @@ export function validateResponse(body: unknown, expectedId: string): ValidationR
 }
 
 function validateHeaders(obj: Record<string, unknown>, expectedId: string): ValidationError | null {
-	if (obj["protocol_version"] !== 1) {
+	if (obj["protocol_version"] !== PROTOCOL_VERSION) {
 		return {
 			ok: false,
 			reason: `Unexpected protocol_version: ${JSON.stringify(obj["protocol_version"])}`,

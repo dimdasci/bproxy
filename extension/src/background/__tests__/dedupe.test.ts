@@ -1,11 +1,11 @@
-import type { BproxyResponse } from "@bproxy/shared";
+import { type BproxyResponse, PROTOCOL_VERSION } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
 import { createFakeStorageItem } from "../../test/fakes/storage";
 import { createDedupe, type DedupeStore } from "../dedupe";
 
 function okResponse(id: string): BproxyResponse {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data: { text: "x" },

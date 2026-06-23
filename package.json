@@ -2,7 +2,7 @@
 	"name": "bproxy",
 	"private": true,
 	"type": "module",
-	"version": "0.8.0",
+	"version": "0.9.0",
 	"description": "Browser proxy for code agents.",
 	"license": "MIT",
 	"packageManager": "pnpm@9.15.0",
@@ -18,11 +18,7 @@
 		"sync-versions": "node scripts/sync-versions.js",
 		"check-versions": "node scripts/check-versions.js",
 		"check": "pnpm typecheck && pnpm format && pnpm lint && pnpm arch && pnpm deadcode && node scripts/check-versions.js",
-		"typecheck:pi-shim": "tsc -p .pi/extensions/context-grep/tsconfig.json --noEmit",
-		"typecheck:pi-tooling": "tsc -p tools/pi/context-grep/tsconfig.json --noEmit",
-		"lint:pi-shim": "eslint .pi/extensions/context-grep/index.ts --no-ignore",
-		"test": "pnpm -r test && pnpm test:pi-tooling",
-		"test:pi-tooling": "tsx --test tools/pi/context-grep/test/*.test.ts",
+		"test": "pnpm -r test",
 		"docs:dev": "pnpm --filter views dev",
 		"docs:build": "rm -rf views/public/views/auto && mkdir -p views/public/views/auto && cp docs/public/views/auto/*.svg views/public/views/auto/ && pnpm --filter views build && bash views/scripts/assert-no-md-links.sh && bash views/scripts/assert-component-svgs.sh",
 		"views:audit": "pnpm --filter views run audit",
@@ -42,7 +38,6 @@
 		"husky": "^9.1.7",
 		"knip": "^6.13.1",
 		"lint-staged": "^17.0.7",
-		"tsx": "^4.21.0",
 		"typescript": "^6.0.3"
 	}
 }

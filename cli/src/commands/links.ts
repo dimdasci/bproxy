@@ -15,6 +15,11 @@ export default defineCommand({
 			default: false,
 		},
 		limit: { type: "string", description: "Maximum links to return" },
+		"href-contains": {
+			type: "string",
+			description: "Filter links by substring match on absolute href",
+		},
+		offset: { type: "string", description: "Number of matching links to skip (pagination)" },
 	},
 	async run({ args }) {
 		const globals = extractGlobals(args);
@@ -27,8 +32,8 @@ export default defineCommand({
 			params.visibleOnly = true;
 		}
 		if (typeof args.limit === "string") {
-			const limit = Number.parseInt(args.limit, 10);
-			if (Number.isNaN(limit) || limit <= 0) {
+			const limit = parseIntegerArg(args.limit, { min: 1 });
+			if (limit === null) {
 				executeExitPlan(
 					exitUsageError(`Invalid limit: ${args.limit}. Must be a positive integer.`),
 				);
@@ -36,8 +41,28 @@ export default defineCommand({
 			}
 			params.limit = limit;
 		}
+		if (typeof args["href-contains"] === "string") {
+			params.hrefContains = args["href-contains"];
+		}
+		if (typeof args.offset === "string") {
+			const offset = parseIntegerArg(args.offset, { min: 0 });
+			if (offset === null) {
+				executeExitPlan(
+					exitUsageError(`Invalid offset: ${args.offset}. Must be a non-negative integer.`),
+				);
+				return;
+			}
+			params.offset = offset;
+		}
 
 		const plan = await sendAction("links", params, globals);
 		executeExitPlan(plan);
 	},
 });
+
+function parseIntegerArg(raw: string, options: { min: number }): number | null {
+	if (!/^\d+$/.test(raw)) return null;
+	const parsed = Number(raw);
+	if (!Number.isSafeInteger(parsed) || parsed < options.min) return null;
+	return parsed;
+}

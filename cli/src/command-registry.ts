@@ -28,6 +28,7 @@ const DESTRUCTIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
 	"tab.unpin",
 	"tab.open",
 	"tab.close",
+	"tab.activate",
 	"session.create",
 	"session.bind",
 	"session.unbind",

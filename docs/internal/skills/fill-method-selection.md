@@ -91,7 +91,7 @@ Explicitly out of scope per [ADR-014](../decisions.md#adr-014-shadow-dom-aware-d
 
 - Editor may not be mounted yet—modal shell vs runtime mount timing
 - Retry with progressive wait (100ms → 200ms → 400ms max 3 attempts)
-- See PoC 3: LinkedIn dialog ~101ms, editor ~409ms
+- See PoC 3: target-site dialog ~101ms, editor ~409ms
 
 ### `paste` fails (framework rejects value)
 

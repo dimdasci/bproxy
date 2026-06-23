@@ -1,4 +1,4 @@
-import type { BproxyRequest, BproxyResponse } from "@bproxy/shared";
+import { type BproxyRequest, type BproxyResponse, PROTOCOL_VERSION } from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import type { CapturedLogger } from "../logger";
@@ -23,7 +23,7 @@ let currentSession: BproxyRequest["session"];
 
 function makeCmd(overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id:
 			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action: "text",
@@ -83,7 +83,7 @@ describe("round-trip — happy path", () => {
 		ws.on("message", (raw: unknown) => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			const resp: BproxyResponse = {
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: req.id,
 				ok: true,
 				data: { text: "hello" },
@@ -142,7 +142,7 @@ describe("round-trip — happy path", () => {
 			if (req.action === "elements") {
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: { elements: [{ selector: "button.submit", tag: "button", label: "Submit" }] },
@@ -161,7 +161,7 @@ describe("round-trip — happy path", () => {
 				clickTarget = req.params["target"];
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: { clicked: true, disappeared: false, stable: true },
@@ -214,7 +214,7 @@ describe("round-trip — happy path", () => {
 			if (req.action === "elements") {
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: {
@@ -239,7 +239,7 @@ describe("round-trip — happy path", () => {
 				forwardedFields = req.params["fields"];
 				ws.send(
 					JSON.stringify({
-						protocol_version: 1,
+						protocol_version: PROTOCOL_VERSION,
 						id: req.id,
 						ok: true,
 						data: {
@@ -341,7 +341,7 @@ describe("round-trip — reconnect and replay", () => {
 
 		ws.send(
 			JSON.stringify({
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: replayed.id,
 				ok: true,
 				data: { text: "from-client-2" },

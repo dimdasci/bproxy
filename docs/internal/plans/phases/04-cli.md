@@ -397,7 +397,7 @@ If the implementation discovers a better layout, update `docs/public/solution/cl
 
 ## Out of scope for Phase 4
 
-- Real-site scenario hardening against Google, LinkedIn, or application forms. Phase 5 owns external validation.
+- Real-site scenario hardening against Google, authenticated feed sites, or application forms. Phase 5 owns external validation.
 - New browser capabilities or extension action handlers. Phase 4 may expose existing actions; it should not add page-side behavior.
 - Agent-side fill-method selection guidance beyond keeping links/docs accurate. The CLI must not implement method selection.
 - Closed shadow-root support, network shims, stealth patches, or trusted input simulation.

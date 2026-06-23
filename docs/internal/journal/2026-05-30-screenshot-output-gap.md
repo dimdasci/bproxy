@@ -5,7 +5,7 @@ Status: proposed
 
 ## Context
 
-During Phase 5 real-system validation, `screenshot` was used to confirm the actual page state before continuing Scenario 1 (Google SERP) and Scenario 2 (LinkedIn feed).
+During Phase 5 real-system validation, `screenshot` was used to confirm the actual page state before continuing Scenario 1 (Google SERP) and Scenario 2 (authenticated feed).
 
 The command succeeded, but the CLI returned the image only as a large base64 string inside protocol JSON.
 

@@ -1,11 +1,12 @@
-import type {
-	Action,
-	BproxyError,
-	BproxyForwardedRequest,
-	BproxyRequest,
-	BproxyResponse,
-	ElementTarget,
-	TabHandle,
+import {
+	type Action,
+	type BproxyError,
+	type BproxyForwardedRequest,
+	type BproxyRequest,
+	type BproxyResponse,
+	type ElementTarget,
+	PROTOCOL_VERSION,
+	type TabHandle,
 } from "@bproxy/shared";
 import type { ClientsRegistry } from "./clients";
 import type { ElementHandleCache } from "./element-handles";
@@ -35,7 +36,7 @@ export interface DispatchEngine {
 const BACKGROUND_HANDLED_ACTIONS = new Set<Action>(["tab.open"]);
 
 function errorResponse(id: string, error: BproxyError): BproxyResponse {
-	return { protocol_version: 1, id, ok: false, error };
+	return { protocol_version: PROTOCOL_VERSION, id, ok: false, error };
 }
 
 // Per-tab FIFO serializer: runs one command at a time per tabId.

@@ -227,3 +227,65 @@ describe("optional param omission patterns", () => {
 		expect(params).toEqual({ activate: true, debugger: true });
 	});
 });
+
+// ─── links numeric param parsing ────────────────────────────────────────
+
+function parseInteger(raw: string, min: number): number | null {
+	if (!/^[0-9]+$/.test(raw)) return null;
+	const value = Number(raw);
+	if (!Number.isSafeInteger(value) || value < min) return null;
+	return value;
+}
+
+function parseLimit(raw: string): number | null {
+	return parseInteger(raw, 1);
+}
+
+function parseOffset(raw: string): number | null {
+	return parseInteger(raw, 0);
+}
+
+describe("links --limit parsing logic", () => {
+	it("parses valid positive integer", () => {
+		expect(parseLimit("50")).toBe(50);
+	});
+
+	it("rejects zero", () => {
+		expect(parseLimit("0")).toBeNull();
+	});
+
+	it("rejects negative number", () => {
+		expect(parseLimit("-5")).toBeNull();
+	});
+
+	it("rejects non-numeric string", () => {
+		expect(parseLimit("abc")).toBeNull();
+	});
+
+	it("rejects float string", () => {
+		expect(parseLimit("3.5")).toBeNull();
+	});
+});
+
+describe("links --offset parsing logic", () => {
+	it("parses valid non-negative integer", () => {
+		expect(parseOffset("0")).toBe(0);
+		expect(parseOffset("100")).toBe(100);
+	});
+
+	it("rejects negative number", () => {
+		expect(parseOffset("-1")).toBeNull();
+	});
+
+	it("rejects non-numeric string", () => {
+		expect(parseOffset("abc")).toBeNull();
+	});
+
+	it("rejects empty string", () => {
+		expect(parseOffset("")).toBeNull();
+	});
+
+	it("rejects float string", () => {
+		expect(parseOffset("3.5")).toBeNull();
+	});
+});

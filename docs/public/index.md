@@ -4,7 +4,7 @@ title: bproxy
 
 ## Why this exists
 
-Most of my work is information research, analysis, and synthesis. Agents are good at the routine part — collecting data, transforming it, distilling patterns — but they need browser access to do it, and the services I use (Google, LinkedIn, Medium) actively detect automation.
+Most of my work is information research, analysis, and synthesis. Agents are good at the routine part — collecting data, transforming it, distilling patterns — but they need browser access to do it, and the services I use (Google, authenticated feed sites, Medium) actively detect automation.
 
 I have two options:
 

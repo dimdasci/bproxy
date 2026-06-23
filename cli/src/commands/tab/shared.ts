@@ -4,7 +4,7 @@ import { executeExitPlan, exitUsageError } from "../../exit.js";
 import { extractGlobals, globalArgs, parseTabHandle } from "../../globals.js";
 import type { ActionParams } from "../../types.js";
 
-type TabHandleAction = "tab.close" | "tab.pin" | "tab.unpin";
+type TabHandleAction = "tab.close" | "tab.pin" | "tab.unpin" | "tab.activate";
 
 export function defineTabHandleCommand(action: TabHandleAction, description: string) {
 	return defineCommand({

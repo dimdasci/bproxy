@@ -1,4 +1,10 @@
-import type { Action, BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
+import {
+	type Action,
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+	type TabHandle,
+} from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BuiltServer } from "../server";
 import {
@@ -51,7 +57,7 @@ function paramsFor(action: Action): BproxyRequest["params"] {
 
 function makeCmd(action: Action, overrides: Partial<BproxyRequest> = {}): BproxyRequest {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id:
 			overrides.id ?? `01HZX${crypto.randomUUID().replaceAll("-", "").slice(0, 21).toUpperCase()}`,
 		action,
@@ -223,7 +229,7 @@ describe("action contract coverage — GAP A", () => {
 			expect(built.sessions.list()).toHaveLength(before);
 		});
 
-		for (const action of ["tab.pin", "tab.unpin", "tab.close"] as const) {
+		for (const action of ["tab.pin", "tab.unpin", "tab.close", "tab.activate"] as const) {
 			it(`${action}: returns TAB_NOT_FOUND without a selected tab even before WS forwarding`, async () => {
 				const res = await postCommand(makeCmd(action));
 				expect(res.status).toBe(200);
@@ -243,7 +249,7 @@ describe("action contract coverage — GAP A", () => {
 			const req = JSON.parse(String(raw)) as BproxyRequest;
 			receivedAction = req.action;
 			const resp: BproxyResponse = {
-				protocol_version: 1,
+				protocol_version: PROTOCOL_VERSION,
 				id: req.id,
 				ok: true,
 				data: { entries: [] },

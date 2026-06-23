@@ -30,7 +30,7 @@ title: Phase 5 - Integration & hardening
 5. **`session bind` binds logical tabs.** `session bind --tab t1` moves the current session binding to a session-owned logical tab. Raw Chrome ids are rejected at the CLI and daemon boundary.
 6. **Structured link extraction exists.** A first-class `links` action/CLI command returns visible page links as structured data (`text`, `href`, `target`, optional metadata) so research workflows do not need shell/Node HTML parsing.
 7. **Generated selectors are robust.** `elements` never fails an entire command because one generated selector contains a newline, quote, backslash, or other CSS-hostile attribute value. Unsafe selector generation falls back to a safe target representation or omits only the unsafe selector field with traceable metadata.
-8. **Documented scenarios run against the real system.** Scenario 1 (Google research) runs autonomously to completion in a fresh paired setup. Scenario 2 (LinkedIn snapshot) validates scroll/pause behaviour and handles `HUMAN_REQUIRED`. Scenario 3 (form fill) fills a real form to the user-review step.
+8. **Documented scenarios run against the real system.** Scenario 1 (Google research) runs autonomously to completion in a fresh paired setup. Scenario 2 (authenticated feed snapshot) validates scroll/pause behaviour and handles `HUMAN_REQUIRED`. Scenario 3 (form fill) fills a real form to the user-review step.
 9. **Docs match code.** `docs/public/solution/*.md`, `docs/internal/architecture.md`, `docs/internal/scenarios.md`, package READMEs, and affected public views describe the shipped Phase 5 behaviour - not Phase 4 compatibility and not future wishes.
 10. **Fast local guardrails exist.** Pre-commit hooks run a fast, low-friction subset of the existing gates, while CI/root checks remain authoritative.
 11. **Static and runtime gates pass:** `pnpm check`, `pnpm test`, `pnpm docs:build`, relevant package builds, `pnpm views:regen`, and the Phase 5 smoke/manual scenario checks.
@@ -230,24 +230,24 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Add or update a local smoke script for fresh paired setup: `service start` → pair extension → `tab open` → `navigate` → `text` → `links` → `session close`.
 - [X] Run the Phase 5 scenario transcripts (written in Task 1) as the acceptance scripts. The transcripts define the exact commands and expected response shapes.
   - [X] Scenario 1 transcript was executed against a real Google SERP and completed successfully.
-  - [X] Scenario 2 validated through scroll fix, inspect/snapshot diagnostics, and live LinkedIn runs (Task 8a).
+  - [X] Scenario 2 validated through scroll fix, inspect/snapshot diagnostics, and live target-site runs (Task 8a).
   - [X] Scenario 3 transcript was executed to the human-review boundary and completed without any submit action.
 - [X] Run Scenario 1 (Google topic research) with a real Chrome profile. The human handles any login/CAPTCHA. Document the command transcript and results.
   - [X] Fresh `tab open` bootstrap returned generated session + logical tab handle.
   - [X] Real Google SERP validated `links` extraction and rendered-text reads.
   - [X] Real run showed the transcript should use `#search`, not `main`, for this page shape.
-- [X] Run Scenario 2 (LinkedIn snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
+- [X] Run Scenario 2 (authenticated feed snapshot) far enough to validate scroll pacing, foreground-tab behaviour, and `HUMAN_REQUIRED`/pause handling. If site conditions make full automation inappropriate, document the bounded manual result.
   - [X] Feed loads in a real signed-in Chrome profile and stays usable in the foreground; screenshot confirmed the expected feed view.
   - [X] Reproduced blocker: `scroll -s <session> --by viewport --direction down --until-stable` returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move.
   - [X] Reproduced deviation: `eval --allow-eval` existed as a tempting debugging path, but the 2026-06-12 course correction rejects arbitrary eval as a bproxy feature. Use CDP/devtools for page investigation instead.
-  - [X] Fixed the LinkedIn scroll false-success class without adding scroll-container inference: `scroll` now supports explicit `ElementTarget` and returns honest `moved`/before/after data. See `docs/internal/journal/2026-05-30-linkedin-scroll-and-eval-gaps.md` and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
-  - [X] Re-run is obsolete: scroll explicit-target fix (`78cc005`), inspect/snapshot diagnostic commands (`d3e6e73`), and live LinkedIn validation in Task 8a collectively satisfy the Scenario 2 acceptance criteria. No separate re-run needed.
+  - [X] Fixed the target-site scroll false-success class without adding scroll-container inference: `scroll` now supports explicit `ElementTarget` and returns honest `moved`/before/after data. See the 2026-05-30 scroll/eval findings note and `docs/internal/journal/2026-05-31-scroll-container-investigation.md`.
+  - [X] Re-run is obsolete: scroll explicit-target fix (`78cc005`), inspect/snapshot diagnostic commands (`d3e6e73`), and live target-site validation in Task 8a collectively satisfy the Scenario 2 acceptance criteria. No separate re-run needed.
 - [X] Run Scenario 3 (form fill) against a real or realistic application form to the user-review step; verify no submit action exists in the flow.
-  - [X] Used the LinkedIn post composer modal as a realistic human-review form boundary.
+  - [X] Used the target-site composer modal as a realistic human-review form boundary.
   - [X] `elements --form` discovered a shadow-route textbox target under `#interop-outlet`.
   - [X] `fill --method paste --world isolated` successfully inserted visible draft text into the composer.
   - [X] No submit/publish action was used; validation stopped at human review.
-- [X] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5. Current findings to preserve: Google false-positive `busy` reporting, LinkedIn `scroll` false-success, the eval course correction, and screenshot file-output UX gap.
+- [X] Record any new real-use findings in `docs/internal/journal/` rather than silently expanding Phase 5. Current findings to preserve: Google false-positive `busy` reporting, target-site `scroll` false-success, the eval course correction, and screenshot file-output UX gap.
 
 **Done when:** the phase's success criteria are demonstrated against the documented workflows or explicitly deferred with a journaled reason and a follow-up plan.
 
@@ -255,14 +255,14 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 
 ## Task 8a: Diagnostic sensor commands (`inspect` + `snapshot`)
 
-**Purpose:** Give agents self-diagnostic capability when existing sensors fail. Discovered during LinkedIn scenario validation (Task 8, Scenario 2) — `text` returned 282 chars due to `display: contents` wrappers; agent had no way to diagnose without dev-browser/CDP.
+**Purpose:** Give agents self-diagnostic capability when existing sensors fail. Discovered during target-site scenario validation (Task 8, Scenario 2) — `text` returned 282 chars due to `display: contents` wrappers; agent had no way to diagnose without dev-browser/CDP.
 
 - [X] Implement `inspect` action — CSS selector → structural metadata (rect, computed styles, descendants, textLength, scroll state). Same fixed-schema sensor pattern as `text`/`dom`.
 - [X] Implement `snapshot` action — accessibility tree sensor. Walks DOM + ARIA semantics, immune to CSS layout tricks. Returns indented text optimized for LLM consumption.
 - [X] Wire through all 6 layers: shared types → service schemas → extension forwarded-actions → content RPC → content handlers → CLI commands.
 - [X] Tests: 17 new tests (7 inspect, 10 snapshot), all existing 329+187+162 tests pass.
 - [X] Quality gates: `pnpm check` passes (typecheck, format, lint, arch, deadcode).
-- [X] Validated in production against live LinkedIn profile and job search pages.
+- [X] Validated in production against live target-site profile and job-search pages.
 
 **Done when:** agents can run `bproxy inspect --selector "section > div"` and immediately see `{display: "contents", rect: 0×0, descendants: 2273, textLength: 15116}` — self-diagnosing layout-transparent wrappers without reaching for a second tool.
 
@@ -279,7 +279,7 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - [X] Ensure every daemon/extension error returned through protocol uses a complete `BproxyError` shape — test: invalid session, invalid tab handle, paused session, no extension, timeout, and malformed extension response all produce well-formed error envelopes.
 - [X] Update `debug.status`/`debug.last` to show generated sessions and logical tabs without leaking raw Chrome ids in normal fields. Ring buffer wired in production; verified by test.
 - [X] Tighten page `busy` reporting. Real Google Scenario 1 showed `state: "ready"` with `busy: true` even though the page was visually static and both `text`/`links` succeeded; the current heuristic likely treats hidden or stale `[aria-busy]` / `progressbar` DOM as active work. Refine `busy` to require visible/relevant busy indicators and add a regression test for this false-positive shape.
-- [X] Tighten `scroll` success semantics. Real LinkedIn Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. `scroll` now reports `moved`, supports explicit element targets, and avoids generalized container-inference heuristics.
+- [X] Tighten `scroll` success semantics. Real target-site Scenario 2 returned `ok: true`, `stable: true`, and `scrolledPx: 0` twice while the viewport visibly did not move. `scroll` now reports `moved`, supports explicit element targets, and avoids generalized container-inference heuristics.
 - [X] Keep raw internal ids out of `--verbose` unless explicitly classified as debug-only and documented. CLI `VerboseEntry` confirmed clean; daemon logs documented as operator-only.
 - [X] Add tests for timeout, no extension, invalid session, invalid tab handle, paused session, malformed extension responses, false-positive `busy` detection, and false-success `scroll` reporting under the new model.
 
@@ -379,5 +379,5 @@ docs/public/views/auto/*.svg       # MODIFIED by pnpm views:regen
 - Closed shadow-root support.
 - New stealth mechanisms, network shims, trusted input simulation, or broad anti-detection bypasses.
 - Arbitrary page eval and debugger screenshots through CLI/service control paths.
-- Site-specific scrapers or LinkedIn Voyager API access.
+- Site-specific scrapers or internal feed API access.
 - Making scenario validation fully CI-automated against third-party websites. Real-site checks can remain manual/local with documented transcripts because external sites are unstable and account-dependent.

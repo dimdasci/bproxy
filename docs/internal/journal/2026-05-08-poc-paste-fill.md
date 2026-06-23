@@ -1,11 +1,11 @@
-# PoC 3 — LinkedIn composer write path (retrospective, compact)
+# PoC 3 — production composer write path (retrospective, compact)
 
 Date range: 2026-05-08 → 2026-05-09
 Status: closed
 
 ## Original question
 
-Can extension-driven write logic reliably set content in LinkedIn’s post composer without relying on synthetic paste/input events?
+Can extension-driven write logic reliably set content in a production site's post composer without relying on synthetic paste/input events?
 
 ---
 
@@ -78,7 +78,7 @@ So modal shell appears first; editor runtime is async shortly after.
    - This produced false hits on app containers.
 
 3. **Assuming Lexical/fiber as mandatory target path**
-   - Useful as a possible route, but not a guaranteed one on live LinkedIn surfaces.
+   - Useful as a possible route, but not a guaranteed one on live production surfaces.
    - Concrete session validated Quill runtime path instead.
 
 4. **Late adoption of `MAIN` world**
@@ -101,7 +101,7 @@ So modal shell appears first; editor runtime is async shortly after.
 
 - Synthetic event simulation is not required for this surface.
 - Shadow-aware discovery is required.
-- Runtime API mutation is implementable and reliable on the validated LinkedIn session.
+- Runtime API mutation is implementable and reliable on the validated production session.
 - **Execution world choice is architectural:** runtime-handle access (`__quill` and similar page-owned objects) required `chrome.scripting.executeScript(..., { world: 'MAIN' })` in this PoC path; isolated world produced false negatives.
 - Practical implementation must be runtime-adaptive (Quill confirmed here; Lexical/fiber may exist on other builds/surfaces).
 

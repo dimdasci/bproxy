@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type ClientGlobalArgs, sendAction, validateResponse } from "../client.js";
 import type { ActionParams, TabHandle } from "../types.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import { extractUrl } from "./fetch-helper.js";
 import { createTestStateDir } from "./helpers/test-state-dir.js";
 
@@ -25,7 +26,7 @@ const DEFAULT_RESPONSE_DATA = { text: "hello" };
 
 function successResponse(id: string, data: unknown = DEFAULT_RESPONSE_DATA) {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: true,
 		data,
@@ -36,7 +37,7 @@ function successResponse(id: string, data: unknown = DEFAULT_RESPONSE_DATA) {
 
 function errorResponse(id: string, code = "ELEMENT_NOT_FOUND") {
 	return {
-		protocol_version: 1,
+		protocol_version: PROTOCOL_VERSION,
 		id,
 		ok: false,
 		error: {
@@ -135,7 +136,7 @@ describe("validateResponse", () => {
 	});
 
 	it("rejects wrong protocol_version", () => {
-		const result = validateResponse({ ...successResponse(reqId), protocol_version: 2 }, reqId);
+		const result = validateResponse({ ...successResponse(reqId), protocol_version: 99 }, reqId);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.reason).toContain("protocol_version");
@@ -184,7 +185,10 @@ describe("validateResponse", () => {
 	});
 
 	it("rejects error response without error object", () => {
-		const result = validateResponse({ protocol_version: 1, id: reqId, ok: false }, reqId);
+		const result = validateResponse(
+			{ protocol_version: PROTOCOL_VERSION, id: reqId, ok: false },
+			reqId,
+		);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.reason).toContain("'error' object");
@@ -193,7 +197,7 @@ describe("validateResponse", () => {
 
 	it("rejects error response with error missing code", () => {
 		const result = validateResponse(
-			{ protocol_version: 1, id: reqId, ok: false, error: { category: "target" } },
+			{ protocol_version: PROTOCOL_VERSION, id: reqId, ok: false, error: { category: "target" } },
 			reqId,
 		);
 		expect(result.ok).toBe(false);
@@ -267,7 +271,7 @@ describe("sendAction", () => {
 		expect(calls).toHaveLength(1);
 		expect(calls[0]!.url).toBe("http://127.0.0.1:9615/");
 		const body = JSON.parse(calls[0]!.init.body as string);
-		expect(body.protocol_version).toBe(1);
+		expect(body.protocol_version).toBe(PROTOCOL_VERSION);
 		expect(body.id).toBe(reqId);
 		expect(body.action).toBe("text");
 		expect(body.params).toEqual({ selector: ".content" });

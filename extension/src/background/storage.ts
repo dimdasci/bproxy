@@ -1,4 +1,4 @@
-import type { TraceEntry } from "@bproxy/shared";
+import { PROTOCOL_VERSION, type TraceEntry } from "@bproxy/shared";
 import { storage } from "wxt/utils/storage";
 import type { DedupeEntry } from "./dedupe";
 
@@ -20,7 +20,7 @@ import type { DedupeEntry } from "./dedupe";
 export interface PairingBootstrap {
 	extensionToken: string;
 	wsUrl: string;
-	protocolVersion: 1;
+	protocolVersion: typeof PROTOCOL_VERSION;
 	issuedAt: number;
 	expiresAt: number;
 	nonce: string;

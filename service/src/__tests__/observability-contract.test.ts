@@ -1,4 +1,9 @@
-import type { BproxyRequest, BproxyResponse, TabHandle } from "@bproxy/shared";
+import {
+	type BproxyRequest,
+	type BproxyResponse,
+	PROTOCOL_VERSION,
+	type TabHandle,
+} from "@bproxy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import type { CapturedLogger } from "../logger";
@@ -56,7 +61,7 @@ describe("observability contract — GAP D", () => {
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				const resp: BproxyResponse = {
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: { text: "hello" },
@@ -103,7 +108,7 @@ describe("observability contract — GAP D", () => {
 			ws.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				const resp: BproxyResponse = {
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: { url: "https://a.com", title: "A", loadTime: 100 },
@@ -199,7 +204,7 @@ describe("observability contract — GAP D", () => {
 			ws2.on("message", (raw: unknown) => {
 				const req = JSON.parse(String(raw)) as BproxyRequest;
 				const resp: BproxyResponse = {
-					protocol_version: 1,
+					protocol_version: PROTOCOL_VERSION,
 					id: req.id,
 					ok: true,
 					data: { text: "ok" },

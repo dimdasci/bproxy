@@ -12,10 +12,10 @@ describe("bproxy --version", () => {
 		expect(result).toMatch(/^bproxy v\d+\.\d+\.\d+ \(protocol v\d+\)$/);
 	});
 
-	it("includes protocol v1", () => {
+	it("includes protocol v2", () => {
 		const binPath = join(__dirname, "../../dist/bproxy.mjs");
 		const result = execSync(`node "${binPath}" --version`, { encoding: "utf8" }).trim();
-		expect(result).toContain("protocol v1");
+		expect(result).toContain("protocol v2");
 	});
 
 	it("exits with code 0", () => {

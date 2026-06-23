@@ -11,6 +11,7 @@
  * calls process.exit.
  */
 
+import { writeFileSync } from "node:fs";
 import type { BproxyResponse } from "./types.js";
 
 /** Exit plan returned by commands for testability. */
@@ -56,6 +57,11 @@ export function exitUsageError(message: string): ExitPlan {
 /**
  * Execute an exit plan: write output and call process.exit.
  * This should only be called at the outermost CLI boundary.
+ *
+ * Stdout writes use synchronous fd-level I/O when writing to the real
+ * process.stdout. This prevents truncation when large JSON payloads
+ * (>64KB) exceed the pipe buffer and the consuming process has not
+ * drained yet. Injected test streams still use the stream `.write()` API.
  */
 export function executeExitPlan(
 	plan: ExitPlan,
@@ -65,15 +71,25 @@ export function executeExitPlan(
 		exit?: (code: number) => void;
 	} = {},
 ): void {
-	const stdout = deps.stdout ?? process.stdout;
-	const stderr = deps.stderr ?? process.stderr;
+	const stdout = deps.stdout;
+	const stderr = deps.stderr;
 	const exit = deps.exit ?? ((code: number) => process.exit(code));
 
 	if (plan.stdout !== undefined) {
-		stdout.write(`${JSON.stringify(plan.stdout)}\n`);
+		const payload = `${JSON.stringify(plan.stdout)}\n`;
+		if (stdout) {
+			stdout.write(payload);
+		} else {
+			writeFileSync(1, payload);
+		}
 	}
 	if (plan.stderr !== undefined) {
-		stderr.write(`${plan.stderr}\n`);
+		const message = `${plan.stderr}\n`;
+		if (stderr) {
+			stderr.write(message);
+		} else {
+			writeFileSync(2, message);
+		}
 	}
 
 	exit(plan.code);

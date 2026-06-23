@@ -9,6 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { type SendOptions, sendAction } from "../client.js";
+import { transformTextExitPlan } from "../commands/text.js";
+import { PROTOCOL_VERSION } from "../types.js";
 import {
 	createMockFetch,
 	makeGlobals,
@@ -55,6 +57,72 @@ describe("text command", () => {
 			params: { selector: "#content" },
 		});
 	});
+
+	it("applies --after marker slicing to successful stdout only", () => {
+		const plan = {
+			code: 0 as const,
+			stdout: successResponse("text-id", { text: "alpha MARK beta" }),
+		};
+
+		const transformed = transformTextExitPlan(plan, { after: "MARK" });
+
+		expect(transformed.stdout).toMatchObject({
+			ok: true,
+			data: { text: "MARK beta", markerFound: true, markerOffset: 6 },
+		});
+	});
+
+	it("adds markerFound false when --after marker is missing", () => {
+		const plan = { code: 0 as const, stdout: successResponse("text-id", { text: "alpha beta" }) };
+
+		const transformed = transformTextExitPlan(plan, { after: "MARK", limitChars: 3 });
+
+		expect(transformed.stdout).toMatchObject({
+			ok: true,
+			data: { text: "alpha beta", markerFound: false },
+		});
+	});
+
+	it("applies --limit-chars from the beginning when --after is omitted", () => {
+		const plan = { code: 0 as const, stdout: successResponse("text-id", { text: "abcdef" }) };
+
+		const transformed = transformTextExitPlan(plan, { limitChars: 3 });
+
+		expect(transformed.stdout).toMatchObject({ ok: true, data: { text: "abc" } });
+		expect(
+			(transformed.stdout as { data: Record<string, unknown> }).data["markerFound"],
+		).toBeUndefined();
+	});
+
+	it("combines --after and --limit-chars after the marker", () => {
+		const plan = { code: 0 as const, stdout: successResponse("text-id", { text: "abc MARK def" }) };
+
+		const transformed = transformTextExitPlan(plan, { after: "MARK", limitChars: 6 });
+
+		expect(transformed.stdout).toMatchObject({
+			ok: true,
+			data: { text: "MARK d", markerFound: true, markerOffset: 4 },
+		});
+	});
+
+	it("does not transform protocol error responses", () => {
+		const plan = {
+			code: 1 as const,
+			stdout: {
+				protocol_version: PROTOCOL_VERSION,
+				id: "text-id",
+				ok: false,
+				error: {
+					code: "TAB_NOT_FOUND",
+					category: "target",
+					retry: "never",
+					message: "Missing tab",
+				},
+			},
+		};
+
+		expect(transformTextExitPlan(plan, { after: "MARK" })).toBe(plan);
+	});
 });
 
 describe("links command", () => {
@@ -81,6 +149,28 @@ describe("links command", () => {
 		expect(calls[0]!.body).toMatchObject({
 			action: "links",
 			params: { selector: "#search", visibleOnly: true, limit: 10 },
+		});
+	});
+
+	it("sends links action with href-contains filter", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("links", { hrefContains: "/in/" }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: { hrefContains: "/in/" },
+		});
+	});
+
+	it("sends links action with offset for pagination", async () => {
+		const home = setupTempHome();
+		const { plan, calls } = await sendWithCapture("links", { offset: 50, limit: 25 }, home);
+
+		expect(plan.code).toBe(0);
+		expect(calls[0]!.body).toMatchObject({
+			action: "links",
+			params: { offset: 50, limit: 25 },
 		});
 	});
 });
@@ -361,7 +451,7 @@ describe("request envelope structure", () => {
 		await sendAction("text", {}, makeGlobals(home), opts);
 
 		const body = calls[0]!.body;
-		expect(body["protocol_version"]).toBe(1);
+		expect(body["protocol_version"]).toBe(PROTOCOL_VERSION);
 		expect(body["id"]).toBe(requestId);
 		expect(body["session"]).toBe("m4q7z2");
 		expect(body["deadline"]).toBeGreaterThan(Date.now() - 10000);
@@ -496,7 +586,7 @@ describe("response pass-through", () => {
 		const home = setupTempHome();
 		const requestId = "test-id-001";
 		const responseBody = {
-			protocol_version: 1,
+			protocol_version: PROTOCOL_VERSION,
 			id: requestId,
 			ok: false,
 			error: {
