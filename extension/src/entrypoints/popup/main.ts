@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
 import { bootstrapItem, type PairingBootstrap } from "../../background/storage";
+import type { BadgeState } from "../../background/ws-client";
 import { type PairingErrorCode, type PairingResult, runPairing } from "./pairing";
 
 // Thin DOM wiring for the popup. Real flow logic lives in small helpers:
@@ -30,9 +31,9 @@ export interface ConnectionStatusViewModel {
 	submitLabel: string;
 }
 
-interface PopupInitDeps {
+export interface PopupInitDeps {
 	storage: { getValue(): Promise<PairingBootstrap | null> };
-	now: () => number;
+	queryState: () => Promise<BadgeState | null>;
 }
 
 function $<T extends HTMLElement>(id: string): T {
@@ -61,20 +62,38 @@ export function formatVersionInfo(
 	return `${extensionPart} · ${protocolPart}`;
 }
 
+/**
+ * Derive the popup's connection-status display from the background SW's live
+ * WebSocket state and the presence of a stored bootstrap token.
+ *
+ * Priority:
+ *  1. `connected` badge state → green "Paired with local daemon"
+ *  2. `connecting` badge state → muted "Connecting…"
+ *  3. Has stored token but disconnected → muted "Disconnected"
+ *  4. No token / error / unknown → muted "Not paired"
+ */
 export function getConnectionStatusViewModel(
-	bootstrap: PairingBootstrap | null,
-	now: number,
+	liveState: BadgeState | null,
+	hasBootstrap: boolean,
 ): ConnectionStatusViewModel {
-	if (
-		bootstrap &&
-		typeof bootstrap.extensionToken === "string" &&
-		bootstrap.extensionToken.length > 0 &&
-		typeof bootstrap.expiresAt === "number" &&
-		bootstrap.expiresAt > now
-	) {
+	if (liveState === "connected") {
 		return {
 			text: "Paired with local daemon",
 			tone: "ok",
+			submitLabel: "Re-pair with new code",
+		};
+	}
+	if (liveState === "connecting") {
+		return {
+			text: "Connecting\u2026",
+			tone: "muted",
+			submitLabel: "Re-pair with new code",
+		};
+	}
+	if (hasBootstrap) {
+		return {
+			text: "Disconnected",
+			tone: "muted",
 			submitLabel: "Re-pair with new code",
 		};
 	}
@@ -157,15 +176,48 @@ async function onSubmit(ev: SubmitEvent): Promise<void> {
 	}
 }
 
+async function queryLiveState(): Promise<BadgeState | null> {
+	try {
+		const response = await chrome.runtime.sendMessage({ type: "status.query" });
+		if (
+			typeof response === "object" &&
+			response !== null &&
+			(response as Record<string, unknown>)["type"] === "status.response"
+		) {
+			const state = (response as Record<string, unknown>)["state"];
+			if (
+				state === "connected" ||
+				state === "disconnected" ||
+				state === "connecting" ||
+				state === "error"
+			) {
+				return state;
+			}
+		}
+		return null;
+	} catch {
+		// Background SW not reachable (e.g. during startup). Fall back to
+		// storage-only heuristic.
+		return null;
+	}
+}
+
 export async function initializePopup(
 	deps: PopupInitDeps = {
 		storage: bootstrapItem,
-		now: () => Date.now(),
+		queryState: queryLiveState,
 	},
 ): Promise<void> {
 	renderVersionInfo(formatVersionInfo());
-	const bootstrap = await deps.storage.getValue().catch(() => null);
-	renderConnectionStatus(getConnectionStatusViewModel(bootstrap, deps.now()));
+	const [bootstrap, liveState] = await Promise.all([
+		deps.storage.getValue().catch(() => null),
+		deps.queryState(),
+	]);
+	const hasBootstrap =
+		bootstrap !== null &&
+		typeof bootstrap.extensionToken === "string" &&
+		bootstrap.extensionToken.length > 0;
+	renderConnectionStatus(getConnectionStatusViewModel(liveState, hasBootstrap));
 	setStatus("idle", "");
 }
 

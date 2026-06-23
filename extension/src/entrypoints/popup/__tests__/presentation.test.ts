@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { PROTOCOL_VERSION, VERSION } from "@bproxy/shared";
 import { describe, expect, it } from "vitest";
-import type { PairingBootstrap } from "../../../background/storage";
 import { formatVersionInfo, getConnectionStatusViewModel } from "../main";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -13,18 +12,6 @@ function expectLink(label: string, href: string): void {
 			`<a[^>]*href="${hrefPattern}"[^>]*target="_blank"[^>]*rel="noreferrer"[^>]*>${label}</a>`,
 		),
 	);
-}
-
-function bootstrap(overrides: Partial<PairingBootstrap> = {}): PairingBootstrap {
-	return {
-		extensionToken: "tok-123",
-		wsUrl: "ws://127.0.0.1:9615/ws",
-		protocolVersion: PROTOCOL_VERSION,
-		issuedAt: 100,
-		expiresAt: 10_000,
-		nonce: "nonce-1",
-		...overrides,
-	};
 }
 
 describe("popup presentation", () => {
@@ -64,26 +51,75 @@ describe("formatVersionInfo", () => {
 });
 
 describe("getConnectionStatusViewModel", () => {
-	it("renders gray not-paired state when no bootstrap exists", () => {
-		expect(getConnectionStatusViewModel(null, 5_000)).toEqual({
-			text: "Not paired",
-			tone: "muted",
-			submitLabel: "Pair extension",
-		});
-	});
-
-	it("renders gray not-paired state when bootstrap is expired", () => {
-		expect(getConnectionStatusViewModel(bootstrap({ expiresAt: 4_000 }), 5_000)).toEqual({
-			text: "Not paired",
-			tone: "muted",
-			submitLabel: "Pair extension",
-		});
-	});
-
-	it("renders green paired state when bootstrap is present and fresh", () => {
-		expect(getConnectionStatusViewModel(bootstrap(), 5_000)).toEqual({
+	it("shows green paired state when live state is connected", () => {
+		expect(getConnectionStatusViewModel("connected", true)).toEqual({
 			text: "Paired with local daemon",
 			tone: "ok",
+			submitLabel: "Re-pair with new code",
+		});
+	});
+
+	it("shows green paired state even without bootstrap when connected", () => {
+		// Edge case: connected but storage read failed
+		expect(getConnectionStatusViewModel("connected", false)).toEqual({
+			text: "Paired with local daemon",
+			tone: "ok",
+			submitLabel: "Re-pair with new code",
+		});
+	});
+
+	it("shows connecting state when live state is connecting", () => {
+		expect(getConnectionStatusViewModel("connecting", true)).toEqual({
+			text: "Connecting\u2026",
+			tone: "muted",
+			submitLabel: "Re-pair with new code",
+		});
+	});
+
+	it("shows disconnected when has bootstrap but WS is down", () => {
+		expect(getConnectionStatusViewModel("disconnected", true)).toEqual({
+			text: "Disconnected",
+			tone: "muted",
+			submitLabel: "Re-pair with new code",
+		});
+	});
+
+	it("shows disconnected when has bootstrap but state query returned error", () => {
+		expect(getConnectionStatusViewModel("error", true)).toEqual({
+			text: "Disconnected",
+			tone: "muted",
+			submitLabel: "Re-pair with new code",
+		});
+	});
+
+	it("shows not-paired when no bootstrap and disconnected", () => {
+		expect(getConnectionStatusViewModel("disconnected", false)).toEqual({
+			text: "Not paired",
+			tone: "muted",
+			submitLabel: "Pair extension",
+		});
+	});
+
+	it("shows not-paired when no bootstrap and state is null (query failed)", () => {
+		expect(getConnectionStatusViewModel(null, false)).toEqual({
+			text: "Not paired",
+			tone: "muted",
+			submitLabel: "Pair extension",
+		});
+	});
+
+	it("shows not-paired when no bootstrap and state is error", () => {
+		expect(getConnectionStatusViewModel("error", false)).toEqual({
+			text: "Not paired",
+			tone: "muted",
+			submitLabel: "Pair extension",
+		});
+	});
+
+	it("shows disconnected when has bootstrap but state query returned null", () => {
+		expect(getConnectionStatusViewModel(null, true)).toEqual({
+			text: "Disconnected",
+			tone: "muted",
 			submitLabel: "Re-pair with new code",
 		});
 	});

@@ -172,6 +172,23 @@ export default defineBackground(() => {
 		}),
 	);
 	dispatcher = makeDispatcher(client, tabs);
+
+	// Popup status query handler. Returns the live WS connection state so
+	// the popup can display accurate pairing status without relying on the
+	// bootstrap envelope's expiresAt field (which is the code claim window,
+	// not the ongoing session validity).
+	chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+		if (
+			typeof msg === "object" &&
+			msg !== null &&
+			(msg as Record<string, unknown>)["type"] === "status.query"
+		) {
+			sendResponse({ type: "status.response", state: client.getState() });
+			return true;
+		}
+		return undefined;
+	});
+
 	client.start().catch(() => {
 		// `start()` swallows expected branches (skip/reject) via badge state.
 		// An unexpected throw lands here; surface it as the error badge so
