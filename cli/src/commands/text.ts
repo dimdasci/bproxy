@@ -88,7 +88,7 @@ function applyLimit(text: string, limitChars: number | undefined): string {
 
 function parsePositiveIntegerArg(value: unknown): number | undefined | null {
 	if (value === undefined) return undefined;
-	if (typeof value !== "string" || !/^[0-9]+$/.test(value)) return null;
+	if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }

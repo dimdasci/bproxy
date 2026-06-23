@@ -89,9 +89,9 @@ describe("text command", () => {
 		const transformed = transformTextExitPlan(plan, { limitChars: 3 });
 
 		expect(transformed.stdout).toMatchObject({ ok: true, data: { text: "abc" } });
-		expect((transformed.stdout as { data: Record<string, unknown> }).data["markerFound"]).toBe(
-			undefined,
-		);
+		expect(
+			(transformed.stdout as { data: Record<string, unknown> }).data["markerFound"],
+		).toBeUndefined();
 	});
 
 	it("combines --after and --limit-chars after the marker", () => {

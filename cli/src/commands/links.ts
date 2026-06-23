@@ -61,7 +61,7 @@ export default defineCommand({
 });
 
 function parseIntegerArg(raw: string, options: { min: number }): number | null {
-	if (!/^[0-9]+$/.test(raw)) return null;
+	if (!/^\d+$/.test(raw)) return null;
 	const parsed = Number(raw);
 	if (!Number.isSafeInteger(parsed) || parsed < options.min) return null;
 	return parsed;
