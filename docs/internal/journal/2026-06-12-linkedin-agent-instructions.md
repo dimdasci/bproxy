@@ -1,4 +1,4 @@
-# LinkedIn navigation with bproxy
+# Target-site navigation with bproxy
 
 Date: 2026-06-12 (updated after inspect/snapshot implementation)
 
@@ -6,7 +6,7 @@ Date: 2026-06-12 (updated after inspect/snapshot implementation)
 
 | Goal | Command |
 |------|---------|
-| Navigate | `bproxy navigate --url "https://www.linkedin.com/..." -s <id>` |
+| Navigate | `bproxy navigate --url "https://app.example.test/..." -s <id>` |
 | Page map | `bproxy outline -s <id>` |
 | Full text | `bproxy text -s <id>` (14K+ chars on profiles) |
 | Scoped text | `bproxy text --selector "section[aria-label='Primary content']" -s <id>` |
@@ -21,7 +21,7 @@ Date: 2026-06-12 (updated after inspect/snapshot implementation)
 
 ### Scroll container
 
-LinkedIn sets `overflow: hidden` on html/body. The scroll container is `main` (it auto-detects). Standard viewport scroll works via bproxy.
+The target site sets `overflow: hidden` on html/body. The scroll container is `main` (it auto-detects). Standard viewport scroll works via bproxy.
 
 ### Lazy loading
 
@@ -29,7 +29,7 @@ Sections below the fold load on scroll. Scroll down and re-check with `outline` 
 
 ### Deep wrapper nesting
 
-LinkedIn nests content 8-12 div wrappers deep inside `display: contents` parents. When using `snapshot`:
+The target site nests content 8-12 div wrappers deep inside `display: contents` parents. When using `snapshot`:
 - Use `--maxDepth 12` to reach semantic elements
 - Scope to `section[aria-label='Primary content']` to avoid wasting depth on page chrome
 
@@ -47,7 +47,7 @@ Look for: `display=contents` + `rect=0x0` + high `descendants`/`textLength` → 
 
 `aria-label` values are locale-dependent ("Primary content" in English, "Contenido principal" in Spanish). Use `outline` to discover actual headings, don't hardcode labels.
 
-## LinkedIn DOM structure
+## Target-site DOM structure
 
 ```
 main [scrollable]
@@ -72,7 +72,7 @@ Multiple visual sections are grouped into single DOM containers.
 ### Read a profile
 
 ```bash
-bproxy navigate --url "https://www.linkedin.com/in/<slug>/" -s <id>
+bproxy navigate --url "https://app.example.test/in/<slug>/" -s <id>
 bproxy outline -s <id>                    # see loaded sections
 bproxy scroll --direction down -s <id>    # load lazy content
 bproxy text -s <id>                       # full text (14K+ chars)
@@ -81,7 +81,7 @@ bproxy text -s <id>                       # full text (14K+ chars)
 ### Search and open a job posting
 
 ```bash
-bproxy navigate --url "https://www.linkedin.com/jobs/search/?keywords=delivery%20lead" -s <id>
+bproxy navigate --url "https://app.example.test/jobs/search/?keywords=delivery%20lead" -s <id>
 bproxy links -s <id>                      # find /jobs/view/ links
 bproxy navigate --url "<job-url>" -s <id>
 bproxy text --selector "section[aria-label='Primary content']" -s <id>

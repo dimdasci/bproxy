@@ -1,11 +1,11 @@
-# LinkedIn navigation findings — `display: contents` visibility bug
+# Target-site navigation findings — `display: contents` visibility bug
 
 Date: 2026-06-12
 Status: **resolved** (fix landed + `inspect`/`snapshot` commands implemented)
 
 ## Root cause
 
-LinkedIn uses `display: contents` CSS on 75+ wrapper divs. These elements have zero `getBoundingClientRect()` but their children are fully visible.
+The target site uses `display: contents` CSS on 75+ wrapper divs. These elements have zero `getBoundingClientRect()` but their children are fully visible.
 
 bproxy's `isElementVisible()` → `hasZeroRect()` treated them as hidden → entire content subtrees (2K+ descendants, 15K+ chars) were pruned during recursive traversal.
 
@@ -26,14 +26,14 @@ function hasZeroRect(element: Element): boolean {
 
 ## Result
 
-- `bproxy text` on LinkedIn profile: 282 chars → **20,791 chars** ✅
+- `bproxy text` on target-site profile: 282 chars → **20,791 chars** ✅
 - `bproxy elements` button labels: 187 → **236** elements with text ✅
 
 ## Why `outline` and `elements` worked before the fix
 
 `walkComposedElements` (BFS flat walker) unconditionally enqueues children before the outer loop filters by visibility. The `display: contents` div was skipped but its children were already queued.
 
-## LinkedIn page structure
+## Target-site page structure
 
 ```
 main [scrollable]

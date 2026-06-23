@@ -5,7 +5,7 @@ Status: **implemented** ✅
 
 ## Context
 
-LinkedIn investigation revealed that when bproxy sensors fail (e.g., `text` returning 282 chars instead of 20K), agents had no way to self-diagnose. Required dev-browser/CDP as a second tool.
+Target-site investigation revealed that when bproxy sensors fail (e.g., `text` returning 282 chars instead of 20K), agents had no way to self-diagnose. Required dev-browser/CDP as a second tool.
 
 ## Decision
 
@@ -61,4 +61,4 @@ New files: `inspect.ts`, `snapshot.ts`, `snapshot-roles.ts`, `read-deps.ts` (ext
 
 ## Validated in production
 
-Tested against live LinkedIn profile and job search — both commands work end-to-end through the full bproxy stack (CLI → daemon → WebSocket → extension → content script → response).
+Tested against live target-site profile and job-search — both commands work end-to-end through the full bproxy stack (CLI → daemon → WebSocket → extension → content script → response).

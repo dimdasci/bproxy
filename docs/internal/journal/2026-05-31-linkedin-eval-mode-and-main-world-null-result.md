@@ -1,4 +1,4 @@
-# LinkedIn eval debugging — popup enable path shipped, MAIN-world result is `null` on LinkedIn
+# Target-site eval debugging — popup enable path shipped, MAIN-world result is `null` on the target site
 
 > **Course correction (2026-06-12):** This investigation is now considered a documented deviation from the intended bproxy path. The useful finding is not “replace string eval with debugger-backed eval”; it is that arbitrary page evaluation does not belong in bproxy at all. Page/runtime investigation should use normal browser debugging tools such as Chrome DevTools Protocol. bproxy should remain a thin sensor/actuator bridge and the `eval` command should be removed.
 
@@ -7,13 +7,13 @@ Status: superseded by course correction on 2026-06-12
 
 ## Context
 
-Phase 5 Scenario 2 needed `eval` as a debugging/inspection tool before reworking scroll on LinkedIn.
+Phase 5 Scenario 2 needed `eval` as a debugging/inspection tool before reworking scroll on target site.
 
 The previous blocker was that `eval` existed at the CLI, but there was no shipped operator path to enable it. Work on 2026-05-31 focused on:
 
 1. shipping an extension popup control for eval mode;
 2. making `EVAL_DISABLED` actionable for the agent;
-3. using built-in observability to debug real LinkedIn eval behavior;
+3. using built-in observability to debug real target site eval behavior;
 4. instrumenting the MAIN-world eval path to show what Chrome actually returned.
 
 All validation in this note used smoke daemons started via `scripts/smoke/daemon.ts`, so commands had to target the printed `BPROXY_HOME` with `--home <path>`. Looking only at the default `~/.bproxy` state dir is misleading during smoke runs.
@@ -66,12 +66,12 @@ Conclusion:
 
 This was only a control check, not evidence that eval works on real hostile apps.
 
-### Step 2 — run LinkedIn eval
+### Step 2 — run target site eval
 
 Command shape used repeatedly:
 
 ```bash
-node cli/dist/bproxy.mjs tab open --url https://www.linkedin.com/ --home <smoke-home>
+node cli/dist/bproxy.mjs tab open --url https://app.example.test/ --home <smoke-home>
 node cli/dist/bproxy.mjs eval -s <session> --allow-eval --code 'return 1+1' --home <smoke-home>
 ```
 
@@ -136,11 +136,11 @@ Conclusion:
 Goal:
 - if the page threw something meaningful (for example an `EvalError`), return its `name` and `message`.
 
-This was useful, but it did **not** explain the LinkedIn failure because the next LinkedIn run produced a different error.
+This was useful, but it did **not** explain the target site failure because the next target site run produced a different error.
 
 ### Finding — wrapper error before page-level diagnostics
 
-After the first instrumentation change, LinkedIn eval returned:
+After the first instrumentation change, target site eval returned:
 
 ```json
 {
@@ -158,7 +158,7 @@ Interpretation:
 - it was an extension wrapper error;
 - the background expected a structured result object with `.ok`, but the received value was `null`.
 
-This shifted the debugging question from “what did LinkedIn throw?” to “what did `chrome.scripting.executeScript(...)` actually return?”
+This shifted the debugging question from “what did target site throw?” to “what did `chrome.scripting.executeScript(...)` actually return?”
 
 ### Instrumentation 2 — expose raw `executeScript` response shape
 
@@ -195,9 +195,9 @@ That produced this real Chrome error:
 
 This was fixed by stripping `debugName` before calling the Chrome API.
 
-## Real LinkedIn result after malformed-result diagnostics
+## Real target site result after malformed-result diagnostics
 
-After reloading the rebuilt extension and repeating the smoke run, LinkedIn eval first returned a malformed MAIN-world result diagnostic:
+After reloading the rebuilt extension and repeating the smoke run, target site eval first returned a malformed MAIN-world result diagnostic:
 
 ```json
 {
@@ -231,7 +231,7 @@ After reloading the rebuilt extension and repeating the smoke run, LinkedIn eval
 
 A follow-up probe was then added: when eval returns a malformed/null result, the extension runs a second MAIN-world function that does **not** use string evaluation and simply returns a structured object.
 
-After reloading again and repeating the smoke run, LinkedIn eval returned:
+After reloading again and repeating the smoke run, target site eval returned:
 
 ```json
 {
@@ -251,8 +251,8 @@ After reloading again and repeating the smoke run, LinkedIn eval returned:
         "ok": true,
         "result": { "probe": true, "value": 2 },
         "page": {
-          "url": "https://www.linkedin.com/",
-          "title": "Feed | LinkedIn",
+          "url": "https://app.example.test/",
+          "title": "Feed | Example App",
           "readyState": "interactive",
           "busyHint": true
         }
@@ -263,8 +263,8 @@ After reloading again and repeating the smoke run, LinkedIn eval returned:
 ```
 
 Interpretation:
-- MAIN-world injection itself works on LinkedIn;
-- returning structured objects from MAIN world works on LinkedIn;
+- MAIN-world injection itself works on target site;
+- returning structured objects from MAIN world works on target site;
 - the broken part is specifically the string-evaluation path used by the current `eval` implementation.
 
 ## Cross-check with Dev Browser on Chrome port 9222
@@ -273,18 +273,18 @@ To distinguish page behavior from extension behavior, the same real Chrome was i
 
 What was done:
 - listed tabs via `browser.listPages()` to confirm the CDP connection worked;
-- opened a fresh LinkedIn page through Dev Browser;
+- opened a fresh target site page through Dev Browser;
 - ran plain page evaluation: `page.evaluate(() => 1 + 1)`;
 - ran function-constructor evaluation: `page.evaluate(() => Function("return 1+1")())`;
 - ran a wrapped version that imitated the extension's `injectedEval` shape and returned `{ ok, result, page }`.
 
-Observed result on the real LinkedIn feed page:
+Observed result on the real target site feed page:
 - direct evaluation returned `2`;
 - `Function("return 1+1")()` also returned `2`;
 - the wrapped object `{ ok: true, result: 2, page: ... }` was returned successfully.
 
 Interpretation:
-- LinkedIn does not simply reject `Function(...)` in all contexts;
+- target site does not simply reject `Function(...)` in all contexts;
 - the page-level JavaScript logic used by `injectedEval` works when executed through CDP/Playwright evaluation;
 - the current failure is therefore narrower: it is specific to the extension-side `chrome.scripting.executeScript(..., world: "MAIN")` path or to a difference between extension injection and CDP evaluation.
 
@@ -317,8 +317,8 @@ What the docs suggest:
 4. **`debug.last` was not useful in this smoke run.**
    It returned an empty request list.
 
-5. **The current LinkedIn failure is now much narrower.**
-   A non-eval MAIN-world probe succeeds on LinkedIn, so MAIN-world injection and structured return values are working.
+5. **The current target site failure is now much narrower.**
+   A non-eval MAIN-world probe succeeds on target site, so MAIN-world injection and structured return values are working.
 
 6. **The broken part is specifically the current string-eval mechanism.**
    The failing path is the current `Function(code)`-style evaluation inside extension-injected MAIN-world code.

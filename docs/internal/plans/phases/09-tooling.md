@@ -4,6 +4,8 @@ status: complete
 date: 2026-06-22
 ---
 
+> **Decommissioned in Phase 10.** The Phase 9 search-tooling extension and repo-local Pi tooling were removed in `docs/internal/plans/phases/10-agent-session-dx.md` after follow-up evaluation showed they did not improve sustained implementation efficiency or quality.
+
 ## Phase 9: Agent search tooling
 
 **Motivation:** Real Pi sessions show that models strongly prefer learned shell search commands (`rg`, `grep`, `find | grep`) over novel or even native search tools. If bproxy wants better agent navigation during real maintenance, the useful path is to enrich the search output agents already request.

@@ -189,9 +189,9 @@ Spawns the service binary's `stop` command. Prints:
 
 Token-free, process-liveness based. Prints:
 ```json
-{"running":true,"pid":123,"port":9615,"version":"0.8.0","protocolVersion":2}
+{"running":true,"pid":123,"port":9615,"version":"0.9.0","protocolVersion":2}
 ```
-or `{"running":false,"version":"0.8.0","protocolVersion":2}`.
+or `{"running":false,"version":"0.9.0","protocolVersion":2}`.
 
 ### `bproxy service restart [--port N] [--home DIR]`
 

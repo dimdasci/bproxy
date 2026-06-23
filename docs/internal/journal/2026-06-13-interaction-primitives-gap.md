@@ -1,7 +1,7 @@
 # Interaction primitives gap — click, dismiss, activate
 
 **Date:** 2026-06-13  
-**Context:** Production test after Sonar tech-debt cleanup. Task: read BCG LinkedIn posts and homepage, compare messaging.
+**Context:** Production test after Sonar tech-debt cleanup. Task: read target-site posts and homepage, compare messaging.
 
 ## Observation
 

@@ -7,7 +7,7 @@ issue: "#21"
 
 ## Phase 10: Agent session DX improvements
 
-**Motivation:** Issue #21 reports friction points observed during ~100 bproxy commands in a real agentic LinkedIn capture session. Four accepted requests reduce boilerplate in automation workflows without violating the sensor/actuator boundary.
+**Motivation:** Issue #21 reports friction points observed during ~100 bproxy commands in a real agentic feed-capture session. Four accepted requests reduce boilerplate in automation workflows without violating the sensor/actuator boundary.
 
 **Source decisions:**
 

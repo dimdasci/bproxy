@@ -512,12 +512,12 @@ The service binary emits stable JSON on stdout for each lifecycle command:
 
 **`status`** — daemon running:
 ```json
-{"running":true,"pid":123,"port":9615,"version":"0.8.0","protocolVersion":2}
+{"running":true,"pid":123,"port":9615,"version":"0.9.0","protocolVersion":2}
 ```
 
 **`status`** — daemon not running:
 ```json
-{"running":false,"version":"0.8.0","protocolVersion":2}
+{"running":false,"version":"0.9.0","protocolVersion":2}
 ```
 
 Lifecycle failures write plain text to stderr and exit non-zero.

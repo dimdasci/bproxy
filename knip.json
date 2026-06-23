@@ -23,6 +23,6 @@
 			"project": ["src/**/*.ts", "scripts/**/*.ts"]
 		}
 	},
-	"ignore": [".pi/extensions/**", "poc/**", "tools/pi/**"],
+	"ignore": ["poc/**"],
 	"ignoreExportsUsedInFile": true
 }
