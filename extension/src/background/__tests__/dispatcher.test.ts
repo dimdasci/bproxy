@@ -97,11 +97,33 @@ describe("parseForwardedRequest", () => {
 			JSON.stringify(
 				makeRequest({
 					action: "links",
-					params: { selector: "#search", visibleOnly: true, limit: 10 },
+					params: {
+						selector: "#search",
+						visibleOnly: true,
+						limit: 10,
+						hrefContains: "/in/",
+						offset: 5,
+					},
 				}),
 			),
 		);
 		expect(parsed.success).toBe(true);
+	});
+
+	it("rejects negative links offset at the forwarded request boundary", () => {
+		const parsed = parseForwardedRequest(
+			JSON.stringify(
+				makeRequest({
+					action: "links",
+					params: { limit: 10, offset: -1 },
+				}),
+			),
+		);
+		expect(parsed).toMatchObject({
+			success: false,
+			id: "req-1",
+			error: "params are invalid for action links",
+		});
 	});
 
 	it("accepts click and hover params for forwarded DOM interactions", () => {

@@ -45,11 +45,15 @@ function isSelectorParams(value: unknown): value is ForwardedActionParams["text"
 }
 
 function isLinksParams(value: unknown): value is ForwardedActionParams["links"] {
+	if (!isStrictObject(value, ["selector", "visibleOnly", "limit", "hrefContains", "offset"])) {
+		return false;
+	}
 	return (
-		isStrictObject(value, ["selector", "visibleOnly", "limit"]) &&
-		(value["selector"] === undefined || typeof value["selector"] === "string") &&
-		(value["visibleOnly"] === undefined || typeof value["visibleOnly"] === "boolean") &&
-		(value["limit"] === undefined || isInteger(value["limit"]))
+		optionalFieldMatches(value, "selector", isString) &&
+		optionalFieldMatches(value, "visibleOnly", isBoolean) &&
+		optionalFieldMatches(value, "limit", isInteger) &&
+		optionalFieldMatches(value, "hrefContains", isString) &&
+		optionalFieldMatches(value, "offset", isNonNegativeInteger)
 	);
 }
 
@@ -232,8 +236,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function optionalFieldMatches(
+	value: Record<string, unknown>,
+	key: string,
+	validator: (field: unknown) => boolean,
+): boolean {
+	const field = value[key];
+	return field === undefined || validator(field);
+}
+
+function isString(value: unknown): value is string {
+	return typeof value === "string";
+}
+
+function isBoolean(value: unknown): value is boolean {
+	return typeof value === "boolean";
+}
+
 function isInteger(value: unknown): value is number {
 	return typeof value === "number" && Number.isInteger(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+	return isInteger(value) && value >= 0;
 }
 
 export function isTarget(value: unknown): value is BproxyForwardedRequest["target"] {
