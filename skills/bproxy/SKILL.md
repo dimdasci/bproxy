@@ -9,7 +9,7 @@ description: >-
 compatibility: Node >=24, bproxy installed (npm install -g @dimdasci/bproxy), daemon running, extension paired
 license: MIT
 metadata:
-  version: "0.9.2"
+  version: "0.9.3"
 ---
 
 # bproxy
