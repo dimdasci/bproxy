@@ -30,8 +30,7 @@ This removes both the `bproxy` CLI and `bproxy-service` daemon binaries from you
 
 1. Open `chrome://extensions`
 2. Find the bproxy extension
-3. Click **Remove**
-4. Delete the extracted extension folder from disk (e.g., `rm -rf ~/bproxy-extension/`)
+3. Click **Remove** and confirm
 
 ## Step 4: Remove state directory (optional)
 

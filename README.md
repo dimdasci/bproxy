@@ -24,7 +24,7 @@ Install the CLI and daemon from npm:
 npm install -g @dimdasci/bproxy
 ```
 
-The Chrome extension is currently a manual unpacked install pending a Chrome Web Store listing — download the matching zip from [GitHub Releases](https://github.com/dimdasci/bproxy/releases/latest) and load the extracted folder via `chrome://extensions` with Developer mode on.
+Install the [bproxy Chrome extension from the Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc). Chrome manages extension updates automatically.
 
 The [Install guide](https://dimdasci.github.io/bproxy/guide/install/) walks through both steps end to end. [Usage](https://dimdasci.github.io/bproxy/guide/usage/) is the CLI command reference, and [Upgrade](https://dimdasci.github.io/bproxy/guide/upgrade/) covers version bumps.
 

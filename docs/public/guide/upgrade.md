@@ -20,10 +20,9 @@ bproxy --version
 
 ## Upgrade the extension
 
-1. Download the new `bproxy-extension-v{version}.zip` from [GitHub Releases](https://github.com/dimdasci/bproxy/releases/latest)
-2. Extract to the same directory you used for the original install (overwrite existing files)
-3. Open `chrome://extensions`
-4. Find the bproxy extension and click the reload icon (↻)
+The [Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc) updates bproxy automatically. No extension ZIP download or manual reload is required.
+
+To check the installed version, open `chrome://extensions` and select bproxy. If Chrome has not applied an update yet, leave it enabled and it will update through Chrome's normal extension-update cycle.
 
 ## What persists across upgrades
 
@@ -35,9 +34,10 @@ bproxy --version
 
 If a new version changes the protocol version (rare), the extension popup will show a connection error after upgrading only one side. To resolve:
 
-1. Upgrade both CLI/daemon and extension to the same release
-2. Restart the daemon: `bproxy service restart`
-3. If the extension still shows an error: re-pair with `bproxy service start` and enter the new pairing code
+1. Upgrade the CLI and daemon to the latest release
+2. Confirm Chrome has updated bproxy from the [Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc)
+3. Restart the daemon: `bproxy service restart`
+4. If the extension still shows an error, re-pair: run `bproxy service start` and enter the new pairing code
 
 The `bproxy doctor` command will report protocol mismatches explicitly:
 

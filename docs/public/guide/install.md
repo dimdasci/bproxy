@@ -9,7 +9,7 @@ Complete installation guide for bproxy — CLI, daemon, and Chrome extension.
 ## Prerequisites
 
 - **Node.js ≥ 24** — check with `node --version`
-- **Chrome** (or Chromium-based browser) with Developer mode available
+- **Google Chrome** — required to install the extension from the Chrome Web Store
 - **macOS or Linux** — Windows is not currently supported
 
 ## Install the CLI and daemon
@@ -27,19 +27,16 @@ Verify the install:
 
 ```bash
 bproxy --version
-# bproxy v0.9.0 (protocol v2)
+# bproxy v0.9.3 (protocol v2)
 ```
 
 ## Install the Chrome extension
 
-1. Download `bproxy-extension-v{version}.zip` from the [latest GitHub Release](https://github.com/dimdasci/bproxy/releases/latest)
-2. Extract the zip to a permanent location (e.g., `~/bproxy-extension/`)
-3. Open Chrome and navigate to `chrome://extensions`
-4. Enable **Developer mode** (toggle in the top-right corner)
-5. Click **Load unpacked** and select the extracted folder
-6. The bproxy extension icon appears in your toolbar
+1. Open [bproxy in the Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc).
+2. Click **Add to Chrome**, then confirm **Add extension**.
+3. To keep the popup handy, open Chrome's **Extensions** menu and pin bproxy to the toolbar.
 
-> **Tip:** Do not delete the extracted folder — Chrome references it directly. If you move it, you'll need to reload the extension.
+Chrome manages extension updates automatically. You do not need Developer mode or a local extension folder.
 
 ## Start the daemon and pair
 
@@ -65,23 +62,19 @@ Once paired, the extension connects via WebSocket and is ready to accept command
 
 ## Verify the connection
 
+Check that the daemon is running:
+
 ```bash
 bproxy service status
 ```
 
-Expected output when everything is connected:
-
-```json
-{"running":true,"pid":12345,"port":9615,"version":"0.9.0","protocolVersion":2}
-```
-
-For a comprehensive check of all components:
+For a comprehensive check, including the extension WebSocket connection:
 
 ```bash
 bproxy doctor
 ```
 
-This validates Node version, binary resolution, daemon connectivity, protocol version agreement, extension WebSocket connection, and state directory health.
+A successful report includes `"extension":{"ok":true,"connected":true,"protocolVersion":2}`. `doctor` also validates Node version, binary resolution, daemon connectivity, protocol agreement, and state-directory health.
 
 ## Auto-start on login (optional)
 

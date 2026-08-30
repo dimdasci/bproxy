@@ -30,7 +30,8 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: pnpm install --frozen-lockfile
+      # CI does not need package lifecycle hooks; skipping them prevents unreviewed install scripts from executing.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # ─── Verify tag matches source version ─────────────────────────
       - name: Verify tag matches package.json version
@@ -65,19 +66,11 @@ jobs:
       - name: Publish to npm
         run: cd dist && npm publish --access public --provenance
 
-      # ─── Package extension zip ──────────────────────────────────────
-      - name: Package extension
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          cd extension/.output/chrome-mv3
-          zip -r "$GITHUB_WORKSPACE/bproxy-extension-v${VERSION}.zip" .
-
       # ─── Create GitHub Release ──────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
           generate_release_notes: true
-          files: bproxy-extension-v*.zip
           body: |
             ## Install
 
@@ -85,6 +78,6 @@ jobs:
             npm install -g @dimdasci/bproxy
             ```
 
-            **Extension:** Download the attached zip, extract, then load unpacked in `chrome://extensions` (Developer mode).
+            **Extension:** Install [bproxy from the Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc). Chrome manages extension updates automatically.
 
             **npm:** https://www.npmjs.com/package/@dimdasci/bproxy

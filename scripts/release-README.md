@@ -13,7 +13,7 @@ npm install -g @dimdasci/bproxy
 bproxy --version
 ```
 
-Download the matching extension zip from GitHub Releases, extract it, then load the extracted folder in `chrome://extensions` with Developer mode enabled.
+Install the [bproxy Chrome extension from the Chrome Web Store](https://chromewebstore.google.com/detail/bproxy/hjedkgneajbgjpgepbffdeanekhfffhc). Chrome manages extension updates automatically.
 
 ## First run
 
